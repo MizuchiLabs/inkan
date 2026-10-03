@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+		<meta name="apple-mobile-web-app-title" content="inkan" />
+		<link rel="manifest" href="/manifest.webmanifest" />
+		<!-- ModeWatcher only mounts once the app has loaded, this keeps dark mode from flashing light before that. -->
+		<script>
+			{
+				const mode = localStorage.getItem('mode-watcher-mode') ?? 'system';
+				const light =
+					mode === 'light' ||
+					(mode === 'system' && matchMedia('(prefers-color-scheme: light)').matches);
+				document.documentElement.classList.toggle('dark', !light);
+				document.documentElement.style.colorScheme = light ? 'light' : 'dark';
+			}
+		</script>
+		%sveltekit.head%
+	</head>
+	<body data-sveltekit-preload-data="hover">
+		<div style="display: contents">%sveltekit.body%</div>
+	</body>
+</html>

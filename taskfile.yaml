@@ -1,0 +1,46 @@
+version: "3"
+
+tasks:
+  dev:
+    desc: Run backend and frontend concurrently
+    deps: [backend, frontend]
+
+  backend:
+    desc: Run backend
+    cmds:
+      - go run .
+
+  frontend:
+    desc: Run frontend
+    dir: web
+    cmds:
+      - pnpm run dev
+
+  update:
+    desc: Update dependencies
+    cmds:
+      - go get -u ./...
+      - cd web && pnpm update --latest
+
+  gen:
+    desc: Generate sqlc and the web API client
+    cmds:
+      - sqlc generate
+      - go run . openapi
+      - cd web && pnpm openapi-ts && pnpm fmt
+
+  lint:
+    desc: Run go vet & lint
+    cmds:
+      - go mod tidy
+      - go fmt ./...
+      - go vet ./...
+      - govulncheck ./...
+      - go test -race -count=1 -cover ./...
+      - golangci-lint run --fix
+
+  build:
+    desc: Build binary
+    cmds:
+      - go generate ./...
+      - go build -ldflags="-s -w" -trimpath -o inkan .

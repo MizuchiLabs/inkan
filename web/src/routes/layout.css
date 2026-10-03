@@ -1,0 +1,230 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import '@fontsource/zen-kaku-gothic-new/latin-400.css';
+@import '@fontsource/zen-kaku-gothic-new/latin-500.css';
+@import '@fontsource/zen-kaku-gothic-new/latin-700.css';
+@import '@fontsource/zen-kaku-gothic-new/latin-900.css';
+@import '@fontsource-variable/jetbrains-mono';
+@import 'shadcn-svelte/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+/* Paper, sumi ink and indigo dye. Vermilion is kept for the seal alone. */
+:root {
+	--background: oklch(0.975 0.005 260);
+	--foreground: oklch(0.24 0.03 268);
+	--card: oklch(1 0 0);
+	--card-foreground: oklch(0.24 0.03 268);
+	--popover: oklch(1 0 0);
+	--popover-foreground: oklch(0.24 0.03 268);
+	--primary: oklch(0.38 0.11 268);
+	--primary-foreground: oklch(0.985 0.004 260);
+	--secondary: oklch(0.93 0.02 265);
+	--secondary-foreground: oklch(0.35 0.08 268);
+	--muted: oklch(0.945 0.008 262);
+	--muted-foreground: oklch(0.5 0.03 266);
+	--accent: oklch(0.93 0.02 265);
+	--accent-foreground: oklch(0.24 0.03 268);
+	--destructive: oklch(0.56 0.2 12);
+	--destructive-foreground: oklch(1 0 0);
+	--border: oklch(0.905 0.012 264);
+	--input: oklch(0.905 0.012 264);
+	--ring: oklch(0.38 0.11 268);
+	--seal: oklch(0.58 0.2 33);
+	--chart-1: oklch(0.55 0.12 268);
+	--chart-2: oklch(0.62 0.11 220);
+	--chart-3: oklch(0.58 0.13 155);
+	--chart-4: oklch(0.66 0.14 70);
+	--chart-5: oklch(0.58 0.19 20);
+	--sidebar: oklch(0.96 0.008 262);
+	--sidebar-foreground: oklch(0.24 0.03 268);
+	--sidebar-primary: oklch(0.38 0.11 268);
+	--sidebar-primary-foreground: oklch(0.985 0.004 260);
+	--sidebar-accent: oklch(0.93 0.02 265);
+	--sidebar-accent-foreground: oklch(0.24 0.03 268);
+	--sidebar-border: oklch(0.905 0.012 264);
+	--sidebar-ring: oklch(0.38 0.11 268);
+	--radius: 0.35rem;
+	--shadow-2xs: 0px 2px 4px 0px hsl(232 30% 20% / 0.03);
+	--shadow-xs: 0px 2px 4px 0px hsl(232 30% 20% / 0.05);
+	--shadow-sm: 0px 2px 4px 0px hsl(232 30% 20% / 0.06), 0px 1px 2px -1px hsl(232 30% 20% / 0.06);
+	--shadow: 0px 2px 4px 0px hsl(232 30% 20% / 0.06), 0px 1px 2px -1px hsl(232 30% 20% / 0.06);
+	--shadow-md: 0px 4px 8px 0px hsl(232 30% 20% / 0.08), 0px 2px 4px -1px hsl(232 30% 20% / 0.08);
+	--shadow-lg: 0px 8px 16px 0px hsl(232 30% 20% / 0.1), 0px 4px 6px -1px hsl(232 30% 20% / 0.1);
+	--shadow-xl: 0px 12px 24px 0px hsl(232 30% 20% / 0.12), 0px 8px 10px -1px hsl(232 30% 20% / 0.12);
+	--shadow-2xl: 0px 16px 32px 0px hsl(232 30% 20% / 0.18);
+	--tracking-normal: 0em;
+	--spacing: 0.25rem;
+}
+
+.dark {
+	--background: oklch(0.17 0.02 268);
+	--foreground: oklch(0.93 0.012 265);
+	--card: oklch(0.21 0.025 268);
+	--card-foreground: oklch(0.93 0.012 265);
+	--popover: oklch(0.21 0.025 268);
+	--popover-foreground: oklch(0.93 0.012 265);
+	--primary: oklch(0.74 0.11 268);
+	--primary-foreground: oklch(0.17 0.02 268);
+	--secondary: oklch(0.28 0.04 268);
+	--secondary-foreground: oklch(0.85 0.06 268);
+	--muted: oklch(0.25 0.03 268);
+	--muted-foreground: oklch(0.7 0.03 266);
+	--accent: oklch(0.3 0.05 268);
+	--accent-foreground: oklch(0.93 0.012 265);
+	--destructive: oklch(0.66 0.19 12);
+	--destructive-foreground: oklch(1 0 0);
+	--border: oklch(0.3 0.035 268);
+	--input: oklch(0.3 0.035 268);
+	--ring: oklch(0.74 0.11 268);
+	--seal: oklch(0.66 0.2 33);
+	--chart-1: oklch(0.74 0.11 268);
+	--chart-2: oklch(0.74 0.1 220);
+	--chart-3: oklch(0.74 0.13 155);
+	--chart-4: oklch(0.78 0.14 75);
+	--chart-5: oklch(0.7 0.17 20);
+	--sidebar: oklch(0.21 0.025 268);
+	--sidebar-foreground: oklch(0.93 0.012 265);
+	--sidebar-primary: oklch(0.74 0.11 268);
+	--sidebar-primary-foreground: oklch(0.17 0.02 268);
+	--sidebar-accent: oklch(0.3 0.05 268);
+	--sidebar-accent-foreground: oklch(0.93 0.012 265);
+	--sidebar-border: oklch(0.3 0.035 268);
+	--sidebar-ring: oklch(0.74 0.11 268);
+	--shadow-2xs: 0px 2px 4px 0px hsl(232 40% 6% / 0.1);
+	--shadow-xs: 0px 2px 4px 0px hsl(232 40% 6% / 0.15);
+	--shadow-sm: 0px 2px 4px 0px hsl(232 40% 6% / 0.2), 0px 1px 2px -1px hsl(232 40% 6% / 0.2);
+	--shadow: 0px 2px 4px 0px hsl(232 40% 6% / 0.2), 0px 1px 2px -1px hsl(232 40% 6% / 0.2);
+	--shadow-md: 0px 4px 8px 0px hsl(232 40% 6% / 0.25), 0px 2px 4px -1px hsl(232 40% 6% / 0.25);
+	--shadow-lg: 0px 8px 16px 0px hsl(232 40% 6% / 0.3), 0px 4px 6px -1px hsl(232 40% 6% / 0.3);
+	--shadow-xl: 0px 12px 24px 0px hsl(232 40% 6% / 0.35), 0px 8px 10px -1px hsl(232 40% 6% / 0.35);
+	--shadow-2xl: 0px 16px 32px 0px hsl(232 40% 6% / 0.5);
+}
+
+@theme inline {
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-card: var(--card);
+	--color-card-foreground: var(--card-foreground);
+	--color-popover: var(--popover);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-primary: var(--primary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-secondary: var(--secondary);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-muted: var(--muted);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-accent: var(--accent);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-destructive: var(--destructive);
+	--color-destructive-foreground: var(--destructive-foreground);
+	--color-border: var(--border);
+	--color-input: var(--input);
+	--color-ring: var(--ring);
+	--color-seal: var(--seal);
+	--color-chart-1: var(--chart-1);
+	--color-chart-2: var(--chart-2);
+	--color-chart-3: var(--chart-3);
+	--color-chart-4: var(--chart-4);
+	--color-chart-5: var(--chart-5);
+	--color-sidebar: var(--sidebar);
+	--color-sidebar-foreground: var(--sidebar-foreground);
+	--color-sidebar-primary: var(--sidebar-primary);
+	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+	--color-sidebar-accent: var(--sidebar-accent);
+	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+	--color-sidebar-border: var(--sidebar-border);
+	--color-sidebar-ring: var(--sidebar-ring);
+
+	--radius-sm: calc(var(--radius) - 4px);
+	--radius-md: calc(var(--radius) - 2px);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) + 4px);
+
+	--shadow-2xs: var(--shadow-2xs);
+	--shadow-xs: var(--shadow-xs);
+	--shadow-sm: var(--shadow-sm);
+	--shadow: var(--shadow);
+	--shadow-md: var(--shadow-md);
+	--shadow-lg: var(--shadow-lg);
+	--shadow-xl: var(--shadow-xl);
+	--shadow-2xl: var(--shadow-2xl);
+
+	/* Fonts */
+	--font-sans: 'Zen Kaku Gothic New', sans-serif;
+	--font-serif: Georgia, serif;
+	--font-mono: 'JetBrains Mono Variable', monospace;
+
+	--font-heading: 'Zen Kaku Gothic New', sans-serif;
+
+	--radius-2xl: calc(var(--radius) * 1.8);
+
+	--radius-3xl: calc(var(--radius) * 2.2);
+
+	--radius-4xl: calc(var(--radius) * 2.6);
+
+	--animate-stamp: stamp 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.2) var(--stamp-delay, 0s) both;
+
+	/* The seal comes down on the paper. */
+	@keyframes stamp {
+		from {
+			opacity: 0;
+			transform: scale(1.7) rotate(-16deg);
+		}
+		60% {
+			opacity: 1;
+			transform: scale(0.94) rotate(-7deg);
+		}
+		to {
+			opacity: 1;
+			transform: scale(1) rotate(-7deg);
+		}
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.animate-stamp {
+		animation: none;
+		transform: rotate(-7deg);
+	}
+}
+
+@layer base {
+	* {
+		@apply border-border outline-ring/50;
+	}
+	body {
+		@apply bg-background text-foreground;
+	}
+	/* Washi. A fine tooth in ink, and long fibers in the lighter pulp the cards are made of. */
+	body::before,
+	body::after {
+		content: '';
+		position: fixed;
+		inset: 0;
+		z-index: -1;
+		pointer-events: none;
+	}
+	body::before {
+		background-color: var(--foreground);
+		mask: url('../lib/assets/washi-tooth.svg') 0 0 / 240px;
+		opacity: 0.3;
+	}
+	body::after {
+		background-color: var(--card);
+		mask: url('../lib/assets/washi-fibers.svg') 0 0 / 480px;
+		opacity: 0.85;
+	}
+	html {
+		@apply font-sans;
+	}
+}
+
+/* shadcn centers dialogs with a 50% translate. That lands between device pixels on a scaled or zoomed screen, and the browser blurs everything inside. */
+[data-slot='dialog-content'],
+[data-slot='alert-dialog-content'] {
+	inset: 0;
+	margin: auto;
+	height: fit-content;
+	translate: none;
+}
