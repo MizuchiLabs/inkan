@@ -3,8 +3,8 @@
 import { type MutationOptions, queryOptions } from '@tanstack/svelte-query';
 
 import { client } from '../client.gen';
-import { checkKey, createLicense, createProduct, deleteLicense, deleteProduct, listLicenses, listProducts, type Options, syncProduct, updateLicense, updateProduct } from '../sdk.gen';
-import type { CheckKeyData, CheckKeyError, CheckKeyResponse, CreateLicenseData, CreateLicenseError, CreateLicenseResponse, CreateProductData, CreateProductError, CreateProductResponse, DeleteLicenseData, DeleteLicenseError, DeleteLicenseResponse, DeleteProductData, DeleteProductError, DeleteProductResponse, ListLicensesData, ListLicensesError, ListLicensesResponse, ListProductsData, ListProductsError, ListProductsResponse, SyncProductData, SyncProductError, SyncProductResponse, UpdateLicenseData, UpdateLicenseError, UpdateLicenseResponse, UpdateProductData, UpdateProductError, UpdateProductResponse } from '../types.gen';
+import { checkKey, createLicense, createProduct, deleteLicense, deleteProduct, getSession, listLicenses, listProducts, type Options, signIn, signOut, syncProduct, updateLicense, updateProduct } from '../sdk.gen';
+import type { CheckKeyData, CheckKeyError, CheckKeyResponse, CreateLicenseData, CreateLicenseError, CreateLicenseResponse, CreateProductData, CreateProductError, CreateProductResponse, DeleteLicenseData, DeleteLicenseError, DeleteLicenseResponse, DeleteProductData, DeleteProductError, DeleteProductResponse, GetSessionData, GetSessionError, GetSessionResponse, ListLicensesData, ListLicensesError, ListLicensesResponse, ListProductsData, ListProductsError, ListProductsResponse, SignInData, SignInError, SignInResponse, SignOutData, SignOutError, SignOutResponse, SyncProductData, SyncProductError, SyncProductResponse, UpdateLicenseData, UpdateLicenseError, UpdateLicenseResponse, UpdateProductData, UpdateProductError, UpdateProductResponse } from '../types.gen';
 
 /**
  * Check a license key
@@ -215,6 +215,60 @@ export const updateLicenseMutation = (options?: Partial<Options<UpdateLicenseDat
     const mutationOptions: MutationOptions<UpdateLicenseResponse, UpdateLicenseError, Options<UpdateLicenseData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await updateLicense({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Sign out
+ */
+export const signOutMutation = (options?: Partial<Options<SignOutData>>): MutationOptions<SignOutResponse, SignOutError, Options<SignOutData>> => {
+    const mutationOptions: MutationOptions<SignOutResponse, SignOutError, Options<SignOutData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await signOut({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const getSessionQueryKey = (options?: Options<GetSessionData>) => createQueryKey('getSession', options);
+
+/**
+ * Show whether a sign in is needed
+ */
+export const getSessionOptions = (options?: Options<GetSessionData>) => queryOptions<GetSessionResponse, GetSessionError, GetSessionResponse, ReturnType<typeof getSessionQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getSession({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getSessionQueryKey(options)
+});
+
+/**
+ * Sign in with the password
+ *
+ * Sets the session cookie. Five tries a minute are allowed, for all clients together.
+ */
+export const signInMutation = (options?: Partial<Options<SignInData>>): MutationOptions<SignInResponse, SignInError, Options<SignInData>> => {
+    const mutationOptions: MutationOptions<SignInResponse, SignInError, Options<SignInData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await signIn({
                 ...options,
                 ...fnOptions,
                 throwOnError: true

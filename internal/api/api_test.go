@@ -31,7 +31,9 @@ func newTestServer(t *testing.T) (*httptest.Server, *db.Queries) {
 	t.Helper()
 	q, err := db.Open(t.Context(), t.TempDir())
 	require.NoError(t, err)
-	srv := httptest.NewServer(New(q).Handler())
+	api, err := New(q, "")
+	require.NoError(t, err)
+	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	return srv, q
 }

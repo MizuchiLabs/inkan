@@ -4,6 +4,7 @@
 	import AppHeader from '#lib/components/nav/AppHeader.svelte';
 	import { Toaster } from '#lib/components/ui/sonner/index.js';
 	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
+	import SessionGate from '#lib/components/util/SessionGate.svelte';
 	import { QueryClientProvider } from '@tanstack/svelte-query';
 	import { ModeWatcher } from 'mode-watcher';
 	import './layout.css';
@@ -21,12 +22,14 @@
 
 <QueryClientProvider client={queryClient}>
 	<Tooltip.Provider>
-		<div class="flex min-h-screen flex-col">
-			<AppHeader />
-			<main class="mx-auto mb-16 w-full max-w-5xl flex-1 px-4 sm:px-6">
-				{@render children?.()}
-			</main>
-			<AppFooter />
-		</div>
+		<SessionGate>
+			<div class="flex min-h-screen flex-col">
+				<AppHeader />
+				<main class="mx-auto mb-16 w-full max-w-5xl flex-1 px-4 sm:px-6">
+					{@render children?.()}
+				</main>
+				<AppFooter />
+			</div>
+		</SessionGate>
 	</Tooltip.Provider>
 </QueryClientProvider>

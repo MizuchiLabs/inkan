@@ -38,6 +38,7 @@ docker run -d \
    -v $(pwd)/data:/data \
    -e INKAN_ADDR=:3000 \
    -e INKAN_DATA_DIR=/data \
+   -e INKAN_PASSWORD=change-me \
    ghcr.io/mizuchilabs/inkan:latest
 ```
 
@@ -55,6 +56,7 @@ services:
     environment:
       - INKAN_ADDR=:3000
       - INKAN_DATA_DIR=/data
+      - INKAN_PASSWORD=change-me
     restart: unless-stopped
 ```
 
@@ -68,8 +70,10 @@ inkan
 
 Open http://127.0.0.1:3000 and add a product.
 
-The UI has no login yet. Keep it on your machine or a private network. The
-examples above only publish the port on localhost.
+Without a password Inkan only listens on localhost. A container listens on
+all of its addresses, so it needs one. The examples above still publish the
+port on localhost only, put your own proxy or VPN in front to reach it from
+elsewhere.
 
 ## Configuration
 
@@ -77,6 +81,7 @@ examples above only publish the port on localhost.
 | ---------------- | ------------ | ---------------- | -------------------------- |
 | `INKAN_ADDR`     | `--addr`     | `127.0.0.1:3000` | Address to listen on       |
 | `INKAN_DATA_DIR` | `--data-dir` | `data`           | Directory for the database |
+| `INKAN_PASSWORD` | `--password` | -                | Password for the UI        |
 | `INKAN_DEBUG`    | `--debug`    | `false`          | Enable debug logging       |
 
 Inkan backs up `inkan.db` to `inkan.db.backup` before it changes the schema on
@@ -231,6 +236,7 @@ settings. Its `Send` is yours to write if mail is not how your keys travel.
   it here. A key ends when it expires, so an unpaid subscription runs out with
   its last paid period plus the grace days.
 - It does not bind a key to a machine or count seats.
+- It has one password, no user accounts.
 - One worker serves one product.
 
 ## Security

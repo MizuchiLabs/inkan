@@ -69,8 +69,6 @@ match the ones Inkan shows, byte for byte.
 
 - **Inkan** keeps signing keys and Stripe API keys unencrypted in `inkan.db`.
   The data directory is created owner only. Back it up like a secret.
-- **The UI has no login yet.** Keep it on your machine or a private network.
-  It refuses writes that other sites send through the browser.
 - **The worker** gets the private key and a Stripe key through its
   environment. A restricted Stripe key that reads subscriptions and customers
   is enough. `inkan worker env` prints the private key, treat its output like
@@ -78,6 +76,22 @@ match the ones Inkan shows, byte for byte.
 - **The webhook** only takes events with a valid Stripe signature that are at
   most five minutes old.
 - **Refresh** only looks up keys with a valid signature of the product.
+
+## The login
+
+- **One password**, from `INKAN_PASSWORD`. Without it Inkan only listens on
+  localhost.
+- **Nothing is stored.** A session is a cookie signed with a key derived from
+  the password with PBKDF2. It lasts 30 days, and a new password ends every
+  session.
+- **The cookie** is HttpOnly and SameSite=Strict. It is Secure behind a proxy
+  that reports HTTPS.
+- **Five tries a minute**, for all clients together, so pick a long random
+  password. A flood of wrong tries blocks signing in while it lasts. Sessions
+  that exist keep working.
+- **Other sites** cannot write through the browser, signed in or not.
+- **It is the second layer.** Keep Inkan on a private network or behind your
+  own proxy where you can.
 
 ## Releases
 

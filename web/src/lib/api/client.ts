@@ -1,5 +1,6 @@
 import { browser } from '$app/env';
 import { QueryClient } from '@tanstack/svelte-query';
+import { getSessionQueryKey } from './generated/@tanstack/svelte-query.gen';
 import { client } from './generated/client.gen';
 import type { ErrorModel } from './generated/types.gen';
 import { toast } from 'svelte-sonner';
@@ -34,4 +35,10 @@ export const queryClient = new QueryClient({
 			onError: (err) => toast.error(errorMessage(err))
 		}
 	}
+});
+
+// A session can run out while the page is open. Asking again brings the sign in back.
+client.interceptors.response.use((response) => {
+	if (response.status === 401) queryClient.invalidateQueries({ queryKey: getSessionQueryKey() });
+	return response;
 });

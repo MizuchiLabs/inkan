@@ -1,13 +1,15 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { useProducts } from '#lib/api/queries.js';
+	import { useProducts, useSession, useSignOut } from '#lib/api/queries.js';
 	import Inkan from '#lib/assets/inkan.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
-	import { Moon, Sun } from '@lucide/svelte';
+	import { LogOut, Moon, Sun } from '@lucide/svelte';
 	import { mode, toggleMode } from 'mode-watcher';
 
 	const productsQuery = useProducts();
+	const session = useSession();
+	const signOut = useSignOut();
 	// Syncs run in the background, so a failed one has to show up on its own.
 	const syncFailed = $derived(productsQuery.data?.some((p) => p.sync_error) ?? false);
 
@@ -61,6 +63,17 @@
 					<Sun />
 				{/if}
 			</Button>
+			{#if session.data?.protected}
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					onclick={() => signOut.mutate({})}
+					disabled={signOut.isPending}
+					aria-label="Sign out"
+				>
+					<LogOut />
+				</Button>
+			{/if}
 		</div>
 	</div>
 </header>

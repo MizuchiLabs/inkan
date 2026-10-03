@@ -20,16 +20,25 @@ import (
 )
 
 type Server struct {
-	api huma.API
-	mux *http.ServeMux
+	api  huma.API
+	mux  *http.ServeMux
+	auth *auth
 }
 
-func New(q *db.Queries) *Server {
+// New builds the server. With a password the API needs a sign in, without
+// one it is open and Start only listens on this machine.
+func New(q *db.Queries, password string) (*Server, error) {
+	a, err := newAuth(password)
+	if err != nil {
+		return nil, err
+	}
 	mux := http.NewServeMux()
 
 	cfg := huma.DefaultConfig("Inkan API", "1.0.0")
 	cfg.CreateHooks = nil
 	api := humago.New(mux, cfg)
+	api.UseMiddleware(a.require(api))
+	registerSession(api, a)
 	registerProducts(api, q)
 	registerLicenses(api, q)
 	registerCheck(api, q)
@@ -38,20 +47,27 @@ func New(q *db.Queries) *Server {
 		_, _ = w.Write([]byte("ok"))
 	})
 	mux.Handle("/", web.Handler())
-	return &Server{api: api, mux: mux}
+	return &Server{api: api, mux: mux, auth: a}, nil
 }
 
 // Spec builds the OpenAPI description of the API without starting a server.
 func Spec() *huma.OpenAPI {
-	return New(nil).api.OpenAPI()
+	// Only deriving a session key can fail, and no password means no key.
+	s, _ := New(nil, "")
+	return s.api.OpenAPI()
 }
 
 func (s *Server) Handler() http.Handler {
-	// There is no login yet, so at least other sites cannot write through the browser.
+	// Other sites must not write through the browser, signed in or not.
 	return http.NewCrossOriginProtection().Handler(s.mux)
 }
 
+// Start serves on addr until ctx is done. Without a password it only takes
+// an address on this machine.
 func (s *Server) Start(ctx context.Context, addr string) error {
+	if s.auth.key == nil && !loopback(addr) {
+		return fmt.Errorf("refusing to listen on %s without a password, set INKAN_PASSWORD", addr)
+	}
 	return Serve(ctx, addr, s.Handler())
 }
 

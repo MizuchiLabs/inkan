@@ -286,7 +286,9 @@ func TestWorkerAndLedgerAgree(t *testing.T) {
 	require.NoError(t, err)
 
 	rec := httptest.NewRecorder()
-	api.New(q).Handler().ServeHTTP(rec, httptest.NewRequestWithContext(ctx, http.MethodGet, "/api/licenses", nil))
+	ledgerAPI, err := api.New(q, "")
+	require.NoError(t, err)
+	ledgerAPI.Handler().ServeHTTP(rec, httptest.NewRequestWithContext(ctx, http.MethodGet, "/api/licenses", nil))
 	require.Equal(t, http.StatusOK, rec.Code)
 	var ledger []api.License
 	require.NoError(t, json.UnmarshalRead(rec.Body, &ledger))

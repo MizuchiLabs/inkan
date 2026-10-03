@@ -57,9 +57,14 @@ func main() {
 			},
 			&cli.StringFlag{
 				Name:    "addr",
-				Usage:   "Address to listen on. The UI has no login yet, so keep it off public networks",
+				Usage:   "Address to listen on. Anything but localhost needs a password",
 				Value:   "127.0.0.1:3000",
 				Sources: cli.EnvVars("INKAN_ADDR"),
+			},
+			&cli.StringFlag{
+				Name:    "password",
+				Usage:   "Password for the UI and the API. Without one inkan only listens on localhost",
+				Sources: cli.EnvVars("INKAN_PASSWORD"),
 			},
 			&cli.StringFlag{
 				Name:    "data-dir",
@@ -81,8 +86,12 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return err
 	}
+	srv, err := api.New(q, cmd.String("password"))
+	if err != nil {
+		return err
+	}
 	go mirror.Run(ctx, q)
-	return api.New(q).Start(ctx, cmd.String("addr"))
+	return srv.Start(ctx, cmd.String("addr"))
 }
 
 func openapi(_ context.Context, cmd *cli.Command) error {

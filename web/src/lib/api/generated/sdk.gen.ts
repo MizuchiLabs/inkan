@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { CheckKeyData, CheckKeyErrors, CheckKeyResponses, CreateLicenseData, CreateLicenseErrors, CreateLicenseResponses, CreateProductData, CreateProductErrors, CreateProductResponses, DeleteLicenseData, DeleteLicenseErrors, DeleteLicenseResponses, DeleteProductData, DeleteProductErrors, DeleteProductResponses, ListLicensesData, ListLicensesErrors, ListLicensesResponses, ListProductsData, ListProductsErrors, ListProductsResponses, SyncProductData, SyncProductErrors, SyncProductResponses, UpdateLicenseData, UpdateLicenseErrors, UpdateLicenseResponses, UpdateProductData, UpdateProductErrors, UpdateProductResponses } from './types.gen';
+import type { CheckKeyData, CheckKeyErrors, CheckKeyResponses, CreateLicenseData, CreateLicenseErrors, CreateLicenseResponses, CreateProductData, CreateProductErrors, CreateProductResponses, DeleteLicenseData, DeleteLicenseErrors, DeleteLicenseResponses, DeleteProductData, DeleteProductErrors, DeleteProductResponses, GetSessionData, GetSessionErrors, GetSessionResponses, ListLicensesData, ListLicensesErrors, ListLicensesResponses, ListProductsData, ListProductsErrors, ListProductsResponses, SignInData, SignInErrors, SignInResponses, SignOutData, SignOutErrors, SignOutResponses, SyncProductData, SyncProductErrors, SyncProductResponses, UpdateLicenseData, UpdateLicenseErrors, UpdateLicenseResponses, UpdateProductData, UpdateProductErrors, UpdateProductResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -110,6 +110,30 @@ export const deleteLicense = <ThrowOnError extends boolean = false>(options: Opt
  */
 export const updateLicense = <ThrowOnError extends boolean = false>(options: Options<UpdateLicenseData, ThrowOnError>): RequestResult<UpdateLicenseResponses, UpdateLicenseErrors, ThrowOnError> => (options.client ?? client).put<UpdateLicenseResponses, UpdateLicenseErrors, ThrowOnError>({
     url: '/api/products/{product_id}/licenses/{id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Sign out
+ */
+export const signOut = <ThrowOnError extends boolean = false>(options?: Options<SignOutData, ThrowOnError>): RequestResult<SignOutResponses, SignOutErrors, ThrowOnError> => (options?.client ?? client).delete<SignOutResponses, SignOutErrors, ThrowOnError>({ url: '/api/session', ...options });
+
+/**
+ * Show whether a sign in is needed
+ */
+export const getSession = <ThrowOnError extends boolean = false>(options?: Options<GetSessionData, ThrowOnError>): RequestResult<GetSessionResponses, GetSessionErrors, ThrowOnError> => (options?.client ?? client).get<GetSessionResponses, GetSessionErrors, ThrowOnError>({ url: '/api/session', ...options });
+
+/**
+ * Sign in with the password
+ *
+ * Sets the session cookie. Five tries a minute are allowed, for all clients together.
+ */
+export const signIn = <ThrowOnError extends boolean = false>(options: Options<SignInData, ThrowOnError>): RequestResult<SignInResponses, SignInErrors, ThrowOnError> => (options.client ?? client).post<SignInResponses, SignInErrors, ThrowOnError>({
+    url: '/api/session',
     ...options,
     headers: {
         'Content-Type': 'application/json',

@@ -6,10 +6,13 @@ import {
 	createProductMutation,
 	deleteLicenseMutation,
 	deleteProductMutation,
+	getSessionOptions,
 	listLicensesOptions,
 	listLicensesQueryKey,
 	listProductsOptions,
 	listProductsQueryKey,
+	signInMutation,
+	signOutMutation,
 	syncProductMutation,
 	updateLicenseMutation,
 	updateProductMutation
@@ -36,6 +39,23 @@ function refreshAll() {
 		queryClient.invalidateQueries({ queryKey: listProductsQueryKey() }),
 		refreshLicenses()
 	]);
+}
+
+export function useSession() {
+	return createQuery(() => getSessionOptions());
+}
+
+// Everything was asked for without a session, so all of it loads again.
+export function useSignIn() {
+	return createMutation(() => ({
+		...signInMutation(),
+		onSuccess: () => queryClient.invalidateQueries()
+	}));
+}
+
+// A reload also drops what the cache still holds.
+export function useSignOut() {
+	return createMutation(() => ({ ...signOutMutation(), onSuccess: () => location.reload() }));
 }
 
 export function useCheckKey() {
