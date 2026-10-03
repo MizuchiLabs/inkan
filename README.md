@@ -6,128 +6,212 @@
 <img alt="GitHub Issues or Pull Requests" src="https://img.shields.io/github/issues/MizuchiLabs/inkan">
 </p>
 
-# inkan
+# Inkan
 
 A small ledger for offline license keys. It holds the signing key of each
 product you sell, issues keys by hand, mirrors paid subscriptions from Stripe,
 and tells you what a pasted key really is.
 
-Keys are Ed25519-signed claims that your app verifies offline with a public
-key built into the binary. An inkan is the personal seal that makes a document
-valid in Japan.
+A key is a signed string that your app verifies offline with a public key
+built into it. An inkan is the personal seal that makes a document valid in
+Japan.
 
-One Go binary, one SQLite file, a web UI. An optional [worker](#the-worker)
-hands keys to paying customers.
+## Features
 
-## Run
+- License keys that work offline, a plain string to paste or set as an env
+- Issue keys by hand, or let paid Stripe subscriptions become licenses
+- Keys are never stored, a license gives the same key every time
+- An optional worker mails keys to customers and renews them for apps that
+  are online
+- A Go package to verify, hold and renew keys, one plain POST for any other
+  language
+- Paste any key to see what is inside
+- One binary with SQLite and a web UI, Docker-ready
 
-```sh
-go generate ./web   # builds the UI once
-go run .
+## Quick Start
+
+### Using Docker
+
+```bash
+docker run -d \
+   -p 127.0.0.1:3000:3000 \
+   -v $(pwd)/data:/data \
+   -e INKAN_ADDR=:3000 \
+   -e INKAN_DATA_DIR=/data \
+   ghcr.io/mizuchilabs/inkan:latest
 ```
 
-Open http://127.0.0.1:3000.
+### Using Docker Compose
 
-| Flag         | Env              | Default          |                            |
-| ------------ | ---------------- | ---------------- | -------------------------- |
-| `--addr`     | `INKAN_ADDR`     | `127.0.0.1:3000` | Address to listen on       |
-| `--data-dir` | `INKAN_DATA_DIR` | `data`           | Directory for the database |
-| `--debug`    | `INKAN_DEBUG`    | off              | Debug logging              |
+```yaml
+services:
+  inkan:
+    image: ghcr.io/mizuchilabs/inkan:latest
+    container_name: inkan
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ./data:/data
+    environment:
+      - INKAN_ADDR=:3000
+      - INKAN_DATA_DIR=/data
+    restart: unless-stopped
+```
 
-The UI has no login yet. It listens on localhost by default. Keep it on your
-machine or a private network.
+### Using Binary
+
+Get one from the [releases](https://github.com/MizuchiLabs/inkan/releases).
+
+```bash
+inkan
+```
+
+Open http://127.0.0.1:3000 and add a product.
+
+The UI has no login yet. Keep it on your machine or a private network. The
+examples above only publish the port on localhost.
+
+## Configuration
+
+| Env Var          | Flag         | Default          | Description                |
+| ---------------- | ------------ | ---------------- | -------------------------- |
+| `INKAN_ADDR`     | `--addr`     | `127.0.0.1:3000` | Address to listen on       |
+| `INKAN_DATA_DIR` | `--data-dir` | `data`           | Directory for the database |
+| `INKAN_DEBUG`    | `--debug`    | `false`          | Enable debug logging       |
+
+Inkan backs up `inkan.db` to `inkan.db.backup` before it changes the schema on
+an upgrade.
 
 ## How it works
 
-**Products.** A product is a name, a key prefix, a plan and a keypair. Add a
-new one and you get a fresh keypair, or paste the private key of a product
-that already ships. The Products page shows the public key and the build flag
-for it.
-
-**Licenses.** A license is a row: who, which plan, until when, plus optional
-extra claims. The key is never stored. It is signed from the row on demand,
-and signing is deterministic, so a license shows the same key every time.
-Change a signed field and the key changes with it.
-
-**Stripe.** Give a product a Stripe API key and a Stripe product id. Every few
-minutes inkan reads the subscriptions and mirrors the ones to that product as
-licenses. Stripe stays the source of truth, inkan only reads. It needs no
-webhook and no public endpoint. A license key is valid until the paid period
-ends, plus the product's grace days. A subscription that falls behind on a
-payment keeps its last key and gets no new one.
-
-**Plans.** One product can have many plans. The plan claim comes from the
-Stripe price: give a price the metadata `plan=team` and its subscribers get
-`team` keys. Prices without it get the plan of the product.
-
-**Check.** Paste any key on the Licenses page. inkan verifies it the way the
-product would and shows the claims inside.
+- **Products.** A product is a name, a key prefix, a plan and a keypair. Add a
+  new one and you get a fresh keypair, or paste the private key of a product
+  that already ships. The Products page shows the public key and the build
+  flag for it.
+- **Licenses.** A license is a row: who, which plan, until when, plus optional
+  extra claims. The key is signed from the row on demand. Change a signed
+  field and the key changes with it.
+- **Stripe.** Give a product a Stripe API key and a Stripe product id. Every
+  few minutes Inkan reads the subscriptions to that product and mirrors them
+  as licenses. Stripe stays the source of truth, Inkan only reads. It needs no
+  webhook and no public endpoint.
+- **Expiry.** A paid key is valid until the paid period ends, plus the grace
+  days of the product. A subscription that falls behind on a payment keeps its
+  last key and gets no new one.
+- **Plans.** One product can have many plans. Give a Stripe price the metadata
+  `plan=team` and its subscribers get `team` keys. Prices without it get the
+  plan of the product.
+- **Check.** Paste any key on the Licenses page. Inkan verifies it the way the
+  product would and shows the claims inside.
 
 ## Use the keys in your app
 
 ```go
 import "github.com/mizuchilabs/inkan/license"
 
-claims, err := license.Verify(os.Getenv("MYAPP_LICENSE_KEY"), "MYAPP")
+lic := license.NewKeeper("MYAPP")
+_, err := lic.Set(os.Getenv("MYAPP_LICENSE_KEY"))
+
+ok := lic.Valid()             // is there a license right now
+claims, err := lic.Claims()   // plan, email and meta, or why there is none
+claims, err = lic.Set(pasted) // a new key came by mail
 ```
 
-Build with the flag from the Products page:
+Build your app with the flag from the Products page:
 
 ```sh
 go build -ldflags="-X github.com/mizuchilabs/inkan/license.pubkey=<hex>"
 ```
 
+- **Live.** `Valid` and `Claims` check the expiry on every call, so a running
+  app notices when its key runs out.
+- **Swap.** `Set` replaces the key while the app runs. It is what a settings
+  page calls with a pasted key. A key it turns down changes nothing.
+- **Once.** `license.Verify(key, "MYAPP")` checks a single key, for an app
+  that needs no more than that.
+- **Self-compiled.** A build without the flag cannot verify any key and
+  `Valid` is always false. `license.HasPublicKey()` tells such a build apart,
+  for an app that wants to show it.
+
+Other languages verify a key in a few lines, the format is in
+[SECURITY.md](SECURITY.md).
+
 ## The worker
 
-inkan stays private. The worker is the small public part of one product. It is
-the same binary, keeps no state and never talks to inkan. Stripe says what is
+Inkan stays private. The worker is the small public part of one product. It is
+the same binary, keeps no state and never talks to Inkan. Stripe says what is
 paid and the private key signs it, so it hands out the very keys the ledger
 shows.
 
-```
-POST /webhook   Stripe reports a paid invoice, the key is mailed to the customer
-POST /refresh   an app sends its key and gets the current one back
-```
+| Endpoint        |                                                                  |
+| --------------- | ---------------------------------------------------------------- |
+| `POST /webhook` | Stripe reports a paid invoice, the key is mailed to the customer |
+| `POST /refresh` | An app sends its key and gets the current one back               |
 
-Print the settings of a product and give them to the worker as its
-environment, wherever a container can run:
+Print the settings of a product into a file and run the worker with it,
+wherever a container can run. The file holds the private key, treat it like
+one.
 
 ```sh
-inkan worker env MYAPP   # prints the private key too, treat the output like one
-inkan worker
+inkan worker env MYAPP > worker.env
+# or from the container of the quick start
+docker exec inkan inkan worker env MYAPP > worker.env
 ```
 
-| Env                           |                                             |
-| ----------------------------- | ------------------------------------------- |
-| `INKAN_PREFIX`                | Key prefix of the product                   |
-| `INKAN_PRIVATE_KEY`           | Signing key of the product                  |
-| `INKAN_STRIPE_KEY`            | API key that reads subscriptions, customers |
-| `INKAN_STRIPE_PRODUCT`        | Its subscriptions are licenses              |
-| `INKAN_PLAN`                  | Plan for prices that set none               |
-| `INKAN_GRACE_DAYS`            | Default 14                                  |
-| `INKAN_ADDR`                  | Address to listen on, e.g. `:8080`          |
-| `INKAN_STRIPE_WEBHOOK_SECRET` | Signing secret of the webhook endpoint      |
-| `INKAN_SMTP_ADDR`             | Mail server, host:port with STARTTLS        |
-| `INKAN_SMTP_USER`             |                                             |
-| `INKAN_SMTP_PASS`             |                                             |
-| `INKAN_MAIL_FROM`             | Sender of the key mails                     |
+```yaml
+services:
+  worker:
+    image: ghcr.io/mizuchilabs/inkan:latest
+    command: worker
+    ports:
+      - "8080:8080"
+    env_file: worker.env
+    environment:
+      - INKAN_ADDR=:8080
+    restart: unless-stopped
+```
 
-`worker env` prints the first six. In Stripe, add a webhook endpoint for
-`https://<worker>/webhook` that sends `invoice.paid`. Leave out the webhook
-secret and the mail settings to serve refresh only.
+| Env Var                       | Default          | Description                                    |
+| ----------------------------- | ---------------- | ---------------------------------------------- |
+| `INKAN_PREFIX`                | -                | Key prefix of the product                      |
+| `INKAN_PRIVATE_KEY`           | -                | Signing key of the product                     |
+| `INKAN_STRIPE_KEY`            | -                | API key that reads subscriptions and customers |
+| `INKAN_STRIPE_PRODUCT`        | -                | Its subscriptions are licenses                 |
+| `INKAN_PLAN`                  | -                | Plan for prices that set none                  |
+| `INKAN_GRACE_DAYS`            | `14`             | Days a key outlives its paid period            |
+| `INKAN_ADDR`                  | `127.0.0.1:3000` | Address to listen on                           |
+| `INKAN_STRIPE_WEBHOOK_SECRET` | -                | Signing secret of the webhook endpoint         |
+| `INKAN_SMTP_ADDR`             | -                | Mail server, host:port with STARTTLS           |
+| `INKAN_SMTP_USER`             | -                | Mail server login                              |
+| `INKAN_SMTP_PASS`             | -                | Mail server password                           |
+| `INKAN_MAIL_FROM`             | -                | Sender of the key mails                        |
 
-**Refresh.** An app that is online can renew its own key:
+`worker env` prints the first six. For the mails, add a webhook endpoint in
+Stripe for `https://<worker>/webhook` that sends `invoice.paid`. Leave out the
+webhook secret and the mail settings to serve refresh only.
+
+### How it behaves
+
+- **Mails.** The first payment always sends the key. A renewal only sends one
+  when its period is longer than a month. Nobody pastes a key every month, and
+  an app that is online refreshes on its own.
+- **Refresh.** The answer is the key the subscription is owed now. After a
+  renewal that is a new key with a later expiry. If nothing new was paid it is
+  the same key again, so an old key never stops working as a ticket.
+- **Hand issued keys.** A key with a `lic_…` id, or none, always comes back as
+  it is.
+- **Errors.** An app only accepts an answer that verifies as one of its keys.
+  When a refresh fails the app keeps the key it has.
+
+### Renew from your app
 
 ```go
-key, err := license.Refresh(ctx, "https://<worker>/refresh", key, "MYAPP")
+go lic.Renew(ctx, "https://<worker>/refresh", save)
 ```
 
-The answer is the key the subscription is owed now. After a renewal that is a
-new key with a later expiry. If nothing new was paid it is the same key again.
-`Refresh` only returns an answer that verifies as a key of the app, so the app
-never has to trust the network. On an error the app keeps the key it has.
-Once a day is plenty. Airgapped installs skip this and paste the key from the
-mail.
+The `Keeper` asks right away and then once a day. Every new key goes to
+`save`, so the app can store it for its next start. Airgapped installs skip
+this and paste the key from the mail.
 
 It is a plain POST with the key as the body, so any language can do it:
 
@@ -135,74 +219,25 @@ It is a plain POST with the key as the body, so any language can do it:
 curl -X POST https://<worker>/refresh --data "$MYAPP_LICENSE_KEY"
 ```
 
-**In your own service.** The worker is also a plain `http.Handler`, for a
-serverless function or an existing Go backend. `Send` is yours to write if
-mail is not how your keys travel.
+### In your own service
 
-```go
-import "github.com/mizuchilabs/inkan/worker"
-
-h, err := worker.New(worker.Config{
-	Prefix:        "MYAPP",
-	PrivateKey:    os.Getenv("INKAN_PRIVATE_KEY"),
-	StripeKey:     os.Getenv("INKAN_STRIPE_KEY"),
-	StripeProduct: "prod_...",
-	Plan:          "pro",
-	GraceDays:     14,
-	WebhookSecret: os.Getenv("INKAN_STRIPE_WEBHOOK_SECRET"),
-	Send:          worker.SMTP{Addr: "smtp.example.com:587", From: "keys@example.com"}.Send,
-})
-```
-
-## Key format
-
-A key is built in three steps:
-
-1. The claims are encoded as JSON. That is the payload.
-2. The payload is signed with the Ed25519 private key.
-3. One version byte (`1`), the payload and the 64-byte signature are joined,
-   base64 encoded without padding, cut into chunks of five and prefixed with
-   the product prefix.
-
-| Claim   |                                             |
-| ------- | ------------------------------------------- |
-| `v`     | Always 1                                    |
-| `app`   | The product prefix                          |
-| `plan`  | Plan name, the app decides what it means    |
-| `email` | Who the license is for                      |
-| `exp`   | Unix seconds, 0 never expires               |
-| `id`    | Optional. Stripe subscription id or `lic_…` |
-| `meta`  | Optional. Extra strings, e.g. seats         |
-
-That is small enough to sign from any language. This is all of it in Python:
-
-```python
-payload = b'{"v":1,"app":"MYAPP","plan":"pro","email":"ops@acme.io","exp":1800000000,"id":"sub_123"}'
-sig = Ed25519PrivateKey.from_private_bytes(seed).sign(payload)
-enc = base64.b64encode(b"\x01" + payload + sig).decode().rstrip("=")
-key = "MYAPP-" + "-".join(enc[i : i + 5] for i in range(0, len(enc), 5))
-```
-
-With the seed bytes 0 to 31 the key is `MYAPP-AXsid-iI6MS-…-e0RyC-JdsM`, a test
-in `license` pins it. The private key inkan stores is base64 of 64 bytes, the
-seed is the first 32. Verifying checks the signature over the payload as it
-arrived, so a key verifies whatever the JSON of its signer looks like. Only
-keys from the `license` package are promised to match the ones inkan shows,
-byte for byte.
+The worker is also a plain `http.Handler`, for a serverless function or an
+existing Go backend. `worker.New` takes a `worker.Config` with the same
+settings. Its `Send` is yours to write if mail is not how your keys travel.
 
 ## What it does not do
 
 - It cannot revoke a key. Keys work offline, deleting a license only forgets
   it here. A key ends when it expires, so an unpaid subscription runs out with
   its last paid period plus the grace days.
+- It does not bind a key to a machine or count seats.
 - One worker serves one product.
-- Signing keys and Stripe keys sit unencrypted in the database. The data
-  directory is owner only, back it up like a secret.
 
-## Development
+## Security
 
-```sh
-task dev    # backend on :3000, UI dev server with a proxy to it
-task gen    # sqlc, OpenAPI spec, web client
-task lint   # vet, tests, golangci-lint
-```
+How a key is built, what it can and cannot protect, and where the secrets
+live is in [SECURITY.md](SECURITY.md).
+
+## License
+
+Apache License 2.0 - See [LICENSE.md](LICENSE.md)
