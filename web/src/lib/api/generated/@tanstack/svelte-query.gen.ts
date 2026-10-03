@@ -95,44 +95,6 @@ export const createLicenseMutation = (options?: Partial<Options<CreateLicenseDat
     return mutationOptions;
 };
 
-/**
- * Delete a manual license
- *
- * Only forgets the license here. A key that is already out keeps working until it expires.
- */
-export const deleteLicenseMutation = (options?: Partial<Options<DeleteLicenseData>>): MutationOptions<DeleteLicenseResponse, DeleteLicenseError, Options<DeleteLicenseData>> => {
-    const mutationOptions: MutationOptions<DeleteLicenseResponse, DeleteLicenseError, Options<DeleteLicenseData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await deleteLicense({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Update a license
- *
- * Changing a signed field of a manual license changes its key. Stripe owns its licenses, only their note is taken.
- */
-export const updateLicenseMutation = (options?: Partial<Options<UpdateLicenseData>>): MutationOptions<UpdateLicenseResponse, UpdateLicenseError, Options<UpdateLicenseData>> => {
-    const mutationOptions: MutationOptions<UpdateLicenseResponse, UpdateLicenseError, Options<UpdateLicenseData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await updateLicense({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
 export const listProductsQueryKey = (options?: Options<ListProductsData>) => createQueryKey('listProducts', options);
 
 /**
@@ -192,7 +154,7 @@ export const deleteProductMutation = (options?: Partial<Options<DeleteProductDat
 /**
  * Update a product
  *
- * A connected product is synced with Stripe right away, the outcome is on the returned product.
+ * A connected product is synced with its provider right away, the outcome is on the returned product.
  */
 export const updateProductMutation = (options?: Partial<Options<UpdateProductData>>): MutationOptions<UpdateProductResponse, UpdateProductError, Options<UpdateProductData>> => {
     const mutationOptions: MutationOptions<UpdateProductResponse, UpdateProductError, Options<UpdateProductData>> = {
@@ -209,12 +171,50 @@ export const updateProductMutation = (options?: Partial<Options<UpdateProductDat
 };
 
 /**
- * Sync a product with Stripe
+ * Sync a product with its provider
  */
 export const syncProductMutation = (options?: Partial<Options<SyncProductData>>): MutationOptions<SyncProductResponse, SyncProductError, Options<SyncProductData>> => {
     const mutationOptions: MutationOptions<SyncProductResponse, SyncProductError, Options<SyncProductData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await syncProduct({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Delete a manual license
+ *
+ * Only forgets the license here. A key that is already out keeps working until it expires.
+ */
+export const deleteLicenseMutation = (options?: Partial<Options<DeleteLicenseData>>): MutationOptions<DeleteLicenseResponse, DeleteLicenseError, Options<DeleteLicenseData>> => {
+    const mutationOptions: MutationOptions<DeleteLicenseResponse, DeleteLicenseError, Options<DeleteLicenseData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteLicense({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Update a license
+ *
+ * Changing a signed field of a manual license changes its key. The provider owns its licenses, only their note is taken.
+ */
+export const updateLicenseMutation = (options?: Partial<Options<UpdateLicenseData>>): MutationOptions<UpdateLicenseResponse, UpdateLicenseError, Options<UpdateLicenseData>> => {
+    const mutationOptions: MutationOptions<UpdateLicenseResponse, UpdateLicenseError, Options<UpdateLicenseData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updateLicense({
                 ...options,
                 ...fnOptions,
                 throwOnError: true

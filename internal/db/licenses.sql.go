@@ -13,7 +13,7 @@ const createLicense = `-- name: CreateLicense :one
 INSERT INTO
   licenses (id, product_id, source, email, customer, plan, expires_at, meta, note)
 VALUES
-  (?, ?, 'manual', ?, ?, ?, ?, ?, ?) RETURNING id, product_id, source, email, customer, "plan", expires_at, meta, note, stripe_status, renews, created_at
+  (?, ?, 'manual', ?, ?, ?, ?, ?, ?) RETURNING id, product_id, source, email, customer, "plan", expires_at, meta, note, status, renews, created_at
 `
 
 type CreateLicenseParams struct {
@@ -49,7 +49,7 @@ func (q *Queries) CreateLicense(ctx context.Context, arg *CreateLicenseParams) (
 		&i.ExpiresAt,
 		&i.Meta,
 		&i.Note,
-		&i.StripeStatus,
+		&i.Status,
 		&i.Renews,
 		&i.CreatedAt,
 	)
@@ -59,12 +59,18 @@ func (q *Queries) CreateLicense(ctx context.Context, arg *CreateLicenseParams) (
 const deleteLicense = `-- name: DeleteLicense :execrows
 DELETE FROM licenses
 WHERE
-  id = ?
+  product_id = ?
+  AND id = ?
   AND source = 'manual'
 `
 
-func (q *Queries) DeleteLicense(ctx context.Context, id string) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteLicense, id)
+type DeleteLicenseParams struct {
+	ProductID int64  `json:"productId"`
+	ID        string `json:"id"`
+}
+
+func (q *Queries) DeleteLicense(ctx context.Context, arg *DeleteLicenseParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteLicense, arg.ProductID, arg.ID)
 	if err != nil {
 		return 0, err
 	}
@@ -73,15 +79,21 @@ func (q *Queries) DeleteLicense(ctx context.Context, id string) (int64, error) {
 
 const getLicense = `-- name: GetLicense :one
 SELECT
-  id, product_id, source, email, customer, "plan", expires_at, meta, note, stripe_status, renews, created_at
+  id, product_id, source, email, customer, "plan", expires_at, meta, note, status, renews, created_at
 FROM
   licenses
 WHERE
-  id = ?
+  product_id = ?
+  AND id = ?
 `
 
-func (q *Queries) GetLicense(ctx context.Context, id string) (*License, error) {
-	row := q.db.QueryRowContext(ctx, getLicense, id)
+type GetLicenseParams struct {
+	ProductID int64  `json:"productId"`
+	ID        string `json:"id"`
+}
+
+func (q *Queries) GetLicense(ctx context.Context, arg *GetLicenseParams) (*License, error) {
+	row := q.db.QueryRowContext(ctx, getLicense, arg.ProductID, arg.ID)
 	var i License
 	err := row.Scan(
 		&i.ID,
@@ -93,7 +105,7 @@ func (q *Queries) GetLicense(ctx context.Context, id string) (*License, error) {
 		&i.ExpiresAt,
 		&i.Meta,
 		&i.Note,
-		&i.StripeStatus,
+		&i.Status,
 		&i.Renews,
 		&i.CreatedAt,
 	)
@@ -102,7 +114,7 @@ func (q *Queries) GetLicense(ctx context.Context, id string) (*License, error) {
 
 const listLicenses = `-- name: ListLicenses :many
 SELECT
-  id, product_id, source, email, customer, "plan", expires_at, meta, note, stripe_status, renews, created_at
+  id, product_id, source, email, customer, "plan", expires_at, meta, note, status, renews, created_at
 FROM
   licenses
 ORDER BY
@@ -129,7 +141,7 @@ func (q *Queries) ListLicenses(ctx context.Context) ([]*License, error) {
 			&i.ExpiresAt,
 			&i.Meta,
 			&i.Note,
-			&i.StripeStatus,
+			&i.Status,
 			&i.Renews,
 			&i.CreatedAt,
 		); err != nil {
@@ -151,16 +163,18 @@ UPDATE licenses
 SET
   note = ?
 WHERE
-  id = ? RETURNING id, product_id, source, email, customer, "plan", expires_at, meta, note, stripe_status, renews, created_at
+  product_id = ?
+  AND id = ? RETURNING id, product_id, source, email, customer, "plan", expires_at, meta, note, status, renews, created_at
 `
 
 type SetLicenseNoteParams struct {
-	Note string `json:"note"`
-	ID   string `json:"id"`
+	Note      string `json:"note"`
+	ProductID int64  `json:"productId"`
+	ID        string `json:"id"`
 }
 
 func (q *Queries) SetLicenseNote(ctx context.Context, arg *SetLicenseNoteParams) (*License, error) {
-	row := q.db.QueryRowContext(ctx, setLicenseNote, arg.Note, arg.ID)
+	row := q.db.QueryRowContext(ctx, setLicenseNote, arg.Note, arg.ProductID, arg.ID)
 	var i License
 	err := row.Scan(
 		&i.ID,
@@ -172,7 +186,7 @@ func (q *Queries) SetLicenseNote(ctx context.Context, arg *SetLicenseNoteParams)
 		&i.ExpiresAt,
 		&i.Meta,
 		&i.Note,
-		&i.StripeStatus,
+		&i.Status,
 		&i.Renews,
 		&i.CreatedAt,
 	)
@@ -189,8 +203,9 @@ SET
   meta = ?,
   note = ?
 WHERE
-  id = ?
-  AND source = 'manual' RETURNING id, product_id, source, email, customer, "plan", expires_at, meta, note, stripe_status, renews, created_at
+  product_id = ?
+  AND id = ?
+  AND source = 'manual' RETURNING id, product_id, source, email, customer, "plan", expires_at, meta, note, status, renews, created_at
 `
 
 type UpdateLicenseParams struct {
@@ -200,6 +215,7 @@ type UpdateLicenseParams struct {
 	ExpiresAt int64  `json:"expiresAt"`
 	Meta      string `json:"meta"`
 	Note      string `json:"note"`
+	ProductID int64  `json:"productId"`
 	ID        string `json:"id"`
 }
 
@@ -211,6 +227,7 @@ func (q *Queries) UpdateLicense(ctx context.Context, arg *UpdateLicenseParams) (
 		arg.ExpiresAt,
 		arg.Meta,
 		arg.Note,
+		arg.ProductID,
 		arg.ID,
 	)
 	var i License
@@ -224,50 +241,52 @@ func (q *Queries) UpdateLicense(ctx context.Context, arg *UpdateLicenseParams) (
 		&i.ExpiresAt,
 		&i.Meta,
 		&i.Note,
-		&i.StripeStatus,
+		&i.Status,
 		&i.Renews,
 		&i.CreatedAt,
 	)
 	return &i, err
 }
 
-const upsertStripeLicense = `-- name: UpsertStripeLicense :exec
+const upsertProviderLicense = `-- name: UpsertProviderLicense :exec
 INSERT INTO
-  licenses (id, product_id, source, email, customer, plan, expires_at, stripe_status, renews, created_at)
+  licenses (id, product_id, source, email, customer, plan, expires_at, status, renews, created_at)
 VALUES
-  (?, ?, 'stripe', ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT (id) DO UPDATE
+  (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (product_id, id) DO UPDATE
 SET
   email = excluded.email,
   customer = excluded.customer,
   plan = excluded.plan,
   expires_at = excluded.expires_at,
-  stripe_status = excluded.stripe_status,
+  status = excluded.status,
   renews = excluded.renews
 `
 
-type UpsertStripeLicenseParams struct {
-	ID           string `json:"id"`
-	ProductID    int64  `json:"productId"`
-	Email        string `json:"email"`
-	Customer     string `json:"customer"`
-	Plan         string `json:"plan"`
-	ExpiresAt    int64  `json:"expiresAt"`
-	StripeStatus string `json:"stripeStatus"`
-	Renews       bool   `json:"renews"`
-	CreatedAt    int64  `json:"createdAt"`
+type UpsertProviderLicenseParams struct {
+	ID        string `json:"id"`
+	ProductID int64  `json:"productId"`
+	Source    string `json:"source"`
+	Email     string `json:"email"`
+	Customer  string `json:"customer"`
+	Plan      string `json:"plan"`
+	ExpiresAt int64  `json:"expiresAt"`
+	Status    string `json:"status"`
+	Renews    bool   `json:"renews"`
+	CreatedAt int64  `json:"createdAt"`
 }
 
-// Stripe owns everything but the note.
-func (q *Queries) UpsertStripeLicense(ctx context.Context, arg *UpsertStripeLicenseParams) error {
-	_, err := q.db.ExecContext(ctx, upsertStripeLicense,
+// The provider owns everything but the note.
+func (q *Queries) UpsertProviderLicense(ctx context.Context, arg *UpsertProviderLicenseParams) error {
+	_, err := q.db.ExecContext(ctx, upsertProviderLicense,
 		arg.ID,
 		arg.ProductID,
+		arg.Source,
 		arg.Email,
 		arg.Customer,
 		arg.Plan,
 		arg.ExpiresAt,
-		arg.StripeStatus,
+		arg.Status,
 		arg.Renews,
 		arg.CreatedAt,
 	)

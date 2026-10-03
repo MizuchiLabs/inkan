@@ -149,8 +149,8 @@ func workerEnv(ctx context.Context, cmd *cli.Command) error {
 
 	fmt.Printf("INKAN_PREFIX=%s\n", p.Prefix)
 	fmt.Printf("INKAN_PRIVATE_KEY=%s\n", p.PrivateKey)
-	fmt.Printf("INKAN_STRIPE_KEY=%s\n", p.StripeKey)
-	fmt.Printf("INKAN_STRIPE_PRODUCT=%s\n", p.StripeProduct)
+	fmt.Printf("INKAN_STRIPE_KEY=%s\n", p.ProviderKey)
+	fmt.Printf("INKAN_STRIPE_PRODUCT=%s\n", p.ProviderProduct)
 	fmt.Printf("INKAN_PLAN=%s\n", p.Plan)
 	fmt.Printf("INKAN_GRACE_DAYS=%d\n", p.GraceDays)
 	return nil

@@ -29,8 +29,8 @@
 			plan: product?.plan ?? '',
 			graceDays: product?.grace_days ?? 14,
 			privateKey: '',
-			stripeProduct: product?.stripe_product ?? '',
-			stripeKey: ''
+			providerProduct: product?.provider_product ?? '',
+			providerKey: ''
 		};
 	}
 	const form = $state(initial());
@@ -45,8 +45,8 @@
 						name: form.name,
 						plan: form.plan,
 						grace_days: form.graceDays,
-						stripe_product: form.stripeProduct,
-						stripe_key: form.stripeKey
+						provider_product: form.providerProduct,
+						provider_key: form.providerKey
 					}
 				},
 				{
@@ -155,7 +155,7 @@
 						<Field.Label for="product-stripe-product">Stripe product id</Field.Label>
 						<Input
 							id="product-stripe-product"
-							bind:value={form.stripeProduct}
+							bind:value={form.providerProduct}
 							placeholder="prod_..."
 							autocomplete="off"
 						/>
@@ -169,8 +169,8 @@
 						<Input
 							id="product-stripe-key"
 							type="password"
-							bind:value={form.stripeKey}
-							placeholder={product.stripe_connected
+							bind:value={form.providerKey}
+							placeholder={product.provider_connected
 								? 'Stored. Leave empty to keep it'
 								: 'rk_live_...'}
 							autocomplete="off"

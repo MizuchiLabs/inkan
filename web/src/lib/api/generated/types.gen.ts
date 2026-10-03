@@ -126,7 +126,7 @@ export type License = {
      */
     expires_at: string | null;
     /**
-     * Stripe subscription id, or lic_... for a manual license
+     * Subscription id at the provider, or lic_... for a manual license
      */
     id: string;
     /**
@@ -143,14 +143,14 @@ export type License = {
     plan: string;
     product_id: number;
     /**
-     * Whether Stripe will bill another period
+     * Whether the provider will bill another period
      */
     renews: boolean;
     source: 'manual' | 'stripe';
     /**
-     * Subscription status, empty for a manual license
+     * Subscription status at the provider, empty for a manual license
      */
-    stripe_status: string;
+    status: string;
 };
 
 export type LicenseFields = {
@@ -176,13 +176,13 @@ export type LicenseFields = {
 export type Product = {
     created_at: string;
     /**
-     * Days a Stripe license stays valid past its paid period
+     * Days a provider license stays valid past its paid period
      */
     grace_days: number;
     id: number;
     name: string;
     /**
-     * Plan claim for Stripe prices without plan metadata and the default for manual licenses
+     * Plan claim for provider prices without plan metadata and the default for manual licenses
      */
     plan: string;
     /**
@@ -190,30 +190,30 @@ export type Product = {
      */
     prefix: string;
     /**
+     * Whether an API key and a provider product are stored
+     */
+    provider_connected: boolean;
+    /**
+     * Payment provider product id. Its subscriptions are licenses
+     */
+    provider_product: string;
+    /**
      * Hex Ed25519 public key to build into the product
      */
     public_key: string;
     /**
-     * Whether an API key and a Stripe product are stored
-     */
-    stripe_connected: boolean;
-    /**
-     * Stripe product id. Its subscriptions are licenses
-     */
-    stripe_product: string;
-    /**
-     * Why the last Stripe sync failed, empty when it worked
+     * Why the last provider sync failed, empty when it worked
      */
     sync_error: string;
     /**
-     * Last successful Stripe sync
+     * Last successful provider sync
      */
     synced_at: string | null;
 };
 
 export type SyncOutputBody = {
     /**
-     * License subscriptions found in Stripe
+     * License subscriptions found at the provider
      */
     licenses: number;
 };
@@ -225,11 +225,11 @@ export type UpdateProductInputBody = {
     /**
      * Empty keeps the stored key
      */
-    stripe_key?: string;
+    provider_key?: string;
     /**
-     * Empty disconnects Stripe
+     * Empty disconnects the provider
      */
-    stripe_product?: string;
+    provider_product?: string;
 };
 
 export type CheckKeyData = {
@@ -306,60 +306,6 @@ export type CreateLicenseResponses = {
 };
 
 export type CreateLicenseResponse = CreateLicenseResponses[keyof CreateLicenseResponses];
-
-export type DeleteLicenseData = {
-    body?: never;
-    path: {
-        id: string;
-    };
-    query?: never;
-    url: '/api/licenses/{id}';
-};
-
-export type DeleteLicenseErrors = {
-    /**
-     * Error
-     */
-    default: ErrorModel;
-};
-
-export type DeleteLicenseError = DeleteLicenseErrors[keyof DeleteLicenseErrors];
-
-export type DeleteLicenseResponses = {
-    /**
-     * No Content
-     */
-    204: void;
-};
-
-export type DeleteLicenseResponse = DeleteLicenseResponses[keyof DeleteLicenseResponses];
-
-export type UpdateLicenseData = {
-    body: LicenseFields;
-    path: {
-        id: string;
-    };
-    query?: never;
-    url: '/api/licenses/{id}';
-};
-
-export type UpdateLicenseErrors = {
-    /**
-     * Error
-     */
-    default: ErrorModel;
-};
-
-export type UpdateLicenseError = UpdateLicenseErrors[keyof UpdateLicenseErrors];
-
-export type UpdateLicenseResponses = {
-    /**
-     * OK
-     */
-    200: License;
-};
-
-export type UpdateLicenseResponse = UpdateLicenseResponses[keyof UpdateLicenseResponses];
 
 export type ListProductsData = {
     body?: never;
@@ -491,3 +437,59 @@ export type SyncProductResponses = {
 };
 
 export type SyncProductResponse = SyncProductResponses[keyof SyncProductResponses];
+
+export type DeleteLicenseData = {
+    body?: never;
+    path: {
+        product_id: number;
+        id: string;
+    };
+    query?: never;
+    url: '/api/products/{product_id}/licenses/{id}';
+};
+
+export type DeleteLicenseErrors = {
+    /**
+     * Error
+     */
+    default: ErrorModel;
+};
+
+export type DeleteLicenseError = DeleteLicenseErrors[keyof DeleteLicenseErrors];
+
+export type DeleteLicenseResponses = {
+    /**
+     * No Content
+     */
+    204: void;
+};
+
+export type DeleteLicenseResponse = DeleteLicenseResponses[keyof DeleteLicenseResponses];
+
+export type UpdateLicenseData = {
+    body: LicenseFields;
+    path: {
+        product_id: number;
+        id: string;
+    };
+    query?: never;
+    url: '/api/products/{product_id}/licenses/{id}';
+};
+
+export type UpdateLicenseErrors = {
+    /**
+     * Error
+     */
+    default: ErrorModel;
+};
+
+export type UpdateLicenseError = UpdateLicenseErrors[keyof UpdateLicenseErrors];
+
+export type UpdateLicenseResponses = {
+    /**
+     * OK
+     */
+    200: License;
+};
+
+export type UpdateLicenseResponse = UpdateLicenseResponses[keyof UpdateLicenseResponses];

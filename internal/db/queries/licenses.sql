@@ -13,7 +13,8 @@ SELECT
 FROM
   licenses
 WHERE
-  id = ?;
+  product_id = ?
+  AND id = ?;
 
 -- name: CreateLicense :one
 INSERT INTO
@@ -31,7 +32,8 @@ SET
   meta = ?,
   note = ?
 WHERE
-  id = ?
+  product_id = ?
+  AND id = ?
   AND source = 'manual' RETURNING *;
 
 -- name: SetLicenseNote :one
@@ -39,25 +41,27 @@ UPDATE licenses
 SET
   note = ?
 WHERE
-  id = ? RETURNING *;
+  product_id = ?
+  AND id = ? RETURNING *;
 
 -- name: DeleteLicense :execrows
 DELETE FROM licenses
 WHERE
-  id = ?
+  product_id = ?
+  AND id = ?
   AND source = 'manual';
 
--- Stripe owns everything but the note.
--- name: UpsertStripeLicense :exec
+-- The provider owns everything but the note.
+-- name: UpsertProviderLicense :exec
 INSERT INTO
-  licenses (id, product_id, source, email, customer, plan, expires_at, stripe_status, renews, created_at)
+  licenses (id, product_id, source, email, customer, plan, expires_at, status, renews, created_at)
 VALUES
-  (?, ?, 'stripe', ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT (id) DO UPDATE
+  (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (product_id, id) DO UPDATE
 SET
   email = excluded.email,
   customer = excluded.customer,
   plan = excluded.plan,
   expires_at = excluded.expires_at,
-  stripe_status = excluded.stripe_status,
+  status = excluded.status,
   renews = excluded.renews;

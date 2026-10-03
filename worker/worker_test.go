@@ -253,7 +253,7 @@ func TestWorkerAndLedgerAgree(t *testing.T) {
 	require.NoError(t, err)
 	p, err = q.UpdateProduct(ctx, &db.UpdateProductParams{
 		Name: p.Name, Plan: p.Plan, GraceDays: p.GraceDays,
-		StripeKey: cfg.StripeKey, StripeProduct: cfg.StripeProduct, ID: p.ID,
+		ProviderKey: cfg.StripeKey, ProviderProduct: cfg.StripeProduct, ID: p.ID,
 	})
 	require.NoError(t, err)
 	_, err = mirror.Sync(ctx, q, p)

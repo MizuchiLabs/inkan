@@ -20,17 +20,17 @@ import (
 
 // Product is one app that keys are issued for. Secrets never leave the server.
 type Product struct {
-	ID              int64      `json:"id"`
-	Name            string     `json:"name"`
-	Prefix          string     `json:"prefix"           doc:"Visible key prefix and the app name the product verifies against"`
-	Plan            string     `json:"plan"             doc:"Plan claim for Stripe prices without plan metadata and the default for manual licenses"`
-	GraceDays       int64      `json:"grace_days"       doc:"Days a Stripe license stays valid past its paid period"`
-	PublicKey       string     `json:"public_key"       doc:"Hex Ed25519 public key to build into the product"`
-	StripeProduct   string     `json:"stripe_product"   doc:"Stripe product id. Its subscriptions are licenses"`
-	StripeConnected bool       `json:"stripe_connected" doc:"Whether an API key and a Stripe product are stored"`
-	SyncedAt        *time.Time `json:"synced_at"        doc:"Last successful Stripe sync"`
-	SyncError       string     `json:"sync_error"       doc:"Why the last Stripe sync failed, empty when it worked"`
-	CreatedAt       time.Time  `json:"created_at"`
+	ID                int64      `json:"id"`
+	Name              string     `json:"name"`
+	Prefix            string     `json:"prefix"             doc:"Visible key prefix and the app name the product verifies against"`
+	Plan              string     `json:"plan"               doc:"Plan claim for provider prices without plan metadata and the default for manual licenses"`
+	GraceDays         int64      `json:"grace_days"         doc:"Days a provider license stays valid past its paid period"`
+	PublicKey         string     `json:"public_key"         doc:"Hex Ed25519 public key to build into the product"`
+	ProviderProduct   string     `json:"provider_product"   doc:"Payment provider product id. Its subscriptions are licenses"`
+	ProviderConnected bool       `json:"provider_connected" doc:"Whether an API key and a provider product are stored"`
+	SyncedAt          *time.Time `json:"synced_at"          doc:"Last successful provider sync"`
+	SyncError         string     `json:"sync_error"         doc:"Why the last provider sync failed, empty when it worked"`
+	CreatedAt         time.Time  `json:"created_at"`
 }
 
 type ProductsOutput struct {
@@ -59,17 +59,17 @@ type UpdateProductInput struct {
 	ProductPath
 
 	Body struct {
-		Name          string `json:"name"                   minLength:"1" maxLength:"64"`
-		Plan          string `json:"plan"                   minLength:"1" maxLength:"32"`
-		GraceDays     int64  `json:"grace_days"             minimum:"0"   maximum:"365"`
-		StripeProduct string `json:"stripe_product,omitempty"                            doc:"Empty disconnects Stripe"`
-		StripeKey     string `json:"stripe_key,omitempty"                                doc:"Empty keeps the stored key"`
+		Name            string `json:"name"                   minLength:"1" maxLength:"64"`
+		Plan            string `json:"plan"                   minLength:"1" maxLength:"32"`
+		GraceDays       int64  `json:"grace_days"             minimum:"0"   maximum:"365"`
+		ProviderProduct string `json:"provider_product,omitempty"                            doc:"Empty disconnects the provider"`
+		ProviderKey     string `json:"provider_key,omitempty"                                doc:"Empty keeps the stored key"`
 	}
 }
 
 type SyncOutput struct {
 	Body struct {
-		Licenses int `json:"licenses" doc:"License subscriptions found in Stripe"`
+		Licenses int `json:"licenses" doc:"License subscriptions found at the provider"`
 	}
 }
 
@@ -100,7 +100,7 @@ func registerProducts(api huma.API, q *db.Queries) {
 		Method:      http.MethodPut,
 		Path:        "/api/products/{id}",
 		Summary:     "Update a product",
-		Description: "A connected product is synced with Stripe right away, the outcome is on the returned product.",
+		Description: "A connected product is synced with its provider right away, the outcome is on the returned product.",
 		Tags:        []string{"Products"},
 	}, h.update)
 	huma.Register(api, huma.Operation{
@@ -116,7 +116,7 @@ func registerProducts(api huma.API, q *db.Queries) {
 		OperationID: "sync-product",
 		Method:      http.MethodPost,
 		Path:        "/api/products/{id}/sync",
-		Summary:     "Sync a product with Stripe",
+		Summary:     "Sync a product with its provider",
 		Tags:        []string{"Products"},
 	}, h.sync)
 }
@@ -166,17 +166,17 @@ func (h *productHandlers) update(ctx context.Context, in *UpdateProductInput) (*
 		return nil, err
 	}
 
-	stripeKey := strings.TrimSpace(in.Body.StripeKey)
-	if stripeKey == "" {
-		stripeKey = current.StripeKey
+	providerKey := strings.TrimSpace(in.Body.ProviderKey)
+	if providerKey == "" {
+		providerKey = current.ProviderKey
 	}
 	p, err := h.q.UpdateProduct(ctx, &db.UpdateProductParams{
-		Name:          in.Body.Name,
-		Plan:          in.Body.Plan,
-		GraceDays:     in.Body.GraceDays,
-		StripeKey:     stripeKey,
-		StripeProduct: strings.TrimSpace(in.Body.StripeProduct),
-		ID:            in.ID,
+		Name:            in.Body.Name,
+		Plan:            in.Body.Plan,
+		GraceDays:       in.Body.GraceDays,
+		ProviderKey:     providerKey,
+		ProviderProduct: strings.TrimSpace(in.Body.ProviderProduct),
+		ID:              in.ID,
 	})
 	if isUnique(err) {
 		return nil, huma.Error409Conflict("a product with this name already exists")
@@ -185,7 +185,7 @@ func (h *productHandlers) update(ctx context.Context, in *UpdateProductInput) (*
 		return nil, huma.Error500InternalServerError("failed to update product")
 	}
 
-	// Plan and grace shape the Stripe licenses, so they are rebuilt at once.
+	// Plan and grace shape the provider licenses, so they are rebuilt at once.
 	// A failed sync is not a failed update, it shows up as sync_error.
 	if mirror.Connected(p) {
 		_, _ = mirror.Sync(ctx, h.q, p)
@@ -209,7 +209,7 @@ func (h *productHandlers) sync(ctx context.Context, in *ProductPath) (*SyncOutpu
 		return nil, err
 	}
 	if !mirror.Connected(p) {
-		return nil, huma.Error409Conflict("the product is not connected to Stripe")
+		return nil, huma.Error409Conflict("the product is not connected to a payment provider")
 	}
 	n, err := mirror.Sync(ctx, h.q, p)
 	if err != nil {
@@ -233,15 +233,15 @@ func (h *productHandlers) get(ctx context.Context, id int64) (*db.Product, error
 
 func toProduct(p *db.Product) Product {
 	out := Product{
-		ID:              p.ID,
-		Name:            p.Name,
-		Prefix:          p.Prefix,
-		Plan:            p.Plan,
-		GraceDays:       p.GraceDays,
-		StripeProduct:   p.StripeProduct,
-		StripeConnected: mirror.Connected(p),
-		SyncError:       p.SyncError,
-		CreatedAt:       time.Unix(p.CreatedAt, 0),
+		ID:                p.ID,
+		Name:              p.Name,
+		Prefix:            p.Prefix,
+		Plan:              p.Plan,
+		GraceDays:         p.GraceDays,
+		ProviderProduct:   p.ProviderProduct,
+		ProviderConnected: mirror.Connected(p),
+		SyncError:         p.SyncError,
+		CreatedAt:         time.Unix(p.CreatedAt, 0),
 	}
 	if priv, err := license.ParsePrivateKey(p.PrivateKey); err == nil {
 		out.PublicKey = hex.EncodeToString(publicKey(priv))

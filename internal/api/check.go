@@ -61,7 +61,7 @@ func registerCheck(api huma.API, q *db.Queries) {
 }
 
 func (h *checkHandlers) check(ctx context.Context, in *CheckInput) (*CheckOutput, error) {
-	key := strings.TrimSpace(in.Body.Key)
+	key := license.Clean(in.Body.Key)
 	out := &CheckOutput{Body: CheckResult{State: stateInvalid, Meta: map[string]string{}}}
 	res := &out.Body
 
@@ -104,7 +104,7 @@ func (h *checkHandlers) check(ctx context.Context, in *CheckInput) (*CheckOutput
 		res.ExpiresAt = new(time.Unix(claims.ExpiresAt, 0))
 	}
 	if claims.ID != "" {
-		_, err := h.q.GetLicense(ctx, claims.ID)
+		_, err := h.q.GetLicense(ctx, &db.GetLicenseParams{ProductID: p.ID, ID: claims.ID})
 		res.Known = err == nil
 	}
 	return out, nil

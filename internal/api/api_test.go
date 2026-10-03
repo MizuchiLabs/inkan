@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json/v2"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -22,7 +23,7 @@ func TestSpecBuilds(t *testing.T) {
 
 	spec := Spec()
 	require.NotNil(t, spec.Paths["/api/products"], "registering every route must not panic")
-	require.NotNil(t, spec.Paths["/api/licenses/{id}"])
+	require.NotNil(t, spec.Paths["/api/products/{product_id}/licenses/{id}"])
 	require.NotNil(t, spec.Paths["/api/check"])
 }
 
@@ -57,6 +58,10 @@ func call(t *testing.T, srv *httptest.Server, method, path string, body, out any
 	return resp.StatusCode
 }
 
+func licensePath(productID int64, id string) string {
+	return fmt.Sprintf("/api/products/%d/licenses/%s", productID, id)
+}
+
 func createProduct(t *testing.T, srv *httptest.Server) Product {
 	t.Helper()
 	var p Product
@@ -73,7 +78,7 @@ func TestProductKeys(t *testing.T) {
 	p := createProduct(t, srv)
 	assert.Len(t, p.PublicKey, 64, "a fresh product gets a keypair")
 	assert.Equal(t, int64(14), p.GraceDays)
-	assert.False(t, p.StripeConnected)
+	assert.False(t, p.ProviderConnected)
 
 	stored, err := q.GetProduct(t.Context(), p.ID)
 	require.NoError(t, err)
@@ -131,6 +136,10 @@ func TestIssueAndCheck(t *testing.T) {
 	assert.Equal(t, l.ID, res.LicenseID)
 	assert.Equal(t, "25", res.Meta["seats"])
 
+	mangled := `"` + l.Key[:40] + "\r\n" + l.Key[40:] + `"`
+	call(t, srv, http.MethodPost, "/api/check", map[string]string{"key": mangled}, &res)
+	assert.Equal(t, stateValid, res.State, "a key quoted and wrapped on its way still checks")
+
 	// A character well inside the signature, the last one may only hold padding bits.
 	i := len(l.Key) - 12
 	if l.Key[i] == '-' {
@@ -151,7 +160,7 @@ func TestIssueAndCheck(t *testing.T) {
 
 	// Moving the expiry into the past changes the key and expires it.
 	var edited License
-	status = call(t, srv, http.MethodPut, "/api/licenses/"+l.ID, map[string]any{
+	status = call(t, srv, http.MethodPut, licensePath(p.ID, l.ID), map[string]any{
 		"email":      "ops@acme.io",
 		"expires_at": time.Now().Add(-time.Hour),
 	}, &edited)
@@ -160,31 +169,33 @@ func TestIssueAndCheck(t *testing.T) {
 	call(t, srv, http.MethodPost, "/api/check", map[string]string{"key": edited.Key}, &res)
 	assert.Equal(t, stateExpired, res.State)
 
-	assert.Equal(t, http.StatusNoContent, call(t, srv, http.MethodDelete, "/api/licenses/"+l.ID, nil, nil))
+	assert.Equal(t, http.StatusNotFound, call(t, srv, http.MethodPut, licensePath(p.ID+1, l.ID),
+		map[string]any{"email": "ops@acme.io"}, nil), "a license is only found under its own product")
+	assert.Equal(t, http.StatusNoContent, call(t, srv, http.MethodDelete, licensePath(p.ID, l.ID), nil, nil))
 	call(t, srv, http.MethodPost, "/api/check", map[string]string{"key": l.Key}, &res)
 	assert.Equal(t, stateValid, res.State, "a deleted license still has a working key out there")
 	assert.False(t, res.Known)
 }
 
-func TestStripeLicenseIsReadOnly(t *testing.T) {
+func TestProviderLicenseIsReadOnly(t *testing.T) {
 	t.Parallel()
 	srv, q := newTestServer(t)
 	p := createProduct(t, srv)
 
-	require.NoError(t, q.UpsertStripeLicense(t.Context(), &db.UpsertStripeLicenseParams{
-		ID: "sub_1", ProductID: p.ID, Email: "a@x.io", Plan: "pro", ExpiresAt: 1_900_000_000,
-		StripeStatus: "active", Renews: true, CreatedAt: 1_700_000_000,
+	require.NoError(t, q.UpsertProviderLicense(t.Context(), &db.UpsertProviderLicenseParams{
+		ID: "sub_1", ProductID: p.ID, Source: "stripe", Email: "a@x.io", Plan: "pro", ExpiresAt: 1_900_000_000,
+		Status: "active", Renews: true, CreatedAt: 1_700_000_000,
 	}))
 
 	var l License
-	status := call(t, srv, http.MethodPut, "/api/licenses/sub_1",
+	status := call(t, srv, http.MethodPut, licensePath(p.ID, "sub_1"),
 		map[string]any{"email": "evil@x.io", "plan": "enterprise", "note": "vip"}, &l)
 	require.Equal(t, http.StatusOK, status)
 	assert.Equal(t, "vip", l.Note)
 	assert.Equal(t, "a@x.io", l.Email, "Stripe owns everything but the note")
 	assert.Equal(t, "pro", l.Plan)
 
-	assert.Equal(t, http.StatusConflict, call(t, srv, http.MethodDelete, "/api/licenses/sub_1", nil, nil))
+	assert.Equal(t, http.StatusConflict, call(t, srv, http.MethodDelete, licensePath(p.ID, "sub_1"), nil, nil))
 }
 
 func TestMetaLimit(t *testing.T) {

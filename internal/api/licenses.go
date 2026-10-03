@@ -26,19 +26,19 @@ const (
 
 // License is one issued license with its key.
 type License struct {
-	ID           string            `json:"id"            doc:"Stripe subscription id, or lic_... for a manual license"`
-	ProductID    int64             `json:"product_id"`
-	Source       string            `json:"source"                                                                      enum:"manual,stripe"`
-	Email        string            `json:"email"`
-	Customer     string            `json:"customer"      doc:"Display name, not part of the key"`
-	Plan         string            `json:"plan"`
-	ExpiresAt    *time.Time        `json:"expires_at"    doc:"Null for a perpetual license"`
-	Meta         map[string]string `json:"meta"          doc:"Extra claims signed into the key"`
-	Note         string            `json:"note"`
-	StripeStatus string            `json:"stripe_status" doc:"Subscription status, empty for a manual license"`
-	Renews       bool              `json:"renews"        doc:"Whether Stripe will bill another period"`
-	Key          string            `json:"key"           doc:"The signed license key"`
-	CreatedAt    time.Time         `json:"created_at"`
+	ID        string            `json:"id"         doc:"Subscription id at the provider, or lic_... for a manual license"`
+	ProductID int64             `json:"product_id"`
+	Source    string            `json:"source"                                                                            enum:"manual,stripe"`
+	Email     string            `json:"email"`
+	Customer  string            `json:"customer"   doc:"Display name, not part of the key"`
+	Plan      string            `json:"plan"`
+	ExpiresAt *time.Time        `json:"expires_at" doc:"Null for a perpetual license"`
+	Meta      map[string]string `json:"meta"       doc:"Extra claims signed into the key"`
+	Note      string            `json:"note"`
+	Status    string            `json:"status"     doc:"Subscription status at the provider, empty for a manual license"`
+	Renews    bool              `json:"renews"     doc:"Whether the provider will bill another period"`
+	Key       string            `json:"key"        doc:"The signed license key"`
+	CreatedAt time.Time         `json:"created_at"`
 }
 
 type LicensesOutput struct {
@@ -49,8 +49,11 @@ type LicenseOutput struct {
 	Body License
 }
 
+// LicensePath names one license. A subscription can hold several products,
+// so the id alone is not enough.
 type LicensePath struct {
-	ID string `path:"id"`
+	ProductID int64  `path:"product_id"`
+	ID        string `path:"id"`
 }
 
 // LicenseFields are the parts of a manual license a user sets.
@@ -102,15 +105,15 @@ func registerLicenses(api huma.API, q *db.Queries) {
 	huma.Register(api, huma.Operation{
 		OperationID: "update-license",
 		Method:      http.MethodPut,
-		Path:        "/api/licenses/{id}",
+		Path:        "/api/products/{product_id}/licenses/{id}",
 		Summary:     "Update a license",
-		Description: "Changing a signed field of a manual license changes its key. Stripe owns its licenses, only their note is taken.",
+		Description: "Changing a signed field of a manual license changes its key. The provider owns its licenses, only their note is taken.",
 		Tags:        []string{"Licenses"},
 	}, h.update)
 	huma.Register(api, huma.Operation{
 		OperationID:   "delete-license",
 		Method:        http.MethodDelete,
-		Path:          "/api/licenses/{id}",
+		Path:          "/api/products/{product_id}/licenses/{id}",
 		Summary:       "Delete a manual license",
 		Description:   "Only forgets the license here. A key that is already out keeps working until it expires.",
 		Tags:          []string{"Licenses"},
@@ -171,7 +174,7 @@ func (h *licenseHandlers) create(ctx context.Context, in *CreateLicenseInput) (*
 }
 
 func (h *licenseHandlers) update(ctx context.Context, in *UpdateLicenseInput) (*LicenseOutput, error) {
-	l, err := h.q.GetLicense(ctx, in.ID)
+	l, err := h.q.GetLicense(ctx, &db.GetLicenseParams{ProductID: in.ProductID, ID: in.ID})
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, huma.Error404NotFound("license not found")
 	}
@@ -184,7 +187,11 @@ func (h *licenseHandlers) update(ctx context.Context, in *UpdateLicenseInput) (*
 	}
 
 	if l.Source != sourceManual {
-		l, err = h.q.SetLicenseNote(ctx, &db.SetLicenseNoteParams{Note: in.Body.Note, ID: in.ID})
+		l, err = h.q.SetLicenseNote(ctx, &db.SetLicenseNoteParams{
+			Note:      in.Body.Note,
+			ProductID: in.ProductID,
+			ID:        in.ID,
+		})
 		if err != nil {
 			return nil, huma.Error500InternalServerError("failed to store note")
 		}
@@ -202,6 +209,7 @@ func (h *licenseHandlers) update(ctx context.Context, in *UpdateLicenseInput) (*
 		ExpiresAt: unixOrZero(in.Body.ExpiresAt),
 		Meta:      meta,
 		Note:      in.Body.Note,
+		ProductID: in.ProductID,
 		ID:        in.ID,
 	})
 	if err != nil {
@@ -211,13 +219,13 @@ func (h *licenseHandlers) update(ctx context.Context, in *UpdateLicenseInput) (*
 }
 
 func (h *licenseHandlers) delete(ctx context.Context, in *LicensePath) (*struct{}, error) {
-	n, err := h.q.DeleteLicense(ctx, in.ID)
+	n, err := h.q.DeleteLicense(ctx, &db.DeleteLicenseParams{ProductID: in.ProductID, ID: in.ID})
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to delete license")
 	}
 	if n == 0 {
 		return nil, huma.Error409Conflict(
-			"only manual licenses can be deleted, Stripe ones come back with the next sync",
+			"only manual licenses can be deleted, provider ones come back with the next sync",
 		)
 	}
 	return nil, nil
@@ -257,18 +265,18 @@ func toLicense(p *db.Product, l *db.License) (License, error) {
 	}
 
 	out := License{
-		ID:           l.ID,
-		ProductID:    l.ProductID,
-		Source:       l.Source,
-		Email:        l.Email,
-		Customer:     l.Customer,
-		Plan:         l.Plan,
-		Meta:         meta,
-		Note:         l.Note,
-		StripeStatus: l.StripeStatus,
-		Renews:       l.Renews,
-		Key:          key,
-		CreatedAt:    time.Unix(l.CreatedAt, 0),
+		ID:        l.ID,
+		ProductID: l.ProductID,
+		Source:    l.Source,
+		Email:     l.Email,
+		Customer:  l.Customer,
+		Plan:      l.Plan,
+		Meta:      meta,
+		Note:      l.Note,
+		Status:    l.Status,
+		Renews:    l.Renews,
+		Key:       key,
+		CreatedAt: time.Unix(l.CreatedAt, 0),
 	}
 	if l.ExpiresAt != 0 {
 		out.ExpiresAt = new(time.Unix(l.ExpiresAt, 0))

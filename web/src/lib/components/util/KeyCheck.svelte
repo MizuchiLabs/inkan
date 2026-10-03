@@ -4,14 +4,14 @@
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as InputGroup from '#lib/components/ui/input-group/index.js';
 	import { Spinner } from '#lib/components/ui/spinner/index.js';
-	import { formatDate, formatRelative } from '#lib/license.js';
+	import { formatDate, formatRelative, refOf } from '#lib/license.js';
 	import { cn } from '#lib/utils.js';
 	import { ScanSearchIcon } from '@lucide/svelte';
 	import Seal from './Seal.svelte';
 
 	type Props = {
 		products: Product[];
-		onopen: (licenseId: string) => void;
+		onopen: (ref: string) => void;
 	};
 	let { products, onopen }: Props = $props();
 
@@ -132,8 +132,9 @@
 					{/if}
 
 					<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-						{#if result.known}
-							<Button variant="secondary" size="sm" onclick={() => onopen(result.license_id)}>
+						{#if result.known && result.product_id !== null}
+							{@const ref = refOf({ product_id: result.product_id, id: result.license_id })}
+							<Button variant="secondary" size="sm" onclick={() => onopen(ref)}>
 								Open license
 							</Button>
 						{:else if result.license_id}

@@ -45,7 +45,12 @@ func TestSync(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, Connected(p))
 	p, err = q.UpdateProduct(ctx, &db.UpdateProductParams{
-		Name: p.Name, Plan: p.Plan, GraceDays: p.GraceDays, StripeKey: "sk_good", StripeProduct: "prod_app", ID: p.ID,
+		Name:            p.Name,
+		Plan:            p.Plan,
+		GraceDays:       p.GraceDays,
+		ProviderKey:     "sk_good",
+		ProviderProduct: "prod_app",
+		ID:              p.ID,
 	})
 	require.NoError(t, err)
 	assert.True(t, Connected(p))
@@ -53,14 +58,14 @@ func TestSync(t *testing.T) {
 	n, err := Sync(ctx, q, p)
 	require.NoError(t, err)
 	assert.Equal(t, 2, n, "the unpaid subscription and the one of another product are left out")
-	_, err = q.GetLicense(ctx, "sub_4")
+	_, err = q.GetLicense(ctx, &db.GetLicenseParams{ProductID: p.ID, ID: "sub_4"})
 	require.Error(t, err, "another product's subscription must not become a license here")
 
-	_, err = q.SetLicenseNote(ctx, &db.SetLicenseNoteParams{Note: "vip", ID: "sub_1"})
+	_, err = q.SetLicenseNote(ctx, &db.SetLicenseNoteParams{Note: "vip", ProductID: p.ID, ID: "sub_1"})
 	require.NoError(t, err)
 	_, err = Sync(ctx, q, p)
 	require.NoError(t, err)
-	l, err := q.GetLicense(ctx, "sub_1")
+	l, err := q.GetLicense(ctx, &db.GetLicenseParams{ProductID: p.ID, ID: "sub_1"})
 	require.NoError(t, err)
 	assert.Equal(t, "vip", l.Note, "a sync must not wipe the note")
 	assert.Equal(t, int64(periodEnd+14*86400), l.ExpiresAt)
@@ -71,10 +76,58 @@ func TestSync(t *testing.T) {
 	assert.NotNil(t, p.SyncedAt)
 	assert.Empty(t, p.SyncError)
 
-	p.StripeKey = "sk_bad"
+	p.ProviderKey = "sk_bad"
 	_, err = Sync(ctx, q, p)
 	require.ErrorContains(t, err, "Invalid API Key provided")
 	p, err = q.GetProduct(ctx, p.ID)
 	require.NoError(t, err)
 	assert.Contains(t, p.SyncError, "Invalid API Key provided", "the failure is kept for the UI")
+}
+
+// One subscription can hold two products. Each gets its own license with its
+// own plan and expiry, they must not fight over one row.
+func TestSyncBundle(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"has_more": false, "data": [
+			{"id": "sub_1", "status": "active", "customer": {"email": "a@x.io"}, "items": {"data": [
+				{"price": {"product": "prod_a", "metadata": {"plan": "team"}}, "current_period_end": 1800000000},
+				{"price": {"product": "prod_b", "metadata": {"plan": "solo"}}, "current_period_end": 1900000000}
+			]}}
+		]}`))
+	}))
+	t.Cleanup(srv.Close)
+	live := stripe.APIURL
+	stripe.APIURL = srv.URL                    //nolint:reassign // the var exists so tests can fake Stripe
+	t.Cleanup(func() { stripe.APIURL = live }) //nolint:reassign // see above
+
+	ctx := t.Context()
+	q, err := db.Open(ctx, t.TempDir())
+	require.NoError(t, err)
+
+	want := map[string]struct {
+		plan    string
+		expires int64
+	}{"a": {"team", 1_800_000_000}, "b": {"solo", 1_900_000_000}}
+	for name := range want {
+		p, err := q.CreateProduct(ctx, &db.CreateProductParams{Name: name, Prefix: "APP" + name, Plan: "pro"})
+		require.NoError(t, err)
+		p, err = q.UpdateProduct(ctx, &db.UpdateProductParams{
+			Name: p.Name, Plan: p.Plan, ProviderKey: "sk_good", ProviderProduct: "prod_" + name, ID: p.ID,
+		})
+		require.NoError(t, err)
+		_, err = Sync(ctx, q, p)
+		require.NoError(t, err)
+	}
+
+	licenses, err := q.ListLicenses(ctx)
+	require.NoError(t, err)
+	require.Len(t, licenses, 2)
+	products, err := q.ListProducts(ctx)
+	require.NoError(t, err)
+	for _, p := range products {
+		l, err := q.GetLicense(ctx, &db.GetLicenseParams{ProductID: p.ID, ID: "sub_1"})
+		require.NoError(t, err, p.Name)
+		assert.Equal(t, want[p.Name].plan, l.Plan, p.Name)
+		assert.Equal(t, want[p.Name].expires, l.ExpiresAt, p.Name)
+	}
 }

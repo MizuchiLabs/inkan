@@ -13,7 +13,7 @@
 	import { Textarea } from '#lib/components/ui/textarea/index.js';
 	import { formatDate, formatRelative, stateOf } from '#lib/license.js';
 	import { cn } from '#lib/utils.js';
-	import { PencilIcon, RefreshCwIcon, Trash2Icon } from '@lucide/svelte';
+	import { PencilIcon, RefreshCwIcon, TrashIcon } from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
 	import CopyBlock from './CopyBlock.svelte';
 	import Seal from './Seal.svelte';
@@ -43,7 +43,7 @@
 		if (!license) return;
 		update.mutate(
 			{
-				path: { id: license.id },
+				path: { product_id: license.product_id, id: license.id },
 				body: {
 					email: license.email,
 					customer: license.customer,
@@ -60,7 +60,7 @@
 	function deleteLicense() {
 		if (!license) return;
 		remove.mutate(
-			{ path: { id: license.id } },
+			{ path: { product_id: license.product_id, id: license.id } },
 			{
 				onSuccess: () => {
 					toast.success('Deleted the license');
@@ -128,7 +128,7 @@
 					<dt class="text-muted-foreground">Source</dt>
 					<dd class="col-span-2">
 						{#if license.source === 'stripe'}
-							Stripe subscription, {license.stripe_status.replaceAll('_', ' ')}
+							Stripe subscription, {license.status.replaceAll('_', ' ')}
 						{:else}
 							Issued by hand
 						{/if}
@@ -170,7 +170,7 @@
 							Edit license
 						</Button>
 						<Button variant="destructive" onclick={() => (confirmDelete = true)}>
-							<Trash2Icon data-icon="inline-start" />
+							<TrashIcon data-icon="inline-start" />
 							Delete
 						</Button>
 					</div>

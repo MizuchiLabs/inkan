@@ -18,6 +18,7 @@
 		byAttention,
 		formatDate,
 		formatRelative,
+		refOf,
 		stateLabel,
 		stateOf,
 		type LicenseState
@@ -35,13 +36,13 @@
 	let productFilter = $state('all');
 	let stateFilter = $state<'all' | LicenseState>('all');
 
-	let selectedId = $state<string>();
+	let selectedRef = $state<string>();
 	// The license issued a moment ago. Its seal lands when the sheet opens.
-	let issuedId = $state<string>();
+	let issuedRef = $state<string>();
 	// undefined is closed, null issues a new license, a license edits it.
 	let dialog = $state<License | null>();
 
-	const selected = $derived(licenses.find((l) => l.id === selectedId));
+	const selected = $derived(licenses.find((l) => refOf(l) === selectedRef));
 
 	// Everything but the status filter, so its counts match what a click shows.
 	const matching = $derived.by(() => {
@@ -67,7 +68,7 @@
 </script>
 
 <div class="flex flex-col gap-8">
-	<KeyCheck {products} onopen={(id) => (selectedId = id)} />
+	<KeyCheck {products} onopen={(ref) => (selectedRef = ref)} />
 
 	{#if productsQuery.isPending || licensesQuery.isPending}
 		<div class="flex flex-col gap-2">
@@ -101,13 +102,13 @@
 					aria-label="Filter by status"
 				>
 					<Tabs.List>
-						<Tabs.Trigger value="all"
-							><span class="font-mono">All {matching.length}</span></Tabs.Trigger
-						>
+						<Tabs.Trigger value="all">
+							<span class="font-mono">All {matching.length}</span>
+						</Tabs.Trigger>
 						{#each states as s (s)}
-							<Tabs.Trigger value={s}
-								><span class="font-mono">{stateLabel[s]} {counts[s]}</span></Tabs.Trigger
-							>
+							<Tabs.Trigger value={s}>
+								<span class="font-mono">{stateLabel[s]} {counts[s]}</span>
+							</Tabs.Trigger>
 						{/each}
 					</Tabs.List>
 				</Tabs.Root>
@@ -139,9 +140,9 @@
 						/>
 					</InputGroup.Root>
 
-					<Button onclick={() => (dialog = null)}
-						><PlusIcon data-icon="inline-start" />Issue license</Button
-					>
+					<Button onclick={() => (dialog = null)}>
+						<PlusIcon data-icon="inline-start" />Issue license
+					</Button>
 				</div>
 			</div>
 
@@ -179,11 +180,11 @@
 							</Table.Row>
 						</Table.Header>
 						<Table.Body>
-							{#each shown as license (license.id)}
+							{#each shown as license (refOf(license))}
 								{@const product = productById.get(license.product_id)}
 								{@const status = stateOf(license)}
 
-								<Table.Row class="cursor-pointer" onclick={() => (selectedId = license.id)}>
+								<Table.Row class="cursor-pointer" onclick={() => (selectedRef = refOf(license))}>
 									<Table.Cell>
 										<button
 											type="button"
@@ -248,10 +249,10 @@
 <LicenseSheet
 	license={selected}
 	product={selected && productById.get(selected.product_id)}
-	fresh={!!selected && selected.id === issuedId}
+	fresh={!!selected && refOf(selected) === issuedRef}
 	onclose={() => {
-		selectedId = undefined;
-		issuedId = undefined;
+		selectedRef = undefined;
+		issuedRef = undefined;
 	}}
 	onedit={(license) => (dialog = license)}
 />
@@ -262,8 +263,8 @@
 		license={dialog ?? undefined}
 		onclose={() => (dialog = undefined)}
 		onsaved={(license, issued) => {
-			selectedId = license.id;
-			issuedId = issued ? license.id : undefined;
+			selectedRef = refOf(license);
+			issuedRef = issued ? selectedRef : undefined;
 		}}
 	/>
 {/if}

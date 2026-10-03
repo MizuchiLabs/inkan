@@ -52,27 +52,6 @@ export const createLicense = <ThrowOnError extends boolean = false>(options: Opt
 });
 
 /**
- * Delete a manual license
- *
- * Only forgets the license here. A key that is already out keeps working until it expires.
- */
-export const deleteLicense = <ThrowOnError extends boolean = false>(options: Options<DeleteLicenseData, ThrowOnError>): RequestResult<DeleteLicenseResponses, DeleteLicenseErrors, ThrowOnError> => (options.client ?? client).delete<DeleteLicenseResponses, DeleteLicenseErrors, ThrowOnError>({ url: '/api/licenses/{id}', ...options });
-
-/**
- * Update a license
- *
- * Changing a signed field of a manual license changes its key. Stripe owns its licenses, only their note is taken.
- */
-export const updateLicense = <ThrowOnError extends boolean = false>(options: Options<UpdateLicenseData, ThrowOnError>): RequestResult<UpdateLicenseResponses, UpdateLicenseErrors, ThrowOnError> => (options.client ?? client).put<UpdateLicenseResponses, UpdateLicenseErrors, ThrowOnError>({
-    url: '/api/licenses/{id}',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
  * List products
  */
 export const listProducts = <ThrowOnError extends boolean = false>(options?: Options<ListProductsData, ThrowOnError>): RequestResult<ListProductsResponses, ListProductsErrors, ThrowOnError> => (options?.client ?? client).get<ListProductsResponses, ListProductsErrors, ThrowOnError>({ url: '/api/products', ...options });
@@ -101,7 +80,7 @@ export const deleteProduct = <ThrowOnError extends boolean = false>(options: Opt
 /**
  * Update a product
  *
- * A connected product is synced with Stripe right away, the outcome is on the returned product.
+ * A connected product is synced with its provider right away, the outcome is on the returned product.
  */
 export const updateProduct = <ThrowOnError extends boolean = false>(options: Options<UpdateProductData, ThrowOnError>): RequestResult<UpdateProductResponses, UpdateProductErrors, ThrowOnError> => (options.client ?? client).put<UpdateProductResponses, UpdateProductErrors, ThrowOnError>({
     url: '/api/products/{id}',
@@ -113,6 +92,27 @@ export const updateProduct = <ThrowOnError extends boolean = false>(options: Opt
 });
 
 /**
- * Sync a product with Stripe
+ * Sync a product with its provider
  */
 export const syncProduct = <ThrowOnError extends boolean = false>(options: Options<SyncProductData, ThrowOnError>): RequestResult<SyncProductResponses, SyncProductErrors, ThrowOnError> => (options.client ?? client).post<SyncProductResponses, SyncProductErrors, ThrowOnError>({ url: '/api/products/{id}/sync', ...options });
+
+/**
+ * Delete a manual license
+ *
+ * Only forgets the license here. A key that is already out keeps working until it expires.
+ */
+export const deleteLicense = <ThrowOnError extends boolean = false>(options: Options<DeleteLicenseData, ThrowOnError>): RequestResult<DeleteLicenseResponses, DeleteLicenseErrors, ThrowOnError> => (options.client ?? client).delete<DeleteLicenseResponses, DeleteLicenseErrors, ThrowOnError>({ url: '/api/products/{product_id}/licenses/{id}', ...options });
+
+/**
+ * Update a license
+ *
+ * Changing a signed field of a manual license changes its key. The provider owns its licenses, only their note is taken.
+ */
+export const updateLicense = <ThrowOnError extends boolean = false>(options: Options<UpdateLicenseData, ThrowOnError>): RequestResult<UpdateLicenseResponses, UpdateLicenseErrors, ThrowOnError> => (options.client ?? client).put<UpdateLicenseResponses, UpdateLicenseErrors, ThrowOnError>({
+    url: '/api/products/{product_id}/licenses/{id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});

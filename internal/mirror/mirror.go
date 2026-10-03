@@ -1,5 +1,6 @@
-// Package mirror copies a product's license subscriptions from Stripe into
-// the database. Stripe stays the source of truth, inkan only reads it.
+// Package mirror copies a product's license subscriptions from its payment
+// provider into the database. The provider stays the source of truth, inkan
+// only reads it. Stripe is the one provider there is.
 package mirror
 
 import (
@@ -20,7 +21,7 @@ func Run(ctx context.Context, q *db.Queries) {
 	for {
 		products, err := q.ListProducts(ctx)
 		if err != nil {
-			slog.Error("stripe sync: listing products failed", "error", err)
+			slog.Error("provider sync: listing products failed", "error", err)
 		}
 		for _, p := range products {
 			if !Connected(p) {
@@ -28,10 +29,10 @@ func Run(ctx context.Context, q *db.Queries) {
 			}
 			n, err := Sync(ctx, q, p)
 			if err != nil {
-				slog.Warn("stripe sync failed", "product", p.Name, "error", err)
+				slog.Warn("provider sync failed", "product", p.Name, "error", err)
 				continue
 			}
-			slog.Debug("stripe sync done", "product", p.Name, "licenses", n)
+			slog.Debug("provider sync done", "product", p.Name, "licenses", n)
 		}
 
 		select {
@@ -43,7 +44,7 @@ func Run(ctx context.Context, q *db.Queries) {
 }
 
 func Connected(p *db.Product) bool {
-	return p.StripeKey != "" && p.StripeProduct != ""
+	return p.ProviderKey != "" && p.ProviderProduct != ""
 }
 
 // Sync mirrors the product's license subscriptions and returns how many it
@@ -55,7 +56,7 @@ func Sync(ctx context.Context, q *db.Queries, p *db.Product) (int, error) {
 			SyncError: err.Error(),
 			ID:        p.ID,
 		}); dbErr != nil {
-			slog.Error("recording stripe sync error failed", "error", dbErr)
+			slog.Error("recording provider sync error failed", "error", dbErr)
 		}
 		return 0, err
 	}
@@ -64,24 +65,25 @@ func Sync(ctx context.Context, q *db.Queries, p *db.Product) (int, error) {
 
 func pull(ctx context.Context, q *db.Queries, p *db.Product) (int, error) {
 	n := 0
-	for sub, err := range stripe.Subscriptions(ctx, p.StripeKey) {
+	for sub, err := range stripe.Subscriptions(ctx, p.ProviderKey) {
 		if err != nil {
 			return 0, err
 		}
-		l, err := sub.License(p.StripeProduct, p.Plan, p.GraceDays)
+		l, err := sub.License(p.ProviderProduct, p.Plan, p.GraceDays)
 		if err != nil {
 			continue
 		}
-		if err := q.UpsertStripeLicense(ctx, &db.UpsertStripeLicenseParams{
-			ID:           l.ID,
-			ProductID:    p.ID,
-			Email:        l.Email,
-			Customer:     l.Customer,
-			Plan:         l.Plan,
-			ExpiresAt:    l.ExpiresAt,
-			StripeStatus: l.Status,
-			Renews:       l.Renews,
-			CreatedAt:    l.CreatedAt,
+		if err := q.UpsertProviderLicense(ctx, &db.UpsertProviderLicenseParams{
+			ID:        l.ID,
+			ProductID: p.ID,
+			Source:    "stripe",
+			Email:     l.Email,
+			Customer:  l.Customer,
+			Plan:      l.Plan,
+			ExpiresAt: l.ExpiresAt,
+			Status:    l.Status,
+			Renews:    l.Renews,
+			CreatedAt: l.CreatedAt,
 		}); err != nil {
 			return 0, fmt.Errorf("storing license %s: %w", l.ID, err)
 		}

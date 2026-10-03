@@ -79,7 +79,10 @@
 			onsaved?.(saved, !license);
 		};
 		if (license) {
-			update.mutate({ path: { id: license.id }, body }, { onSuccess: done });
+			update.mutate(
+				{ path: { product_id: license.product_id, id: license.id }, body },
+				{ onSuccess: done }
+			);
 		} else if (product) {
 			create.mutate({ body: { ...body, product_id: product.id } }, { onSuccess: done });
 		}

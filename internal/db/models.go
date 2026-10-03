@@ -5,30 +5,30 @@
 package db
 
 type License struct {
-	ID           string `json:"id"`
-	ProductID    int64  `json:"productId"`
-	Source       string `json:"source"`
-	Email        string `json:"email"`
-	Customer     string `json:"customer"`
-	Plan         string `json:"plan"`
-	ExpiresAt    int64  `json:"expiresAt"`
-	Meta         string `json:"meta"`
-	Note         string `json:"note"`
-	StripeStatus string `json:"stripeStatus"`
-	Renews       bool   `json:"renews"`
-	CreatedAt    int64  `json:"createdAt"`
+	ID        string `json:"id"`
+	ProductID int64  `json:"productId"`
+	Source    string `json:"source"`
+	Email     string `json:"email"`
+	Customer  string `json:"customer"`
+	Plan      string `json:"plan"`
+	ExpiresAt int64  `json:"expiresAt"`
+	Meta      string `json:"meta"`
+	Note      string `json:"note"`
+	Status    string `json:"status"`
+	Renews    bool   `json:"renews"`
+	CreatedAt int64  `json:"createdAt"`
 }
 
 type Product struct {
-	ID            int64  `json:"id"`
-	Name          string `json:"name"`
-	Prefix        string `json:"prefix"`
-	Plan          string `json:"plan"`
-	GraceDays     int64  `json:"graceDays"`
-	PrivateKey    string `json:"privateKey"`
-	StripeKey     string `json:"stripeKey"`
-	StripeProduct string `json:"stripeProduct"`
-	SyncedAt      *int64 `json:"syncedAt"`
-	SyncError     string `json:"syncError"`
-	CreatedAt     int64  `json:"createdAt"`
+	ID              int64  `json:"id"`
+	Name            string `json:"name"`
+	Prefix          string `json:"prefix"`
+	Plan            string `json:"plan"`
+	GraceDays       int64  `json:"graceDays"`
+	PrivateKey      string `json:"privateKey"`
+	ProviderKey     string `json:"providerKey"`
+	ProviderProduct string `json:"providerProduct"`
+	SyncedAt        *int64 `json:"syncedAt"`
+	SyncError       string `json:"syncError"`
+	CreatedAt       int64  `json:"createdAt"`
 }

@@ -12,6 +12,11 @@ export const stateLabel: Record<LicenseState, string> = {
 	expired: 'Expired'
 };
 
+// One subscription can hold several products, so the id alone names no license.
+export function refOf(license: Pick<License, 'product_id' | 'id'>): string {
+	return `${license.product_id}/${license.id}`;
+}
+
 export function stateOf(license: License, now = Date.now()): LicenseState {
 	if (!license.expires_at) return 'active';
 	const left = new Date(license.expires_at).getTime() - now;

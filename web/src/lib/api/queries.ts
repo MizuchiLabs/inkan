@@ -17,7 +17,7 @@ import {
 
 export type { CheckResult, License, LicenseFields, Product } from './generated/types.gen';
 
-// Stripe syncs in the background, so both lists keep themselves fresh.
+// The provider syncs in the background, so both lists keep themselves fresh.
 export function useProducts() {
 	return createQuery(() => ({ ...listProductsOptions(), refetchInterval: 60_000 }));
 }

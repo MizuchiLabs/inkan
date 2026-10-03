@@ -163,7 +163,7 @@
 
 					<Card.Footer class="justify-between">
 						<p class="text-sm text-muted-foreground">
-							{#if !product.stripe_connected}
+							{#if !product.provider_connected}
 								Not connected to Stripe.
 							{:else if product.synced_at}
 								Synced with Stripe {formatRelativeTime(product.synced_at)}.
@@ -171,7 +171,7 @@
 								Connected to Stripe, not synced yet.
 							{/if}
 						</p>
-						{#if product.stripe_connected}
+						{#if product.provider_connected}
 							<Button
 								variant="outline"
 								size="sm"

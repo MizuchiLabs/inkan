@@ -34,8 +34,8 @@ SET
   name = ?,
   plan = ?,
   grace_days = ?,
-  stripe_key = ?,
-  stripe_product = ?
+  provider_key = ?,
+  provider_product = ?
 WHERE
   id = ? RETURNING *;
 

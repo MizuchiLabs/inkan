@@ -11,9 +11,9 @@ import (
 type Querier interface {
 	CreateLicense(ctx context.Context, arg *CreateLicenseParams) (*License, error)
 	CreateProduct(ctx context.Context, arg *CreateProductParams) (*Product, error)
-	DeleteLicense(ctx context.Context, id string) (int64, error)
+	DeleteLicense(ctx context.Context, arg *DeleteLicenseParams) (int64, error)
 	DeleteProduct(ctx context.Context, id int64) error
-	GetLicense(ctx context.Context, id string) (*License, error)
+	GetLicense(ctx context.Context, arg *GetLicenseParams) (*License, error)
 	GetProduct(ctx context.Context, id int64) (*Product, error)
 	GetProductByPrefix(ctx context.Context, prefix string) (*Product, error)
 	ListLicenses(ctx context.Context) ([]*License, error)
@@ -23,8 +23,8 @@ type Querier interface {
 	SetProductSynced(ctx context.Context, id int64) error
 	UpdateLicense(ctx context.Context, arg *UpdateLicenseParams) (*License, error)
 	UpdateProduct(ctx context.Context, arg *UpdateProductParams) (*Product, error)
-	// Stripe owns everything but the note.
-	UpsertStripeLicense(ctx context.Context, arg *UpsertStripeLicenseParams) error
+	// The provider owns everything but the note.
+	UpsertProviderLicense(ctx context.Context, arg *UpsertProviderLicenseParams) error
 }
 
 var _ Querier = (*Queries)(nil)
