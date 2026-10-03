@@ -36,6 +36,7 @@ var (
 	ErrInvalidSig     = errors.New("signature verification failed")
 	ErrExpired        = errors.New("license has expired")
 	ErrAppMismatch    = errors.New("license issued for a different application")
+	ErrNoKey          = errors.New("no license key set")
 )
 
 var pubkey string
@@ -128,6 +129,8 @@ func chunkKey(encoded string) string {
 // An expired key returns the parsed claims alongside ErrExpired, so
 // callers can show plan or email details in expiry messages.
 //
+// Whitespace anywhere in rawKey and quotes around it are ignored, see [Clean].
+//
 // The public key is injected at build time via ldflags:
 //
 //	-X github.com/mizuchilabs/inkan/license.pubkey=<hex>
@@ -149,7 +152,7 @@ func Verify(rawKey, app string) (*Claims, error) {
 func VerifyWith(rawKey, app string, pubs ...ed25519.PublicKey) (*Claims, error) {
 	prefix := strings.ToUpper(app) + "-"
 
-	enc, ok := strings.CutPrefix(strings.TrimSpace(rawKey), prefix)
+	enc, ok := strings.CutPrefix(Clean(rawKey), prefix)
 	if !ok {
 		return nil, ErrInvalidFormat
 	}
@@ -191,6 +194,13 @@ func VerifyWith(rawKey, app string, pubs ...ed25519.PublicKey) (*Claims, error) 
 	return &c, nil
 }
 
+// Clean strips what a key picks up on its way to an app: the line breaks a
+// mail client adds, stray spaces, the quotes of an env file. [Verify] does it
+// by itself, Clean is for whoever stores or compares keys.
+func Clean(rawKey string) string {
+	return strings.Trim(strings.Join(strings.Fields(rawKey), ""), `"'`)
+}
+
 // SetPublicKey sets the verification keys at runtime, for tests and
 // embedders that do not use ldflags. Keys are hex-encoded and
 // comma-separated, the same format the ldflags-injected pubkey var
@@ -206,9 +216,10 @@ func SetPublicKey(pubHex string) error {
 	return nil
 }
 
-// HasPublicKey reports whether valid verification keys are available, via
-// ldflags injection or SetPublicKey. Verifiers that surface a distinct
-// "not configured" state use it before Verify.
+// HasPublicKey reports whether this build can verify keys at all. It is false
+// when no public key came in through ldflags or SetPublicKey, as in a build
+// someone compiled from source. No key verifies there, an app can use this to
+// show such a build for what it is.
 func HasPublicKey() bool {
 	_, err := decodePubKeys(pubkey)
 	return err == nil

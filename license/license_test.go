@@ -211,6 +211,33 @@ func TestVerifyExpiry(t *testing.T) {
 	}
 }
 
+// Keys travel by mail and through env files, and come out wrapped or quoted.
+func TestVerifyMangledKey(t *testing.T) {
+	_, priv := testKeypair(t)
+	key, err := Issue("myapp", Claims{Plan: "pro", Email: "ops@acme.io", ID: "sub_123"}, priv)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for name, mangled := range map[string]string{
+		"wrapped by a mail client": key[:76] + "\r\n" + key[76:152] + "\n  " + key[152:],
+		"quoted in an env file":    `"` + key + `"`,
+		"single quoted":            " '" + key + "'\n",
+		"tabs and no-break spaces": "\t" + key[:20] + "\u00a0" + key[20:],
+	} {
+		if _, err := Verify(mangled, "myapp"); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+		if got := Clean(mangled); got != key {
+			t.Errorf("%s: cleaned to %q, want the key as issued", name, got)
+		}
+	}
+
+	if _, err := Verify(key[:40]+"x"+key[40:], "myapp"); err == nil {
+		t.Fatal("an extra character inside the key must not verify")
+	}
+}
+
 func TestParsePrivateKey(t *testing.T) {
 	privB64, _, err := GenerateKey()
 	if err != nil {

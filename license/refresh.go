@@ -24,7 +24,7 @@ var refreshClient = &http.Client{Timeout: 15 * time.Second}
 // On an error the app keeps the key it has. That key works offline until it
 // expires, a failed refresh takes nothing away.
 func Refresh(ctx context.Context, endpoint, rawKey, app string) (string, error) {
-	body := strings.NewReader(strings.TrimSpace(rawKey))
+	body := strings.NewReader(Clean(rawKey))
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, body)
 	if err != nil {
 		return "", fmt.Errorf("refreshing license: %w", err)
@@ -48,5 +48,5 @@ func Refresh(ctx context.Context, endpoint, rawKey, app string) (string, error) 
 	if _, err := Verify(answer, app); err != nil && !errors.Is(err, ErrExpired) {
 		return "", fmt.Errorf("refreshing license: the answer is not a key of this app: %w", err)
 	}
-	return answer, nil
+	return Clean(answer), nil
 }
