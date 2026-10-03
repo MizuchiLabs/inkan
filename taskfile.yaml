@@ -8,7 +8,7 @@ tasks:
   backend:
     desc: Run backend
     cmds:
-      - go run .
+      - go run . --password 123
 
   frontend:
     desc: Run frontend
