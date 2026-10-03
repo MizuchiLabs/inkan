@@ -44,6 +44,7 @@ func TestLicense(t *testing.T) {
 		Customer:  "Acme Inc",
 		Plan:      "team",
 		ExpiresAt: periodEnd + grace,
+		Period:    periodEnd - periodStart,
 		Status:    "active",
 		Renews:    true,
 		CreatedAt: 1700000000,

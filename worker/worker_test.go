@@ -48,6 +48,10 @@ func fakeStripe(t *testing.T) {
 			_, _ = w.Write([]byte(`{"has_more": false, "data": [` + paidSub + `]}`))
 		case "/v1/subscriptions/sub_1":
 			_, _ = w.Write([]byte(paidSub))
+		case "/v1/subscriptions/sub_monthly":
+			_, _ = w.Write([]byte(`{"id": "sub_monthly", "status": "active", "customer": {"email": "m@acme.io"},
+				"items": {"data": [{"price": {"product": "prod_app"},
+					"current_period_start": 1797408000, "current_period_end": 1800000000}]}}`))
 		case "/v1/subscriptions/sub_other":
 			_, _ = w.Write([]byte(`{"id": "sub_other", "status": "active", "customer": {"email": "x@x.io"},
 				"items": {"data": [{"price": {"product": "prod_other"}, "current_period_end": 1800000000}]}}`))
@@ -148,6 +152,9 @@ func TestRefresh(t *testing.T) {
 	status, key = post(t, h, "/refresh", manual, nil)
 	require.Equal(t, http.StatusOK, status)
 	assert.Equal(t, manual, key, "a hand issued key comes back as it is")
+	status, key = post(t, h, "/refresh", `"`+manual[:40]+"\r\n"+manual[40:]+`"`, nil)
+	require.Equal(t, http.StatusOK, status)
+	assert.Equal(t, manual, key, "a key mangled on its way comes back clean")
 
 	_, otherPriv := testConfig(t)
 	forged := issue(license.Claims{Plan: "pro", ID: "sub_1"}, otherPriv)
@@ -156,7 +163,13 @@ func TestRefresh(t *testing.T) {
 	status, _ = post(t, h, "/refresh", "APP-AAAAA", nil)
 	assert.Equal(t, http.StatusBadRequest, status)
 
+	noID := issue(license.Claims{Plan: "pro", Email: "a@x.io"}, priv)
+	status, key = post(t, h, "/refresh", noID, nil)
+	require.Equal(t, http.StatusOK, status)
+	assert.Equal(t, noID, key, "so does a key from before keys carried an id")
+
 	for id, want := range map[string]int{
+		"I-FOREIGN":  http.StatusNotFound, // only lic_ ids are hand issued, any other is the provider's
 		"sub_gone":   http.StatusNotFound,
 		"sub_other":  http.StatusNotFound,
 		"sub_unpaid": http.StatusNotFound,
@@ -192,13 +205,13 @@ func TestWebhook(t *testing.T) {
 		Plan: "team", Email: "ops@acme.io", ExpiresAt: periodEnd + grace, ID: "sub_1",
 	}, priv)
 	require.NoError(t, err)
-	paid := func(sub string) string {
-		return `{"type": "invoice.paid", "data": {"object": {
+	paid := func(sub, reason string) string {
+		return `{"type": "invoice.paid", "data": {"object": {"billing_reason": "` + reason + `",
 			"parent": {"subscription_details": {"subscription": "` + sub + `"}}}}}`
 	}
 	now := time.Now()
 
-	body := paid("sub_1")
+	body := paid("sub_1", "subscription_create")
 	status, _ := post(t, h, "/webhook", body, signature(body, now))
 	require.Equal(t, http.StatusOK, status)
 	require.Equal(t, []string{"ops@acme.io " + want}, sent, "the customer gets the key the ledger shows")
@@ -212,28 +225,41 @@ func TestWebhook(t *testing.T) {
 	for name, body := range map[string]string{
 		"another event":          `{"type": "invoice.created", "data": {"object": {"subscription": "sub_1"}}}`,
 		"a one off invoice":      `{"type": "invoice.paid", "data": {"object": {"parent": null}}}`,
-		"another product's sub.": paid("sub_other"),
+		"another product's sub.": paid("sub_other", "subscription_create"),
+		"a monthly renewal":      paid("sub_monthly", "subscription_cycle"),
 	} {
 		status, _ = post(t, h, "/webhook", body, signature(body, now))
 		assert.Equal(t, http.StatusOK, status, name)
 	}
 	assert.Len(t, sent, 2)
 
-	body = paid("sub_1")
-	status, _ = post(t, h, "/webhook", body, signature(paid("sub_other"), now))
+	// A monthly subscription still gets its first key, a longer period every key.
+	for _, body := range []string{
+		paid("sub_monthly", "subscription_create"),
+		paid("sub_1", "subscription_cycle"),
+	} {
+		status, _ = post(t, h, "/webhook", body, signature(body, now))
+		assert.Equal(t, http.StatusOK, status)
+	}
+	require.Len(t, sent, 4)
+	assert.Contains(t, sent[2], "m@acme.io")
+	assert.Contains(t, sent[3], "ops@acme.io")
+
+	body = paid("sub_1", "subscription_cycle")
+	status, _ = post(t, h, "/webhook", body, signature(paid("sub_other", ""), now))
 	assert.Equal(t, http.StatusBadRequest, status, "the signature covers the body")
 	status, _ = post(t, h, "/webhook", body, signature(body, now.Add(-time.Hour)))
 	assert.Equal(t, http.StatusBadRequest, status, "an old event cannot be replayed")
 	status, _ = post(t, h, "/webhook", body, nil)
 	assert.Equal(t, http.StatusBadRequest, status)
-	assert.Len(t, sent, 2)
+	assert.Len(t, sent, 4)
 
 	// Stripe retries on an error, so these keys are not lost.
-	body = paid("sub_unpaid")
+	body = paid("sub_unpaid", "subscription_create")
 	status, _ = post(t, h, "/webhook", body, signature(body, now))
 	assert.Equal(t, http.StatusInternalServerError, status, "paid invoice, subscription not active yet")
 	sendErr = errors.New("mail server is down")
-	body = paid("sub_1")
+	body = paid("sub_1", "subscription_create")
 	status, _ = post(t, h, "/webhook", body, signature(body, now))
 	assert.Equal(t, http.StatusInternalServerError, status)
 }
@@ -359,7 +385,7 @@ func TestSMTPSend(t *testing.T) {
 	assert.Contains(t, lines, "RCPT TO:<ops@acme.io>")
 	assert.Contains(t, lines, "Subject: Your APP license key")
 	assert.Contains(t, lines, "APP-AAAAA-BBBBB")
-	assert.Contains(t, lines, "It is valid until 15 January 2027. A new key is sent after every payment.")
+	assert.Contains(t, lines, "It is valid until 15 January 2027.")
 
 	claims.Email = "ops@acme.io\r\nBcc: thief@evil.io"
 	err := sender.Send(t.Context(), "APP-AAAAA-BBBBB", claims)

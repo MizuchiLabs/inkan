@@ -29,8 +29,13 @@ import (
 	"github.com/mizuchilabs/inkan/license"
 )
 
-// Stripe rejects events older than this in its own libraries too.
-const webhookTolerance = 5 * time.Minute
+const (
+	// Stripe rejects events older than this in its own libraries too.
+	webhookTolerance = 5 * time.Minute
+	// A renewal only sends a key when its period is longer than a month, in
+	// seconds. 32 days is past the longest month.
+	shortPeriod = 32 * 86400
+)
 
 // Config is everything a worker knows about its product. The values are the
 // ones on the product in inkan, they have to match for the keys to match.
@@ -52,6 +57,8 @@ type Config struct {
 	// Leave it and Send empty to serve refresh only.
 	WebhookSecret string
 	// Send delivers a freshly paid key to its owner. [SMTP.Send] mails it.
+	// It is not called for the renewal of a period of a month or less, those
+	// keys are left to refresh.
 	Send func(ctx context.Context, key string, claims license.Claims) error
 }
 
@@ -102,10 +109,11 @@ func (h *handler) refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// A hand issued license is not in Stripe, the key it has is all there is.
-	key := strings.TrimSpace(string(body))
-	if strings.HasPrefix(claims.ID, "sub_") {
-		key, _, err = h.issue(r.Context(), claims.ID)
+	// A hand issued license, or one without an id, is not in Stripe. The key
+	// it has is all there is. See the lic_ ids in internal/api.
+	key := license.Clean(string(body))
+	if claims.ID != "" && !strings.HasPrefix(claims.ID, "lic_") {
+		key, _, _, err = h.issue(r.Context(), claims.ID)
 		if errors.Is(err, stripe.ErrNotFound) || errors.Is(err, stripe.ErrOtherProduct) ||
 			errors.Is(err, stripe.ErrNotOwed) {
 			http.Error(w, "no license behind this key", http.StatusNotFound)
@@ -122,8 +130,9 @@ func (h *handler) refresh(w http.ResponseWriter, r *http.Request) {
 }
 
 // webhook sends the key once an invoice of the product is paid. That covers
-// the first payment, the start of a trial and every renewal. Anything it
-// cannot finish is answered with an error, so Stripe tries again later.
+// the first payment, the start of a trial and the renewal of periods longer
+// than a month. Anything it cannot finish is answered with an error, so
+// Stripe tries again later.
 func (h *handler) webhook(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
 	if err != nil {
@@ -139,8 +148,9 @@ func (h *handler) webhook(w http.ResponseWriter, r *http.Request) {
 		Type string `json:"type"`
 		Data struct {
 			Object struct {
-				Subscription string `json:"subscription"` // API versions before 2025-03-31
-				Parent       struct {
+				BillingReason string `json:"billing_reason"`
+				Subscription  string `json:"subscription"` // API versions before 2025-03-31
+				Parent        struct {
 					SubscriptionDetails struct {
 						Subscription string `json:"subscription"`
 					} `json:"subscription_details"`
@@ -158,7 +168,7 @@ func (h *handler) webhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	key, claims, err := h.issue(r.Context(), subID)
+	key, claims, period, err := h.issue(r.Context(), subID)
 	if errors.Is(err, stripe.ErrOtherProduct) {
 		return
 	}
@@ -171,6 +181,11 @@ func (h *handler) webhook(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("webhook: the customer has no email, the key was not sent", "license", subID)
 		return
 	}
+	// Nobody pastes a key every month, and an app that is online refreshes.
+	if invoice.BillingReason == "subscription_cycle" && period <= shortPeriod {
+		slog.Info("renewal of a short period, the key was not sent", "license", subID)
+		return
+	}
 	if err := h.cfg.Send(r.Context(), key, claims); err != nil {
 		slog.Error("webhook: sending the key failed", "license", subID, "error", err)
 		http.Error(w, "the key could not be sent", http.StatusInternalServerError)
@@ -179,20 +194,24 @@ func (h *handler) webhook(w http.ResponseWriter, r *http.Request) {
 	slog.Info("license key sent", "license", subID, "plan", claims.Plan)
 }
 
-// issue signs the key a subscription is owed right now.
-func (h *handler) issue(ctx context.Context, subID string) (string, license.Claims, error) {
+// issue signs the key a subscription is owed right now. period is how many
+// seconds one billing period of it lasts.
+func (h *handler) issue(
+	ctx context.Context,
+	subID string,
+) (key string, claims license.Claims, period int64, err error) {
 	sub, err := stripe.Get(ctx, h.cfg.StripeKey, subID)
 	if err != nil {
-		return "", license.Claims{}, err
+		return "", license.Claims{}, 0, err
 	}
 	l, err := sub.License(h.cfg.StripeProduct, h.cfg.Plan, h.cfg.GraceDays)
 	if err != nil {
-		return "", license.Claims{}, err
+		return "", license.Claims{}, 0, err
 	}
 	// The ledger signs the same four claims from its row, see toLicense in internal/api.
-	claims := license.Claims{App: h.cfg.Prefix, Plan: l.Plan, Email: l.Email, ExpiresAt: l.ExpiresAt, ID: l.ID}
-	key, err := license.Issue(h.cfg.Prefix, claims, h.priv)
-	return key, claims, err
+	claims = license.Claims{App: h.cfg.Prefix, Plan: l.Plan, Email: l.Email, ExpiresAt: l.ExpiresAt, ID: l.ID}
+	key, err = license.Issue(h.cfg.Prefix, claims, h.priv)
+	return key, claims, l.Period, err
 }
 
 // signed checks a Stripe-Signature header, t=<unix>,v1=<hex>. The signature

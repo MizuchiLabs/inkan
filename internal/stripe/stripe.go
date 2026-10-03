@@ -65,6 +65,7 @@ type License struct {
 	Customer  string // display name, not part of the key
 	Plan      string
 	ExpiresAt int64
+	Period    int64 // seconds one billing period lasts
 	Status    string
 	Renews    bool
 	CreatedAt int64
@@ -81,6 +82,7 @@ func (s *Subscription) License(product, plan string, graceDays int64) (*License,
 	it := &s.Items.Data[i]
 	start := cmp.Or(it.CurrentPeriodStart, s.CurrentPeriodStart)
 	paid := cmp.Or(it.CurrentPeriodEnd, s.CurrentPeriodEnd)
+	period := paid - start
 
 	switch s.Status {
 	case "active", "trialing":
@@ -107,6 +109,7 @@ func (s *Subscription) License(product, plan string, graceDays int64) (*License,
 		Plan:     cmp.Or(it.Price.Metadata["plan"], plan),
 		// The grace keeps the old key alive until the renewed one is in place.
 		ExpiresAt: paid + graceDays*86400,
+		Period:    period,
 		Status:    s.Status,
 		Renews:    (s.Status == "active" || s.Status == "trialing") && !s.CancelAtPeriodEnd,
 		CreatedAt: s.Created,

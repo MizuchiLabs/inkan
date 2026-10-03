@@ -96,7 +96,7 @@ func message(from, to *mail.Address, key string, claims license.Claims) []byte {
 	fmt.Fprintf(&b, "This is your license key for %s:\r\n\r\n%s\r\n\r\n", claims.App, key)
 	if claims.ExpiresAt != 0 {
 		until := time.Unix(claims.ExpiresAt, 0).UTC().Format("2 January 2006")
-		fmt.Fprintf(&b, "It is valid until %s. A new key is sent after every payment.\r\n", until)
+		fmt.Fprintf(&b, "It is valid until %s.\r\n", until)
 	}
 	return []byte(b.String())
 }
