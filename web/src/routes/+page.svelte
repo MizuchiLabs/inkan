@@ -101,9 +101,13 @@
 					aria-label="Filter by status"
 				>
 					<Tabs.List>
-						<Tabs.Trigger value="all" class="font-mono">All {matching.length}</Tabs.Trigger>
+						<Tabs.Trigger value="all"
+							><span class="font-mono">All {matching.length}</span></Tabs.Trigger
+						>
 						{#each states as s (s)}
-							<Tabs.Trigger value={s} class="font-mono">{stateLabel[s]} {counts[s]}</Tabs.Trigger>
+							<Tabs.Trigger value={s}
+								><span class="font-mono">{stateLabel[s]} {counts[s]}</span></Tabs.Trigger
+							>
 						{/each}
 					</Tabs.List>
 				</Tabs.Root>
