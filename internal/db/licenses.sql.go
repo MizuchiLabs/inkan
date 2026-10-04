@@ -77,6 +77,17 @@ func (q *Queries) DeleteLicense(ctx context.Context, arg *DeleteLicenseParams) (
 	return result.RowsAffected()
 }
 
+const deleteSnapshots = `-- name: DeleteSnapshots :exec
+DELETE FROM snapshots
+WHERE
+  day = ?
+`
+
+func (q *Queries) DeleteSnapshots(ctx context.Context, day string) error {
+	_, err := q.db.ExecContext(ctx, deleteSnapshots, day)
+	return err
+}
+
 const getLicense = `-- name: GetLicense :one
 SELECT
   id, product_id, source, email, customer, "plan", expires_at, meta, note, status, renews, created_at
@@ -158,6 +169,47 @@ func (q *Queries) ListLicenses(ctx context.Context) ([]*License, error) {
 	return items, nil
 }
 
+const listSnapshots = `-- name: ListSnapshots :many
+SELECT
+  day, product_id, "plan", active
+FROM
+  snapshots
+WHERE
+  day >= ?
+ORDER BY
+  day,
+  product_id,
+  plan
+`
+
+func (q *Queries) ListSnapshots(ctx context.Context, day string) ([]*Snapshot, error) {
+	rows, err := q.db.QueryContext(ctx, listSnapshots, day)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*Snapshot
+	for rows.Next() {
+		var i Snapshot
+		if err := rows.Scan(
+			&i.Day,
+			&i.ProductID,
+			&i.Plan,
+			&i.Active,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setLicenseNote = `-- name: SetLicenseNote :one
 UPDATE licenses
 SET
@@ -191,6 +243,30 @@ func (q *Queries) SetLicenseNote(ctx context.Context, arg *SetLicenseNoteParams)
 		&i.CreatedAt,
 	)
 	return &i, err
+}
+
+const takeSnapshot = `-- name: TakeSnapshot :exec
+INSERT INTO
+  snapshots (day, product_id, plan, active)
+SELECT
+  ?1,
+  product_id,
+  plan,
+  count(*)
+FROM
+  licenses
+WHERE
+  expires_at = 0
+  OR expires_at > unixepoch()
+GROUP BY
+  product_id,
+  plan
+`
+
+// Licenses that have not run out, counted per product and plan.
+func (q *Queries) TakeSnapshot(ctx context.Context, day string) error {
+	_, err := q.db.ExecContext(ctx, takeSnapshot, day)
+	return err
 }
 
 const updateLicense = `-- name: UpdateLicense :one
@@ -250,15 +326,16 @@ func (q *Queries) UpdateLicense(ctx context.Context, arg *UpdateLicenseParams) (
 
 const upsertProviderLicense = `-- name: UpsertProviderLicense :exec
 INSERT INTO
-  licenses (id, product_id, source, email, customer, plan, expires_at, status, renews, created_at)
+  licenses (id, product_id, source, email, customer, plan, expires_at, meta, status, renews, created_at)
 VALUES
-  (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (product_id, id) DO UPDATE
 SET
   email = excluded.email,
   customer = excluded.customer,
   plan = excluded.plan,
   expires_at = excluded.expires_at,
+  meta = excluded.meta,
   status = excluded.status,
   renews = excluded.renews
 `
@@ -271,6 +348,7 @@ type UpsertProviderLicenseParams struct {
 	Customer  string `json:"customer"`
 	Plan      string `json:"plan"`
 	ExpiresAt int64  `json:"expiresAt"`
+	Meta      string `json:"meta"`
 	Status    string `json:"status"`
 	Renews    bool   `json:"renews"`
 	CreatedAt int64  `json:"createdAt"`
@@ -286,6 +364,7 @@ func (q *Queries) UpsertProviderLicense(ctx context.Context, arg *UpsertProvider
 		arg.Customer,
 		arg.Plan,
 		arg.ExpiresAt,
+		arg.Meta,
 		arg.Status,
 		arg.Renews,
 		arg.CreatedAt,

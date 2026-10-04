@@ -25,10 +25,18 @@ type Product struct {
 	Prefix          string `json:"prefix"`
 	Plan            string `json:"plan"`
 	GraceDays       int64  `json:"graceDays"`
+	KeyDays         int64  `json:"keyDays"`
 	PrivateKey      string `json:"privateKey"`
 	ProviderKey     string `json:"providerKey"`
 	ProviderProduct string `json:"providerProduct"`
 	SyncedAt        *int64 `json:"syncedAt"`
 	SyncError       string `json:"syncError"`
 	CreatedAt       int64  `json:"createdAt"`
+}
+
+type Snapshot struct {
+	Day       string `json:"day"`
+	ProductID int64  `json:"productId"`
+	Plan      string `json:"plan"`
+	Active    int64  `json:"active"`
 }

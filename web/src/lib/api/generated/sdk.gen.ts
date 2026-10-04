@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { CheckKeyData, CheckKeyErrors, CheckKeyResponses, CreateLicenseData, CreateLicenseErrors, CreateLicenseResponses, CreateProductData, CreateProductErrors, CreateProductResponses, DeleteLicenseData, DeleteLicenseErrors, DeleteLicenseResponses, DeleteProductData, DeleteProductErrors, DeleteProductResponses, GetSessionData, GetSessionErrors, GetSessionResponses, ListLicensesData, ListLicensesErrors, ListLicensesResponses, ListProductsData, ListProductsErrors, ListProductsResponses, SignInData, SignInErrors, SignInResponses, SignOutData, SignOutErrors, SignOutResponses, SyncProductData, SyncProductErrors, SyncProductResponses, UpdateLicenseData, UpdateLicenseErrors, UpdateLicenseResponses, UpdateProductData, UpdateProductErrors, UpdateProductResponses } from './types.gen';
+import type { CheckKeyData, CheckKeyErrors, CheckKeyResponses, CreateLicenseData, CreateLicenseErrors, CreateLicenseResponses, CreateProductData, CreateProductErrors, CreateProductResponses, DeleteLicenseData, DeleteLicenseErrors, DeleteLicenseResponses, DeleteProductData, DeleteProductErrors, DeleteProductResponses, GetSessionData, GetSessionErrors, GetSessionResponses, ListLicensesData, ListLicensesErrors, ListLicensesResponses, ListProductsData, ListProductsErrors, ListProductsResponses, ListStatsData, ListStatsErrors, ListStatsResponses, SignInData, SignInErrors, SignInResponses, SignOutData, SignOutErrors, SignOutResponses, SyncProductData, SyncProductErrors, SyncProductResponses, UpdateLicenseData, UpdateLicenseErrors, UpdateLicenseResponses, UpdateProductData, UpdateProductErrors, UpdateProductResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -140,3 +140,10 @@ export const signIn = <ThrowOnError extends boolean = false>(options: Options<Si
         ...options.headers
     }
 });
+
+/**
+ * Show how the license counts moved
+ *
+ * One entry per day, product and plan, oldest first. A plan without licenses on a day has no entry.
+ */
+export const listStats = <ThrowOnError extends boolean = false>(options?: Options<ListStatsData, ThrowOnError>): RequestResult<ListStatsResponses, ListStatsErrors, ThrowOnError> => (options?.client ?? client).get<ListStatsResponses, ListStatsErrors, ThrowOnError>({ url: '/api/stats', ...options });

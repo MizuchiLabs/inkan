@@ -18,7 +18,7 @@ const testPassword = "correct horse battery staple"
 
 func protectedServer(t *testing.T, q *db.Queries) *Server {
 	t.Helper()
-	srv, err := New(q, testPassword)
+	srv, err := New(q, testPassword, "")
 	require.NoError(t, err)
 	return srv
 }
@@ -47,7 +47,7 @@ func TestOpenWithoutPassword(t *testing.T) {
 	t.Parallel()
 	q, err := db.Open(t.Context(), t.TempDir())
 	require.NoError(t, err)
-	srv, err := New(q, "")
+	srv, err := New(q, "", "")
 	require.NoError(t, err)
 
 	assert.Equal(t, http.StatusOK, do(t, srv, http.MethodGet, "/api/licenses", "", "").Code)
@@ -108,7 +108,7 @@ func TestForgedSessions(t *testing.T) {
 	q, err := db.Open(t.Context(), t.TempDir())
 	require.NoError(t, err)
 	srv := protectedServer(t, q)
-	other, err := newAuth("another password")
+	other, err := newAuth("another password", "")
 	require.NoError(t, err)
 
 	inAnHour := time.Now().Add(time.Hour).Unix()
@@ -159,7 +159,40 @@ func TestNoPasswordStaysOnThisMachine(t *testing.T) {
 		assert.Equal(t, want, loopback(addr), addr)
 	}
 
-	open, err := New(nil, "")
+	open, err := New(nil, "", "")
 	require.NoError(t, err)
 	require.ErrorContains(t, open.Start(t.Context(), ":0"), "INKAN_PASSWORD")
+}
+
+func TestAPIToken(t *testing.T) {
+	t.Parallel()
+	q, err := db.Open(t.Context(), t.TempDir())
+	require.NoError(t, err)
+	const token = "0123456789abcdef0123456789abcdef"
+	srv, err := New(q, testPassword, token)
+	require.NoError(t, err)
+
+	get := func(header string) int {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/licenses", nil)
+		if header != "" {
+			req.Header.Set("Authorization", header)
+		}
+		rec := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(rec, req)
+		return rec.Code
+	}
+	assert.Equal(t, http.StatusOK, get("Bearer "+token), "a script gets in without a session")
+	assert.Equal(t, http.StatusUnauthorized, get("Bearer "+token+"x"))
+	assert.Equal(t, http.StatusUnauthorized, get("Bearer "))
+	assert.Equal(t, http.StatusUnauthorized, get(""))
+
+	noToken := protectedServer(t, q)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/licenses", nil)
+	req.Header.Set("Authorization", "Bearer ")
+	rec := httptest.NewRecorder()
+	noToken.Handler().ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusUnauthorized, rec.Code, "without a token no bearer gets in, not even an empty one")
+
+	_, err = New(q, testPassword, "short")
+	require.Error(t, err, "a token is guessed without a limit, so a short one is refused")
 }

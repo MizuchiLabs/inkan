@@ -13,14 +13,18 @@ type Querier interface {
 	CreateProduct(ctx context.Context, arg *CreateProductParams) (*Product, error)
 	DeleteLicense(ctx context.Context, arg *DeleteLicenseParams) (int64, error)
 	DeleteProduct(ctx context.Context, id int64) error
+	DeleteSnapshots(ctx context.Context, day string) error
 	GetLicense(ctx context.Context, arg *GetLicenseParams) (*License, error)
 	GetProduct(ctx context.Context, id int64) (*Product, error)
 	GetProductByPrefix(ctx context.Context, prefix string) (*Product, error)
 	ListLicenses(ctx context.Context) ([]*License, error)
 	ListProducts(ctx context.Context) ([]*Product, error)
+	ListSnapshots(ctx context.Context, day string) ([]*Snapshot, error)
 	SetLicenseNote(ctx context.Context, arg *SetLicenseNoteParams) (*License, error)
 	SetProductSyncError(ctx context.Context, arg *SetProductSyncErrorParams) error
 	SetProductSynced(ctx context.Context, id int64) error
+	// Licenses that have not run out, counted per product and plan.
+	TakeSnapshot(ctx context.Context, day string) error
 	UpdateLicense(ctx context.Context, arg *UpdateLicenseParams) (*License, error)
 	UpdateProduct(ctx context.Context, arg *UpdateProductParams) (*Product, error)
 	// The provider owns everything but the note.

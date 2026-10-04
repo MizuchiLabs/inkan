@@ -28,6 +28,7 @@
 			prefix: product?.prefix ?? '',
 			plan: product?.plan ?? '',
 			graceDays: product?.grace_days ?? 14,
+			keyDays: product?.key_days ?? 0,
 			privateKey: '',
 			providerProduct: product?.provider_product ?? '',
 			providerKey: ''
@@ -45,6 +46,7 @@
 						name: form.name,
 						plan: form.plan,
 						grace_days: form.graceDays,
+						key_days: form.keyDays,
 						provider_product: form.providerProduct,
 						provider_key: form.providerKey
 					}
@@ -66,6 +68,7 @@
 					prefix: form.prefix,
 					plan: form.plan,
 					grace_days: form.graceDays,
+					key_days: form.keyDays,
 					private_key: form.privateKey
 				}
 			},
@@ -149,6 +152,22 @@
 					that set none.
 				</Field.Description>
 
+				<Field.Field>
+					<Field.Label for="product-key-days">Key days</Field.Label>
+					<Input
+						id="product-key-days"
+						type="number"
+						min={0}
+						max={3650}
+						bind:value={form.keyDays}
+						required
+					/>
+					<Field.Description>
+						The longest a Stripe key lives. The app has to refresh for the next one, which is what
+						stops a refunded or canceled license. Leave it at 0 for apps that run offline.
+					</Field.Description>
+				</Field.Field>
+
 				{#if product}
 					<Field.Separator />
 					<Field.Field>
@@ -160,8 +179,9 @@
 							autocomplete="off"
 						/>
 						<Field.Description>
-							Every subscription to this product becomes a license. Give a price the metadata
-							<code class="font-mono">plan</code> to set its plan. Empty disconnects Stripe.
+							Every subscription and one time purchase of this product becomes a license. Give a
+							price the metadata <code class="font-mono">plan</code> to set its plan. Empty disconnects
+							Stripe.
 						</Field.Description>
 					</Field.Field>
 					<Field.Field>
@@ -176,7 +196,8 @@
 							autocomplete="off"
 						/>
 						<Field.Description>
-							A restricted key that can read subscriptions and customers is enough.
+							A restricted key that can read subscriptions and customers is enough. One time
+							purchases also need Checkout sessions, payment intents and charges.
 						</Field.Description>
 					</Field.Field>
 				{:else}

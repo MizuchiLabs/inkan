@@ -31,7 +31,7 @@ func newTestServer(t *testing.T) (*httptest.Server, *db.Queries) {
 	t.Helper()
 	q, err := db.Open(t.Context(), t.TempDir())
 	require.NoError(t, err)
-	api, err := New(q, "")
+	api, err := New(q, "", "")
 	require.NoError(t, err)
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
@@ -186,7 +186,7 @@ func TestProviderLicenseIsReadOnly(t *testing.T) {
 
 	require.NoError(t, q.UpsertProviderLicense(t.Context(), &db.UpsertProviderLicenseParams{
 		ID: "sub_1", ProductID: p.ID, Source: "stripe", Email: "a@x.io", Plan: "pro", ExpiresAt: 1_900_000_000,
-		Status: "active", Renews: true, CreatedAt: 1_700_000_000,
+		Meta: "{}", Status: "active", Renews: true, CreatedAt: 1_700_000_000,
 	}))
 
 	var l License

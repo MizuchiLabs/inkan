@@ -27,13 +27,17 @@ const (
 	// budget per address could be spread over many addresses.
 	loginAttempts = 5
 	loginWindow   = time.Minute
+
+	minTokenLen = 32
 )
 
 // auth guards the API with one password. The session is a signed cookie, so
-// nothing is stored. Without a password everything is let through.
+// nothing is stored. Without a password everything is let through. Scripts
+// can send the API token as a bearer instead of signing in.
 type auth struct {
 	password [sha256.Size]byte
 	key      []byte // signs the session cookie, nil without a password
+	token    []byte // sha256 of the API token, nil without one
 
 	mu       sync.Mutex
 	attempts int
@@ -65,8 +69,16 @@ type CookieOutput struct {
 	SetCookie http.Cookie `header:"Set-Cookie"`
 }
 
-func newAuth(password string) (*auth, error) {
+func newAuth(password, token string) (*auth, error) {
 	a := &auth{}
+	if token != "" {
+		// A token is guessed without the limit of the sign in, so it has to be long.
+		if len(token) < minTokenLen {
+			return nil, fmt.Errorf("the API token needs at least %d characters", minTokenLen)
+		}
+		sum := sha256.Sum256([]byte(token))
+		a.token = sum[:]
+	}
 	if password == "" {
 		return a, nil
 	}
@@ -112,7 +124,7 @@ func registerSession(api huma.API, a *auth) {
 // stay open, signing in has to work without one.
 func (a *auth) require(api huma.API) func(huma.Context, func(huma.Context)) {
 	return func(ctx huma.Context, next func(huma.Context)) {
-		if a.key != nil && ctx.Operation().Path != sessionPath {
+		if a.key != nil && ctx.Operation().Path != sessionPath && !a.bearer(ctx.Header("Authorization")) {
 			cookie, err := huma.ReadCookie(ctx, sessionCookie)
 			if err != nil || !a.signedIn(cookie.Value) {
 				_ = huma.WriteErr(api, ctx, http.StatusUnauthorized, "sign in first")
@@ -174,6 +186,15 @@ func (a *auth) signedIn(value string) bool {
 		return false
 	}
 	return hmac.Equal([]byte(value), []byte(a.sign(expires)))
+}
+
+func (a *auth) bearer(header string) bool {
+	given, ok := strings.CutPrefix(header, "Bearer ")
+	if !ok || a.token == nil {
+		return false
+	}
+	sum := sha256.Sum256([]byte(given))
+	return subtle.ConstantTimeCompare(sum[:], a.token) == 1
 }
 
 // attempt takes one try from the budget and reports whether there was one.

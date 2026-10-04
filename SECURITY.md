@@ -23,7 +23,7 @@ A key is a signed statement, not a secret. It is built in three steps:
 | `plan`  | Plan name, the app decides what it means               |
 | `email` | Who the license is for                                 |
 | `exp`   | Unix seconds, 0 never expires                          |
-| `id`    | Stripe subscription id or `lic_…`, missing in old keys |
+| `id`    | `sub_…`, `cs_…` or `lic_…`, missing in old keys        |
 | `meta`  | Optional. Extra strings, e.g. seats                    |
 
 Your app checks the signature with the public key built into it. That needs no
@@ -36,8 +36,12 @@ lines or an env file that keeps its quotes.
 
 ### In another language
 
-The format is small enough to sign or verify anywhere. This is all of the
-signing in Python:
+[FORMAT.md](FORMAT.md) has the steps to verify a key and the test vectors to
+check a port against. [`sdk/ts`](sdk/ts) and [`sdk/python`](sdk/python) are
+ready to use.
+
+The format is small enough to sign anywhere too. This is all of the signing
+in Python:
 
 ```python
 payload = b'{"v":1,"app":"MYAPP","plan":"pro","email":"ops@acme.io","exp":1800000000,"id":"sub_123"}'
@@ -56,7 +60,8 @@ match the ones Inkan shows, byte for byte.
 - **It cannot be forged** without the private key of the product.
 - **It can be read.** The payload is plain JSON behind base64. Whoever holds a
   key sees the email, the plan and the meta. Put no secrets in meta.
-- **It cannot be revoked.** It works offline until it expires.
+- **It cannot be revoked.** It works offline until it expires. Key days on a
+  product keep that time short, for apps that refresh.
 - **It can be shared.** A key is not bound to a machine.
 - **The check lives in your app.** Someone who changes your binary can remove
   it. A license key keeps honest customers honest.
@@ -71,7 +76,8 @@ match the ones Inkan shows, byte for byte.
   The data directory is created owner only. Back it up like a secret.
 - **The worker** gets the private key and a Stripe key through its
   environment. A restricted Stripe key that reads subscriptions and customers
-  is enough. `inkan worker env` prints the private key, treat its output like
+  is enough. One time purchases also need Checkout sessions, payment intents
+  and charges. `inkan worker env` prints the private key, treat its output like
   one.
 - **The webhook** only takes events with a valid Stripe signature that are at
   most five minutes old.
@@ -90,6 +96,9 @@ match the ones Inkan shows, byte for byte.
   password. A flood of wrong tries blocks signing in while it lasts. Sessions
   that exist keep working.
 - **Other sites** cannot write through the browser, signed in or not.
+- **The API token** is optional, from `INKAN_API_TOKEN`. It lets a script use
+  the API without a session and has no limit on tries, so it must be at least
+  32 characters. Make it random.
 - **It is the second layer.** Keep Inkan on a private network or behind your
   own proxy where you can.
 

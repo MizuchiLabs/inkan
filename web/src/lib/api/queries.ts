@@ -11,6 +11,7 @@ import {
 	listLicensesQueryKey,
 	listProductsOptions,
 	listProductsQueryKey,
+	listStatsOptions,
 	signInMutation,
 	signOutMutation,
 	syncProductMutation,
@@ -27,6 +28,11 @@ export function useProducts() {
 
 export function useLicenses() {
 	return createQuery(() => ({ ...listLicensesOptions(), refetchInterval: 60_000 }));
+}
+
+// One count a day, so there is nothing to poll for.
+export function useStats() {
+	return createQuery(() => ({ ...listStatsOptions(), staleTime: 60 * 60_000 }));
 }
 
 function refreshLicenses() {

@@ -1,0 +1,183 @@
+[
+  {
+    "name": "active subscription with plan, meta and seats",
+    "kind": "subscription",
+    "object": {
+      "id": "sub_1", "status": "active", "created": 1700000000,
+      "customer": {"email": "billing@acme.io", "name": "Acme Billing"},
+      "metadata": {"email": "ops@acme.io", "org": "Acme Inc"},
+      "items": {"data": [
+        {"price": {"product": "prod_other"}, "current_period_end": 5},
+        {"quantity": 5,
+          "price": {"product": "prod_app", "metadata": {"plan": "team", "meta_tier": "gold", "quantity": "seats"}},
+          "current_period_start": 1797000000, "current_period_end": 1800000000}
+      ]}
+    },
+    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "key_days": 0},
+    "now": 1790000000,
+    "want": {"id": "sub_1", "email": "ops@acme.io", "customer": "Acme Inc", "plan": "team",
+      "meta": {"seats": "5", "tier": "gold"}, "expires_at": 1801209600, "period": 3000000,
+      "status": "active", "renews": true, "created_at": 1700000000}
+  },
+  {
+    "name": "renewal not paid yet",
+    "kind": "subscription",
+    "object": {
+      "id": "sub_2", "status": "past_due", "created": 1700000000, "customer": {"email": "a@x.io", "name": null},
+      "items": {"data": [{"price": {"product": "prod_app"},
+        "current_period_start": 1797000000, "current_period_end": 1800000000}]}
+    },
+    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "key_days": 0},
+    "now": 1790000000,
+    "want": {"id": "sub_2", "email": "a@x.io", "customer": "", "plan": "pro", "meta": null,
+      "expires_at": 1798209600, "period": 3000000, "status": "past_due", "renews": false, "created_at": 1700000000}
+  },
+  {
+    "name": "canceled mid period",
+    "kind": "subscription",
+    "object": {
+      "id": "sub_3", "status": "canceled", "ended_at": 1798000000, "created": 1700000000,
+      "customer": {"email": "a@x.io"},
+      "items": {"data": [{"price": {"product": "prod_app"},
+        "current_period_start": 1797000000, "current_period_end": 1800000000}]}
+    },
+    "product": {"id": "prod_app", "plan": "pro", "grace_days": 0, "key_days": 0},
+    "now": 1790000000,
+    "want": {"id": "sub_3", "email": "a@x.io", "customer": "", "plan": "pro", "meta": null,
+      "expires_at": 1798000000, "period": 3000000, "status": "canceled", "renews": false, "created_at": 1700000000}
+  },
+  {
+    "name": "first payment open",
+    "kind": "subscription",
+    "object": {
+      "id": "sub_4", "status": "incomplete", "customer": {"email": "a@x.io"},
+      "items": {"data": [{"price": {"product": "prod_app"}, "current_period_end": 1800000000}]}
+    },
+    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "key_days": 0},
+    "now": 1790000000,
+    "error": "not_owed"
+  },
+  {
+    "name": "subscription to another product",
+    "kind": "subscription",
+    "object": {
+      "id": "sub_5", "status": "active", "customer": {"email": "a@x.io"},
+      "items": {"data": [{"price": {"product": "prod_other"}, "current_period_end": 1800000000}]}
+    },
+    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "key_days": 0},
+    "now": 1790000000,
+    "error": "other_product"
+  },
+  {
+    "name": "key days cut a long period",
+    "kind": "subscription",
+    "object": {
+      "id": "sub_6", "status": "active", "created": 1700000000, "customer": {"email": "a@x.io"},
+      "items": {"data": [{"price": {"product": "prod_app"},
+        "current_period_start": 1797000000, "current_period_end": 1800000000}]}
+    },
+    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "key_days": 30},
+    "now": 1790000000,
+    "want": {"id": "sub_6", "email": "a@x.io", "customer": "", "plan": "pro", "meta": null,
+      "expires_at": 1792368000, "period": 3000000, "status": "active", "renews": true, "created_at": 1700000000}
+  },
+  {
+    "name": "key days leave a shorter expiry alone",
+    "kind": "subscription",
+    "object": {
+      "id": "sub_7", "status": "canceled", "ended_at": 1790500000, "created": 1700000000,
+      "customer": {"email": "a@x.io"},
+      "items": {"data": [{"price": {"product": "prod_app"},
+        "current_period_start": 1797000000, "current_period_end": 1800000000}]}
+    },
+    "product": {"id": "prod_app", "plan": "pro", "grace_days": 0, "key_days": 30},
+    "now": 1790000000,
+    "want": {"id": "sub_7", "email": "a@x.io", "customer": "", "plan": "pro", "meta": null,
+      "expires_at": 1790500000, "period": 3000000, "status": "canceled", "renews": false, "created_at": 1700000000}
+  },
+  {
+    "name": "one time purchase never expires",
+    "kind": "session",
+    "object": {
+      "id": "cs_1", "mode": "payment", "payment_status": "paid", "created": 1780000000,
+      "customer_details": {"email": "buyer@acme.io", "name": "Acme"},
+      "payment_intent": {"latest_charge": {"refunded": false}},
+      "line_items": {"data": [
+        {"quantity": 1, "price": {"product": "prod_other"}},
+        {"quantity": 1, "price": {"product": "prod_app", "metadata": {"plan": "lifetime"}}}
+      ]}
+    },
+    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "key_days": 0},
+    "now": 1790000000,
+    "want": {"id": "cs_1", "email": "buyer@acme.io", "customer": "Acme", "plan": "lifetime", "meta": null,
+      "expires_at": 0, "period": 0, "status": "paid", "renews": false, "created_at": 1780000000}
+  },
+  {
+    "name": "one time purchase with days",
+    "kind": "session",
+    "object": {
+      "id": "cs_2", "mode": "payment", "payment_status": "paid", "created": 1780000000,
+      "metadata": {"email": "ops@acme.io", "org": "Acme Inc"},
+      "customer_details": {"email": "buyer@acme.io", "name": "Acme"},
+      "payment_intent": {"latest_charge": {"refunded": false}},
+      "line_items": {"data": [{"quantity": 3,
+        "price": {"product": "prod_app", "metadata": {"days": "365", "quantity": "seats"}}}]}
+    },
+    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "key_days": 0},
+    "now": 1790000000,
+    "want": {"id": "cs_2", "email": "ops@acme.io", "customer": "Acme Inc", "plan": "pro", "meta": {"seats": "3"},
+      "expires_at": 1812745600, "period": 0, "status": "paid", "renews": false, "created_at": 1780000000}
+  },
+  {
+    "name": "refunded purchase ran out when it was bought",
+    "kind": "session",
+    "object": {
+      "id": "cs_3", "mode": "payment", "payment_status": "paid", "created": 1780000000,
+      "customer_details": {"email": "buyer@acme.io", "name": null},
+      "payment_intent": {"latest_charge": {"refunded": true}},
+      "line_items": {"data": [{"quantity": 1, "price": {"product": "prod_app"}}]}
+    },
+    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "key_days": 0},
+    "now": 1790000000,
+    "want": {"id": "cs_3", "email": "buyer@acme.io", "customer": "", "plan": "pro", "meta": null,
+      "expires_at": 1781209600, "period": 0, "status": "refunded", "renews": false, "created_at": 1780000000}
+  },
+  {
+    "name": "free purchase has no payment",
+    "kind": "session",
+    "object": {
+      "id": "cs_4", "mode": "payment", "payment_status": "no_payment_required", "created": 1780000000,
+      "customer_details": {"email": "buyer@acme.io", "name": "Acme"},
+      "payment_intent": null,
+      "line_items": {"data": [{"quantity": 1, "price": {"product": "prod_app"}}]}
+    },
+    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "key_days": 30},
+    "now": 1790000000,
+    "want": {"id": "cs_4", "email": "buyer@acme.io", "customer": "Acme", "plan": "pro", "meta": null,
+      "expires_at": 1792368000, "period": 0, "status": "paid", "renews": false, "created_at": 1780000000}
+  },
+  {
+    "name": "purchase not paid yet",
+    "kind": "session",
+    "object": {
+      "id": "cs_5", "mode": "payment", "payment_status": "unpaid", "created": 1780000000,
+      "customer_details": {"email": "buyer@acme.io"},
+      "line_items": {"data": [{"quantity": 1, "price": {"product": "prod_app"}}]}
+    },
+    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "key_days": 0},
+    "now": 1790000000,
+    "error": "not_owed"
+  },
+  {
+    "name": "session of a subscription",
+    "kind": "session",
+    "object": {
+      "id": "cs_6", "mode": "subscription", "payment_status": "paid", "created": 1780000000,
+      "customer_details": {"email": "buyer@acme.io"},
+      "line_items": {"data": [{"quantity": 1, "price": {"product": "prod_app"}}]}
+    },
+    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "key_days": 0},
+    "now": 1790000000,
+    "error": "other_product"
+  }
+]

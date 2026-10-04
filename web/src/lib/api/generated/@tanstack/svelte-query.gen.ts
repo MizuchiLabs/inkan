@@ -3,8 +3,8 @@
 import { type MutationOptions, queryOptions } from '@tanstack/svelte-query';
 
 import { client } from '../client.gen';
-import { checkKey, createLicense, createProduct, deleteLicense, deleteProduct, getSession, listLicenses, listProducts, type Options, signIn, signOut, syncProduct, updateLicense, updateProduct } from '../sdk.gen';
-import type { CheckKeyData, CheckKeyError, CheckKeyResponse, CreateLicenseData, CreateLicenseError, CreateLicenseResponse, CreateProductData, CreateProductError, CreateProductResponse, DeleteLicenseData, DeleteLicenseError, DeleteLicenseResponse, DeleteProductData, DeleteProductError, DeleteProductResponse, GetSessionData, GetSessionError, GetSessionResponse, ListLicensesData, ListLicensesError, ListLicensesResponse, ListProductsData, ListProductsError, ListProductsResponse, SignInData, SignInError, SignInResponse, SignOutData, SignOutError, SignOutResponse, SyncProductData, SyncProductError, SyncProductResponse, UpdateLicenseData, UpdateLicenseError, UpdateLicenseResponse, UpdateProductData, UpdateProductError, UpdateProductResponse } from '../types.gen';
+import { checkKey, createLicense, createProduct, deleteLicense, deleteProduct, getSession, listLicenses, listProducts, listStats, type Options, signIn, signOut, syncProduct, updateLicense, updateProduct } from '../sdk.gen';
+import type { CheckKeyData, CheckKeyError, CheckKeyResponse, CreateLicenseData, CreateLicenseError, CreateLicenseResponse, CreateProductData, CreateProductError, CreateProductResponse, DeleteLicenseData, DeleteLicenseError, DeleteLicenseResponse, DeleteProductData, DeleteProductError, DeleteProductResponse, GetSessionData, GetSessionError, GetSessionResponse, ListLicensesData, ListLicensesError, ListLicensesResponse, ListProductsData, ListProductsError, ListProductsResponse, ListStatsData, ListStatsError, ListStatsResponse, SignInData, SignInError, SignInResponse, SignOutData, SignOutError, SignOutResponse, SyncProductData, SyncProductError, SyncProductResponse, UpdateLicenseData, UpdateLicenseError, UpdateLicenseResponse, UpdateProductData, UpdateProductError, UpdateProductResponse } from '../types.gen';
 
 /**
  * Check a license key
@@ -278,3 +278,23 @@ export const signInMutation = (options?: Partial<Options<SignInData>>): Mutation
     };
     return mutationOptions;
 };
+
+export const listStatsQueryKey = (options?: Options<ListStatsData>) => createQueryKey('listStats', options);
+
+/**
+ * Show how the license counts moved
+ *
+ * One entry per day, product and plan, oldest first. A plan without licenses on a day has no entry.
+ */
+export const listStatsOptions = (options?: Options<ListStatsData>) => queryOptions<ListStatsResponse, ListStatsError, ListStatsResponse, ReturnType<typeof listStatsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listStats({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listStatsQueryKey(options)
+});

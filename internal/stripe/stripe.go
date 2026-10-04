@@ -1,5 +1,5 @@
-// Package stripe reads subscriptions from Stripe and decides what license
-// each one is owed. The ledger and the worker both go through it, so they
+// Package stripe reads subscriptions and one time purchases from Stripe and
+// decides what license each one is owed. The ledger and the worker both go through it, so they
 // sign the same claims.
 package stripe
 
@@ -14,6 +14,8 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -24,6 +26,7 @@ var (
 	ErrNotFound     = errors.New("stripe: no such subscription")
 	ErrOtherProduct = errors.New("stripe: the subscription is for another product")
 	ErrNotOwed      = errors.New("stripe: the subscription was never paid")
+	ErrForbidden    = errors.New("stripe: the API key may not read this")
 )
 
 var client = &http.Client{Timeout: 30 * time.Second}
@@ -52,10 +55,48 @@ type Subscription struct {
 type item struct {
 	CurrentPeriodStart int64 `json:"current_period_start"`
 	CurrentPeriodEnd   int64 `json:"current_period_end"`
-	Price              struct {
-		Product  string            `json:"product"`
-		Metadata map[string]string `json:"metadata"`
-	} `json:"price"`
+	Quantity           int64 `json:"quantity"`
+	Price              price `json:"price"`
+}
+
+type price struct {
+	Product  string            `json:"product"`
+	Metadata map[string]string `json:"metadata"`
+}
+
+// Session is a Stripe Checkout session. A paid one in payment mode is a one
+// time purchase.
+type Session struct {
+	ID              string            `json:"id"`
+	Mode            string            `json:"mode"`
+	PaymentStatus   string            `json:"payment_status"`
+	Created         int64             `json:"created"`
+	Metadata        map[string]string `json:"metadata"`
+	CustomerDetails struct {
+		Email string `json:"email"`
+		Name  string `json:"name"`
+	} `json:"customer_details"`
+	PaymentIntent struct {
+		LatestCharge struct {
+			Refunded bool `json:"refunded"`
+		} `json:"latest_charge"`
+	} `json:"payment_intent"`
+	LineItems struct {
+		Data []lineItem `json:"data"`
+	} `json:"line_items"`
+}
+
+type lineItem struct {
+	Quantity int64 `json:"quantity"`
+	Price    price `json:"price"`
+}
+
+// Product is the settings of one inkan product that shape its licenses.
+type Product struct {
+	ID        string // product id at Stripe
+	Plan      string // for prices without plan metadata
+	GraceDays int64  // days a key outlives its paid period
+	KeyDays   int64  // longest life of a key in days, 0 has no limit
 }
 
 // License is what a subscription is owed.
@@ -64,18 +105,20 @@ type License struct {
 	Email     string
 	Customer  string // display name, not part of the key
 	Plan      string
+	Meta      map[string]string // extra claims from the price metadata, nil without any
 	ExpiresAt int64
-	Period    int64 // seconds one billing period lasts
+	Period    int64 // seconds one billing period lasts, 0 for a one time purchase
 	Status    string
 	Renews    bool
 	CreatedAt int64
 }
 
-// License decides what the subscription is owed for a Stripe product. This is
-// the one place that decides what a paid license looks like. The plan comes
-// from the plan metadata of the price, prices without it get the given one.
-func (s *Subscription) License(product, plan string, graceDays int64) (*License, error) {
-	i := slices.IndexFunc(s.Items.Data, func(it item) bool { return it.Price.Product == product })
+// License decides what the subscription is owed for a product. Together with
+// [Session.License] this is the one place that decides what a paid license
+// looks like. The plan comes from the plan metadata of the price, prices
+// without it get the one of the product.
+func (s *Subscription) License(p Product, now time.Time) (*License, error) {
+	i := slices.IndexFunc(s.Items.Data, func(it item) bool { return it.Price.Product == p.ID })
 	if i < 0 {
 		return nil, ErrOtherProduct
 	}
@@ -106,14 +149,108 @@ func (s *Subscription) License(product, plan string, graceDays int64) (*License,
 		ID:       s.ID,
 		Email:    cmp.Or(s.Metadata["email"], s.Customer.Email),
 		Customer: cmp.Or(s.Metadata["org"], s.Customer.Name),
-		Plan:     cmp.Or(it.Price.Metadata["plan"], plan),
+		Plan:     cmp.Or(it.Price.Metadata["plan"], p.Plan),
+		Meta:     meta(it.Price.Metadata, it.Quantity),
 		// The grace keeps the old key alive until the renewed one is in place.
-		ExpiresAt: paid + graceDays*86400,
+		ExpiresAt: capped(paid+p.GraceDays*86400, p.KeyDays, now),
 		Period:    period,
 		Status:    s.Status,
 		Renews:    (s.Status == "active" || s.Status == "trialing") && !s.CancelAtPeriodEnd,
 		CreatedAt: s.Created,
 	}, nil
+}
+
+// License decides what a one time purchase is owed for a product. The key
+// never expires, unless the price has days metadata, then it lasts that long.
+// A refunded purchase gets a key that ran out when it was bought.
+func (s *Session) License(p Product, now time.Time) (*License, error) {
+	i := slices.IndexFunc(s.LineItems.Data, func(it lineItem) bool { return it.Price.Product == p.ID })
+	// A session in subscription mode is covered by its subscription.
+	if i < 0 || s.Mode != "payment" {
+		return nil, ErrOtherProduct
+	}
+	if s.PaymentStatus == "unpaid" {
+		return nil, ErrNotOwed
+	}
+	it := &s.LineItems.Data[i]
+
+	var expires int64
+	status := "paid"
+	days, _ := strconv.ParseInt(it.Price.Metadata["days"], 10, 64)
+	switch {
+	case s.PaymentIntent.LatestCharge.Refunded:
+		status = "refunded"
+		expires = s.Created + p.GraceDays*86400
+	case days > 0:
+		expires = s.Created + (days+p.GraceDays)*86400
+	}
+
+	return &License{
+		ID:        s.ID,
+		Email:     cmp.Or(s.Metadata["email"], s.CustomerDetails.Email),
+		Customer:  cmp.Or(s.Metadata["org"], s.CustomerDetails.Name),
+		Plan:      cmp.Or(it.Price.Metadata["plan"], p.Plan),
+		Meta:      meta(it.Price.Metadata, it.Quantity),
+		ExpiresAt: capped(expires, p.KeyDays, now),
+		Status:    status,
+		CreatedAt: s.Created,
+	}, nil
+}
+
+// meta picks the extra claims out of the metadata of a price. meta_seats=5
+// becomes the claim seats=5, quantity=seats puts the bought quantity into the
+// claim seats.
+func meta(priceMeta map[string]string, quantity int64) map[string]string {
+	var out map[string]string
+	set := func(k, v string) {
+		if k == "" {
+			return
+		}
+		if out == nil {
+			out = map[string]string{}
+		}
+		out[k] = v
+	}
+	for k, v := range priceMeta {
+		if name, ok := strings.CutPrefix(k, "meta_"); ok {
+			set(name, v)
+		}
+	}
+	set(priceMeta["quantity"], strconv.FormatInt(max(quantity, 1), 10))
+	return out
+}
+
+// capped cuts an expiry to the key days of the product. The limit only moves
+// every half of the key days, so everyone who signs within that time signs
+// the same key. A fresh key lives between half and all of the key days.
+func capped(expires, keyDays int64, now time.Time) int64 {
+	if keyDays <= 0 {
+		return expires
+	}
+	step := keyDays * 86400 / 2
+	limit := (now.Unix()/step + 2) * step
+	if expires == 0 {
+		return limit
+	}
+	return min(expires, limit)
+}
+
+// Owed fetches the subscription or one time purchase behind a license id and
+// decides what it is owed.
+func Owed(ctx context.Context, key, id string, p Product, now time.Time) (*License, error) {
+	if !strings.HasPrefix(id, "cs_") {
+		sub, err := Get(ctx, key, id)
+		if err != nil {
+			return nil, err
+		}
+		return sub.License(p, now)
+	}
+	var s Session
+	query := url.Values{"expand[]": {"line_items", "payment_intent.latest_charge"}}
+	if err := get(ctx, key, "/v1/checkout/sessions/"+url.PathEscape(id)+"?"+query.Encode(), &s); err != nil {
+		return nil, err
+	}
+	return s.License(p, now)
 }
 
 // Get fetches one subscription with its customer.
@@ -130,18 +267,34 @@ func Get(ctx context.Context, key, id string) (*Subscription, error) {
 // status. Stripe cannot filter by product, and a list by price misses
 // archived and inline prices, so callers sort out their own with License.
 func Subscriptions(ctx context.Context, key string) iter.Seq2[*Subscription, error] {
-	return func(yield func(*Subscription, error) bool) {
-		query := url.Values{
-			"status":   {"all"},
-			"limit":    {"100"},
-			"expand[]": {"data.customer"},
-		}
+	query := url.Values{"status": {"all"}, "expand[]": {"data.customer"}}
+	return list(ctx, key, "/v1/subscriptions", query, func(s *Subscription) string { return s.ID })
+}
+
+// Sessions lists every completed Checkout session the key can see. The one
+// time purchases are among them, License sorts them out.
+func Sessions(ctx context.Context, key string) iter.Seq2[*Session, error] {
+	query := url.Values{
+		"status":   {"complete"},
+		"expand[]": {"data.line_items", "data.payment_intent.latest_charge"},
+	}
+	return list(ctx, key, "/v1/checkout/sessions", query, func(s *Session) string { return s.ID })
+}
+
+func list[T any](
+	ctx context.Context,
+	key, path string,
+	query url.Values,
+	id func(*T) string,
+) iter.Seq2[*T, error] {
+	return func(yield func(*T, error) bool) {
+		query.Set("limit", "100")
 		for {
 			var page struct {
-				Data    []Subscription `json:"data"`
-				HasMore bool           `json:"has_more"`
+				Data    []T  `json:"data"`
+				HasMore bool `json:"has_more"`
 			}
-			if err := get(ctx, key, "/v1/subscriptions?"+query.Encode(), &page); err != nil {
+			if err := get(ctx, key, path+"?"+query.Encode(), &page); err != nil {
 				yield(nil, err)
 				return
 			}
@@ -153,7 +306,7 @@ func Subscriptions(ctx context.Context, key string) iter.Seq2[*Subscription, err
 			if !page.HasMore || len(page.Data) == 0 {
 				return
 			}
-			query.Set("starting_after", page.Data[len(page.Data)-1].ID)
+			query.Set("starting_after", id(&page.Data[len(page.Data)-1]))
 		}
 	}
 }
@@ -185,6 +338,9 @@ func get(ctx context.Context, key, path string, out any) error {
 			} `json:"error"`
 		}
 		_ = json.Unmarshal(body, &failure)
+		if resp.StatusCode == http.StatusForbidden {
+			return fmt.Errorf("%w: %s", ErrForbidden, cmp.Or(failure.Error.Message, resp.Status))
+		}
 		return fmt.Errorf("stripe: %s", cmp.Or(failure.Error.Message, resp.Status))
 	}
 	if err := json.Unmarshal(body, out); err != nil {

@@ -14,6 +14,7 @@ import (
 	"net/textproto"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -37,13 +38,29 @@ const (
 		"customer": {"email": "ops@acme.io", "name": "Acme"},
 		"items": {"data": [{"price": {"product": "prod_app", "metadata": {"plan": "team"}},
 			"current_period_start": 1797000000, "current_period_end": 1800000000}]}}`
+
+	paidSession = `{"id": "cs_1", "mode": "payment", "payment_status": "paid", "created": 1780000000,
+		"customer_details": {"email": "buyer@acme.io", "name": "Buyer"},
+		"payment_intent": {"latest_charge": {"refunded": false}},
+		"line_items": {"data": [{"quantity": 3,
+			"price": {"product": "prod_app", "metadata": {"plan": "lifetime", "quantity": "seats"}}}]}}`
 )
 
-// fakeStripe knows one paid subscription of the product and a few odd ones.
-func fakeStripe(t *testing.T) {
+// fakeStripe knows one paid subscription and one paid purchase of the product
+// and a few odd ones. It returns how often Stripe was asked.
+func fakeStripe(t *testing.T) *atomic.Int64 {
 	t.Helper()
+	var asked atomic.Int64
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		asked.Add(1)
 		switch r.URL.Path {
+		case "/v1/checkout/sessions":
+			_, _ = w.Write([]byte(`{"has_more": false, "data": [` + paidSession + `]}`))
+		case "/v1/checkout/sessions/cs_1":
+			_, _ = w.Write([]byte(paidSession))
+		case "/v1/checkout/sessions/cs_pending":
+			_, _ = w.Write([]byte(`{"id": "cs_pending", "mode": "payment", "payment_status": "unpaid",
+				"line_items": {"data": [{"price": {"product": "prod_app"}}]}}`))
 		case "/v1/subscriptions":
 			_, _ = w.Write([]byte(`{"has_more": false, "data": [` + paidSub + `]}`))
 		case "/v1/subscriptions/sub_1":
@@ -68,6 +85,7 @@ func fakeStripe(t *testing.T) {
 	live := stripe.APIURL
 	stripe.APIURL = srv.URL                    //nolint:reassign // the var exists so tests can fake Stripe
 	t.Cleanup(func() { stripe.APIURL = live }) //nolint:reassign // see above
+	return &asked
 }
 
 func testConfig(t *testing.T) (Config, ed25519.PrivateKey) {
@@ -121,7 +139,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestRefresh(t *testing.T) {
-	fakeStripe(t)
+	asked := fakeStripe(t)
 	cfg, priv := testConfig(t)
 	h, err := New(cfg)
 	require.NoError(t, err)
@@ -147,6 +165,16 @@ func TestRefresh(t *testing.T) {
 	status, again := post(t, h, "/refresh", key, nil)
 	require.Equal(t, http.StatusOK, status)
 	assert.Equal(t, key, again, "nothing new was paid, so the key stays the same")
+	assert.Equal(t, int64(1), asked.Load(), "a key that keeps asking does not keep asking Stripe")
+
+	bought := issue(license.Claims{Plan: "pro", ExpiresAt: 1_700_000_000, ID: "cs_1"}, priv)
+	status, key = post(t, h, "/refresh", bought, nil)
+	require.Equal(t, http.StatusOK, status)
+	claims, err = license.VerifyWith(key, "APP", pub)
+	require.NoError(t, err)
+	assert.Zero(t, claims.ExpiresAt, "a one time purchase never expires")
+	assert.Equal(t, "lifetime", claims.Plan)
+	assert.Equal(t, map[string]string{"seats": "3"}, claims.Meta, "the quantity becomes the seats")
 
 	manual := issue(license.Claims{Plan: "pro", Email: "a@x.io", ID: "lic_abc"}, priv)
 	status, key = post(t, h, "/refresh", manual, nil)
@@ -254,6 +282,27 @@ func TestWebhook(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, status)
 	assert.Len(t, sent, 4)
 
+	// A one time purchase sends its key once, however often Stripe repeats the event.
+	bought := func(event, session string) string {
+		return `{"id": "` + event + `", "type": "checkout.session.completed",
+			"data": {"object": {"id": "` + session + `", "mode": "payment"}}}`
+	}
+	for range 2 {
+		body = bought("evt_1", "cs_1")
+		status, _ = post(t, h, "/webhook", body, signature(body, now))
+		assert.Equal(t, http.StatusOK, status)
+	}
+	require.Len(t, sent, 5)
+	assert.Contains(t, sent[4], "buyer@acme.io")
+	body = bought("evt_2", "cs_pending")
+	status, _ = post(t, h, "/webhook", body, signature(body, now))
+	assert.Equal(t, http.StatusOK, status, "the payment is still open, a later event brings the key")
+	body = `{"id": "evt_3", "type": "checkout.session.completed",
+		"data": {"object": {"id": "cs_1", "mode": "subscription"}}}`
+	status, _ = post(t, h, "/webhook", body, signature(body, now))
+	assert.Equal(t, http.StatusOK, status)
+	assert.Len(t, sent, 5, "the invoice of a subscription brings its key, not the session")
+
 	// Stripe retries on an error, so these keys are not lost.
 	body = paid("sub_unpaid", "subscription_create")
 	status, _ = post(t, h, "/webhook", body, signature(body, now))
@@ -268,7 +317,9 @@ func TestWebhook(t *testing.T) {
 // out the very key the ledger shows.
 func TestWorkerAndLedgerAgree(t *testing.T) {
 	fakeStripe(t)
-	cfg, _ := testConfig(t)
+	cfg, priv := testConfig(t)
+	// Key days make the expiry depend on the clock, both sides have to cut it alike.
+	cfg.KeyDays = 30
 	ctx := t.Context()
 
 	q, err := db.Open(ctx, t.TempDir())
@@ -278,7 +329,7 @@ func TestWorkerAndLedgerAgree(t *testing.T) {
 	})
 	require.NoError(t, err)
 	p, err = q.UpdateProduct(ctx, &db.UpdateProductParams{
-		Name: p.Name, Plan: p.Plan, GraceDays: p.GraceDays,
+		Name: p.Name, Plan: p.Plan, GraceDays: p.GraceDays, KeyDays: cfg.KeyDays,
 		ProviderKey: cfg.StripeKey, ProviderProduct: cfg.StripeProduct, ID: p.ID,
 	})
 	require.NoError(t, err)
@@ -286,19 +337,24 @@ func TestWorkerAndLedgerAgree(t *testing.T) {
 	require.NoError(t, err)
 
 	rec := httptest.NewRecorder()
-	ledgerAPI, err := api.New(q, "")
+	ledgerAPI, err := api.New(q, "", "")
 	require.NoError(t, err)
 	ledgerAPI.Handler().ServeHTTP(rec, httptest.NewRequestWithContext(ctx, http.MethodGet, "/api/licenses", nil))
 	require.Equal(t, http.StatusOK, rec.Code)
 	var ledger []api.License
 	require.NoError(t, json.UnmarshalRead(rec.Body, &ledger))
-	require.Len(t, ledger, 1)
+	require.Len(t, ledger, 2, "the subscription and the one time purchase")
 
 	h, err := New(cfg)
 	require.NoError(t, err)
-	status, key := post(t, h, "/refresh", ledger[0].Key, nil)
-	require.Equal(t, http.StatusOK, status)
-	assert.Equal(t, ledger[0].Key, key)
+	for _, l := range ledger {
+		// Signed by the same product but stale, so the worker has to ask Stripe.
+		stale, err := license.Issue(cfg.Prefix, license.Claims{ExpiresAt: 1, ID: l.ID}, priv)
+		require.NoError(t, err)
+		status, key := post(t, h, "/refresh", stale, nil)
+		require.Equal(t, http.StatusOK, status, l.ID)
+		assert.Equal(t, l.Key, key, l.ID)
+	}
 }
 
 // The client an app calls and the handler have to speak the same language.

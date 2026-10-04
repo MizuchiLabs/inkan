@@ -9,6 +9,7 @@
 	import { Skeleton } from '#lib/components/ui/skeleton/index.js';
 	import * as Table from '#lib/components/ui/table/index.js';
 	import CopyButton from '#lib/components/util/CopyButton.svelte';
+	import HistoryChart from '#lib/components/util/HistoryChart.svelte';
 	import KeyCheck from '#lib/components/util/KeyCheck.svelte';
 	import LicenseDialog from '#lib/components/util/LicenseDialog.svelte';
 	import LicenseSheet from '#lib/components/util/LicenseSheet.svelte';
@@ -93,6 +94,8 @@
 			</Empty.Root>
 		</div>
 	{:else}
+		<HistoryChart productId={productFilter === 'all' ? undefined : Number(productFilter)} />
+
 		<section class="flex flex-col gap-3" aria-label="Licenses">
 			<div class="flex flex-wrap items-center gap-2">
 				<Tabs.Root

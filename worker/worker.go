@@ -1,7 +1,8 @@
 // Package worker is the public side of a product: a stateless HTTP handler
-// that turns paid Stripe subscriptions into license keys.
+// that turns paid Stripe subscriptions and one time purchases into license
+// keys.
 //
-//	POST /webhook  Stripe reports a paid invoice, the key goes to the customer
+//	POST /webhook  Stripe reports a payment, the key goes to the customer
 //	POST /refresh  an app sends its key and gets the current one back
 //
 // Nothing is stored. Stripe says what is paid and the private key signs it,
@@ -23,6 +24,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/mizuchilabs/inkan/internal/stripe"
@@ -35,6 +37,11 @@ const (
 	// A renewal only sends a key when its period is longer than a month, in
 	// seconds. 32 days is past the longest month.
 	shortPeriod = 32 * 86400
+	// How long refresh answers from memory. A leaked key must not be a way
+	// to spend the Stripe rate limit.
+	cacheFor = 5 * time.Minute
+	// Stripe repeats an event for up to three days.
+	rememberEvents = 72 * time.Hour
 )
 
 // Config is everything a worker knows about its product. The values are the
@@ -52,6 +59,9 @@ type Config struct {
 	Plan string
 	// GraceDays is how long a key outlives its paid period.
 	GraceDays int64
+	// KeyDays is the longest a key lives, 0 has no limit. Apps then have to
+	// refresh, which is what stops a refunded or canceled license.
+	KeyDays int64
 
 	// WebhookSecret is the signing secret of the Stripe webhook endpoint.
 	// Leave it and Send empty to serve refresh only.
@@ -66,6 +76,16 @@ type handler struct {
 	cfg  Config
 	priv ed25519.PrivateKey
 	pub  ed25519.PublicKey
+
+	// Only a shortcut. Every instance has its own, nothing depends on it.
+	mu     sync.Mutex
+	keys   map[string]cachedKey // by license id
+	events map[string]time.Time // webhook events that sent their key
+}
+
+type cachedKey struct {
+	key string
+	at  time.Time
 }
 
 // New checks the config and returns the handler.
@@ -81,7 +101,13 @@ func New(cfg Config) (http.Handler, error) {
 		return nil, err
 	}
 	pub, _ := priv.Public().(ed25519.PublicKey)
-	h := &handler{cfg: cfg, priv: priv, pub: pub}
+	h := &handler{
+		cfg:    cfg,
+		priv:   priv,
+		pub:    pub,
+		keys:   map[string]cachedKey{},
+		events: map[string]time.Time{},
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /refresh", h.refresh)
@@ -112,7 +138,9 @@ func (h *handler) refresh(w http.ResponseWriter, r *http.Request) {
 	// A hand issued license, or one without an id, is not in Stripe. The key
 	// it has is all there is. See the lic_ ids in internal/api.
 	key := license.Clean(string(body))
-	if claims.ID != "" && !strings.HasPrefix(claims.ID, "lic_") {
+	if cached, ok := h.cached(claims.ID); ok {
+		key = cached
+	} else if claims.ID != "" && !strings.HasPrefix(claims.ID, "lic_") {
 		key, _, _, err = h.issue(r.Context(), claims.ID)
 		if errors.Is(err, stripe.ErrNotFound) || errors.Is(err, stripe.ErrOtherProduct) ||
 			errors.Is(err, stripe.ErrNotOwed) {
@@ -129,10 +157,10 @@ func (h *handler) refresh(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.WriteString(w, key)
 }
 
-// webhook sends the key once an invoice of the product is paid. That covers
-// the first payment, the start of a trial and the renewal of periods longer
-// than a month. Anything it cannot finish is answered with an error, so
-// Stripe tries again later.
+// webhook sends the key once an invoice or a one time purchase of the product
+// is paid. That covers the first payment, the start of a trial and the
+// renewal of periods longer than a month. Anything it cannot finish is
+// answered with an error, so Stripe tries again later.
 func (h *handler) webhook(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
 	if err != nil {
@@ -145,9 +173,12 @@ func (h *handler) webhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var event struct {
+		ID   string `json:"id"`
 		Type string `json:"type"`
 		Data struct {
 			Object struct {
+				ID            string `json:"id"`
+				Mode          string `json:"mode"` // of a checkout session
 				BillingReason string `json:"billing_reason"`
 				Subscription  string `json:"subscription"` // API versions before 2025-03-31
 				Parent        struct {
@@ -163,13 +194,27 @@ func (h *handler) webhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	invoice := event.Data.Object
-	subID := cmp.Or(invoice.Parent.SubscriptionDetails.Subscription, invoice.Subscription)
-	if event.Type != "invoice.paid" || subID == "" {
+	var subID string
+	oneTime := false
+	switch event.Type {
+	case "invoice.paid":
+		subID = cmp.Or(invoice.Parent.SubscriptionDetails.Subscription, invoice.Subscription)
+	case "checkout.session.completed", "checkout.session.async_payment_succeeded":
+		// In subscription mode the invoice of the session brings the key.
+		if invoice.Mode == "payment" {
+			subID, oneTime = invoice.ID, true
+		}
+	}
+	if subID == "" || h.sent(event.ID) {
 		return
 	}
 
 	key, claims, period, err := h.issue(r.Context(), subID)
 	if errors.Is(err, stripe.ErrOtherProduct) {
+		return
+	}
+	// A slow payment method completes the session first and pays later.
+	if oneTime && errors.Is(err, stripe.ErrNotOwed) {
 		return
 	}
 	if err != nil {
@@ -191,27 +236,74 @@ func (h *handler) webhook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "the key could not be sent", http.StatusInternalServerError)
 		return
 	}
+	h.remember(event.ID)
 	slog.Info("license key sent", "license", subID, "plan", claims.Plan)
 }
 
-// issue signs the key a subscription is owed right now. period is how many
-// seconds one billing period of it lasts.
+// issue signs the key a subscription or one time purchase is owed right now.
+// period is how many seconds one billing period of it lasts.
 func (h *handler) issue(
 	ctx context.Context,
-	subID string,
+	id string,
 ) (key string, claims license.Claims, period int64, err error) {
-	sub, err := stripe.Get(ctx, h.cfg.StripeKey, subID)
+	product := stripe.Product{
+		ID:        h.cfg.StripeProduct,
+		Plan:      h.cfg.Plan,
+		GraceDays: h.cfg.GraceDays,
+		KeyDays:   h.cfg.KeyDays,
+	}
+	l, err := stripe.Owed(ctx, h.cfg.StripeKey, id, product, time.Now())
 	if err != nil {
 		return "", license.Claims{}, 0, err
 	}
-	l, err := sub.License(h.cfg.StripeProduct, h.cfg.Plan, h.cfg.GraceDays)
-	if err != nil {
-		return "", license.Claims{}, 0, err
+	// The ledger signs the same claims from its row, see toLicense in internal/api.
+	claims = license.Claims{
+		App:       h.cfg.Prefix,
+		Plan:      l.Plan,
+		Email:     l.Email,
+		ExpiresAt: l.ExpiresAt,
+		ID:        l.ID,
+		Meta:      l.Meta,
 	}
-	// The ledger signs the same four claims from its row, see toLicense in internal/api.
-	claims = license.Claims{App: h.cfg.Prefix, Plan: l.Plan, Email: l.Email, ExpiresAt: l.ExpiresAt, ID: l.ID}
 	key, err = license.Issue(h.cfg.Prefix, claims, h.priv)
-	return key, claims, l.Period, err
+	if err != nil {
+		return "", license.Claims{}, 0, err
+	}
+
+	h.mu.Lock()
+	h.keys[id] = cachedKey{key: key, at: time.Now()}
+	h.mu.Unlock()
+	return key, claims, l.Period, nil
+}
+
+func (h *handler) cached(id string) (string, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	c, ok := h.keys[id]
+	return c.key, ok && time.Since(c.at) < cacheFor
+}
+
+// sent reports whether this instance already sent the key of an event.
+// Stripe delivers an event at least once, a customer wants one mail.
+func (h *handler) sent(eventID string) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	_, ok := h.events[eventID]
+	return ok
+}
+
+func (h *handler) remember(eventID string) {
+	if eventID == "" {
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for id, at := range h.events {
+		if time.Since(at) > rememberEvents {
+			delete(h.events, id)
+		}
+	}
+	h.events[eventID] = time.Now()
 }
 
 // signed checks a Stripe-Signature header, t=<unix>,v1=<hex>. The signature

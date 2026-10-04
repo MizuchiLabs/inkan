@@ -24,9 +24,9 @@ WHERE
 
 -- name: CreateProduct :one
 INSERT INTO
-  products (name, prefix, plan, grace_days, private_key)
+  products (name, prefix, plan, grace_days, key_days, private_key)
 VALUES
-  (?, ?, ?, ?, ?) RETURNING *;
+  (?, ?, ?, ?, ?, ?) RETURNING *;
 
 -- name: UpdateProduct :one
 UPDATE products
@@ -34,6 +34,7 @@ SET
   name = ?,
   plan = ?,
   grace_days = ?,
+  key_days = ?,
   provider_key = ?,
   provider_product = ?
 WHERE

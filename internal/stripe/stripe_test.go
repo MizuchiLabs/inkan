@@ -1,11 +1,14 @@
 package stripe
 
 import (
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,7 +39,7 @@ func TestLicense(t *testing.T) {
 			{"price": {"product": "prod_app", "metadata": {"plan": "team"}},
 				"current_period_start": 1797000000, "current_period_end": 1800000000}
 		]}
-	}`).License("prod_app", "pro", 14)
+	}`).License(Product{ID: "prod_app", Plan: "pro", GraceDays: 14}, time.Now())
 	require.NoError(t, err)
 	assert.Equal(t, &License{
 		ID:        "sub_1",
@@ -56,14 +59,14 @@ func TestLicense(t *testing.T) {
 		"customer": {"email": "billing@acme.io", "name": null},
 		"items": {"data": [{"price": {"product": "prod_app", "metadata": {}}}]}
 	}`)
-	l, err = old.License("prod_app", "pro", 14)
+	l, err = old.License(Product{ID: "prod_app", Plan: "pro", GraceDays: 14}, time.Now())
 	require.NoError(t, err, "older API versions carry the period on the subscription")
 	assert.Equal(t, "billing@acme.io", l.Email)
 	assert.Equal(t, "pro", l.Plan, "a price without plan metadata gets the product's plan")
 	assert.Equal(t, int64(periodEnd+grace), l.ExpiresAt)
 	assert.False(t, l.Renews, "a subscription that ends with the period does not renew")
 
-	_, err = old.License("prod_else", "pro", 14)
+	_, err = old.License(Product{ID: "prod_else", Plan: "pro", GraceDays: 14}, time.Now())
 	assert.ErrorIs(t, err, ErrOtherProduct)
 }
 
@@ -97,7 +100,7 @@ func TestLicensePaidUntil(t *testing.T) {
 			l, err := sub(t, fmt.Sprintf(`{"id": "sub_1", %s, "items": {"data": [{
 				"price": {"product": "prod_app"},
 				"current_period_start": 1797000000, "current_period_end": 1800000000
-			}]}}`, tt.fields)).License("prod_app", "pro", 14)
+			}]}}`, tt.fields)).License(Product{ID: "prod_app", Plan: "pro", GraceDays: 14}, time.Now())
 			if tt.want == 0 {
 				require.ErrorIs(t, err, ErrNotOwed)
 				return
@@ -152,4 +155,68 @@ func TestFetching(t *testing.T) {
 
 	_, err = Get(ctx, "sk_good", "sub_gone")
 	assert.ErrorIs(t, err, ErrNotFound)
+}
+
+// The cases are shared with the Cloudflare worker, which has to decide the
+// same way. See workers/cloudflare.
+func TestLicenseCases(t *testing.T) {
+	t.Parallel()
+
+	type want struct {
+		ID        string            `json:"id"`
+		Email     string            `json:"email"`
+		Customer  string            `json:"customer"`
+		Plan      string            `json:"plan"`
+		Meta      map[string]string `json:"meta"`
+		ExpiresAt int64             `json:"expires_at"`
+		Period    int64             `json:"period"`
+		Status    string            `json:"status"`
+		Renews    bool              `json:"renews"`
+		CreatedAt int64             `json:"created_at"`
+	}
+	var cases []struct {
+		Name    string         `json:"name"`
+		Kind    string         `json:"kind"`
+		Object  jsontext.Value `json:"object"`
+		Product struct {
+			ID        string `json:"id"`
+			Plan      string `json:"plan"`
+			GraceDays int64  `json:"grace_days"`
+			KeyDays   int64  `json:"key_days"`
+		} `json:"product"`
+		Now   int64  `json:"now"`
+		Want  *want  `json:"want"`
+		Error string `json:"error"`
+	}
+	raw, err := os.ReadFile("testdata/licenses.json")
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(raw, &cases))
+	require.NotEmpty(t, cases)
+
+	failures := map[string]error{"not_owed": ErrNotOwed, "other_product": ErrOtherProduct}
+	for _, c := range cases {
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+			product := Product(c.Product)
+			now := time.Unix(c.Now, 0)
+
+			var l *License
+			var err error
+			if c.Kind == "session" {
+				var s Session
+				require.NoError(t, json.Unmarshal(c.Object, &s))
+				l, err = s.License(product, now)
+			} else {
+				var s Subscription
+				require.NoError(t, json.Unmarshal(c.Object, &s))
+				l, err = s.License(product, now)
+			}
+			if c.Error != "" {
+				require.ErrorIs(t, err, failures[c.Error])
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, License(*c.Want), *l)
+		})
+	}
 }

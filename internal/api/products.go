@@ -25,6 +25,7 @@ type Product struct {
 	Prefix            string     `json:"prefix"             doc:"Visible key prefix and the app name the product verifies against"`
 	Plan              string     `json:"plan"               doc:"Plan claim for provider prices without plan metadata and the default for manual licenses"`
 	GraceDays         int64      `json:"grace_days"         doc:"Days a provider license stays valid past its paid period"`
+	KeyDays           int64      `json:"key_days"           doc:"Longest life of a provider key in days, 0 has no limit. Apps refresh for the next one"`
 	PublicKey         string     `json:"public_key"         doc:"Hex Ed25519 public key to build into the product"`
 	ProviderProduct   string     `json:"provider_product"   doc:"Payment provider product id. Its subscriptions are licenses"`
 	ProviderConnected bool       `json:"provider_connected" doc:"Whether an API key and a provider product are stored"`
@@ -51,6 +52,7 @@ type CreateProductInput struct {
 		Prefix     string `json:"prefix"                pattern:"^[A-Z0-9]+$" maxLength:"16"  doc:"Uppercase letters and digits. It cannot change later, issued keys are bound to it"`
 		Plan       string `json:"plan"                  minLength:"1"         maxLength:"32"`
 		GraceDays  int64  `json:"grace_days,omitempty"  minimum:"0"           maximum:"365"   default:"14"`
+		KeyDays    int64  `json:"key_days,omitempty"    minimum:"0"           maximum:"3650"`
 		PrivateKey string `json:"private_key,omitempty"                                       doc:"Base64 Ed25519 private key of an existing product. A fresh keypair is made when empty"`
 	}
 }
@@ -62,6 +64,7 @@ type UpdateProductInput struct {
 		Name            string `json:"name"                   minLength:"1" maxLength:"64"`
 		Plan            string `json:"plan"                   minLength:"1" maxLength:"32"`
 		GraceDays       int64  `json:"grace_days"             minimum:"0"   maximum:"365"`
+		KeyDays         int64  `json:"key_days,omitempty"     minimum:"0"   maximum:"3650"`
 		ProviderProduct string `json:"provider_product,omitempty"                            doc:"Empty disconnects the provider"`
 		ProviderKey     string `json:"provider_key,omitempty"                                doc:"Empty keeps the stored key"`
 	}
@@ -69,7 +72,7 @@ type UpdateProductInput struct {
 
 type SyncOutput struct {
 	Body struct {
-		Licenses int `json:"licenses" doc:"License subscriptions found at the provider"`
+		Licenses int `json:"licenses" doc:"Subscriptions and one time purchases found at the provider"`
 	}
 }
 
@@ -149,6 +152,7 @@ func (h *productHandlers) create(ctx context.Context, in *CreateProductInput) (*
 		Prefix:     in.Body.Prefix,
 		Plan:       in.Body.Plan,
 		GraceDays:  in.Body.GraceDays,
+		KeyDays:    in.Body.KeyDays,
 		PrivateKey: privateKey,
 	})
 	if isUnique(err) {
@@ -174,6 +178,7 @@ func (h *productHandlers) update(ctx context.Context, in *UpdateProductInput) (*
 		Name:            in.Body.Name,
 		Plan:            in.Body.Plan,
 		GraceDays:       in.Body.GraceDays,
+		KeyDays:         in.Body.KeyDays,
 		ProviderKey:     providerKey,
 		ProviderProduct: strings.TrimSpace(in.Body.ProviderProduct),
 		ID:              in.ID,
@@ -238,6 +243,7 @@ func toProduct(p *db.Product) Product {
 		Prefix:            p.Prefix,
 		Plan:              p.Plan,
 		GraceDays:         p.GraceDays,
+		KeyDays:           p.KeyDays,
 		ProviderProduct:   p.ProviderProduct,
 		ProviderConnected: mirror.Connected(p),
 		SyncError:         p.SyncError,

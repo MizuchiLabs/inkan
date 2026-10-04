@@ -67,6 +67,11 @@ func main() {
 				Sources: cli.EnvVars("INKAN_PASSWORD"),
 			},
 			&cli.StringFlag{
+				Name:    "api-token",
+				Usage:   "Bearer token for scripts that use the API, at least 32 characters",
+				Sources: cli.EnvVars("INKAN_API_TOKEN"),
+			},
+			&cli.StringFlag{
 				Name:    "data-dir",
 				Usage:   "Directory for the database",
 				Value:   "data",
@@ -86,7 +91,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return err
 	}
-	srv, err := api.New(q, cmd.String("password"))
+	srv, err := api.New(q, cmd.String("password"), cmd.String("api-token"))
 	if err != nil {
 		return err
 	}

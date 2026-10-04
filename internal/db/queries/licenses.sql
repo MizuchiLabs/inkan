@@ -54,14 +54,50 @@ WHERE
 -- The provider owns everything but the note.
 -- name: UpsertProviderLicense :exec
 INSERT INTO
-  licenses (id, product_id, source, email, customer, plan, expires_at, status, renews, created_at)
+  licenses (id, product_id, source, email, customer, plan, expires_at, meta, status, renews, created_at)
 VALUES
-  (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (product_id, id) DO UPDATE
 SET
   email = excluded.email,
   customer = excluded.customer,
   plan = excluded.plan,
   expires_at = excluded.expires_at,
+  meta = excluded.meta,
   status = excluded.status,
   renews = excluded.renews;
+
+-- name: DeleteSnapshots :exec
+DELETE FROM snapshots
+WHERE
+  day = ?;
+
+-- Licenses that have not run out, counted per product and plan.
+-- name: TakeSnapshot :exec
+INSERT INTO
+  snapshots (day, product_id, plan, active)
+SELECT
+  sqlc.arg (day),
+  product_id,
+  plan,
+  count(*)
+FROM
+  licenses
+WHERE
+  expires_at = 0
+  OR expires_at > unixepoch()
+GROUP BY
+  product_id,
+  plan;
+
+-- name: ListSnapshots :many
+SELECT
+  *
+FROM
+  snapshots
+WHERE
+  day >= ?
+ORDER BY
+  day,
+  product_id,
+  plan;

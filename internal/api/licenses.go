@@ -26,16 +26,16 @@ const (
 
 // License is one issued license with its key.
 type License struct {
-	ID        string            `json:"id"         doc:"Subscription id at the provider, or lic_... for a manual license"`
+	ID        string            `json:"id"         doc:"Subscription or checkout session id at the provider, or lic_... for a manual license"`
 	ProductID int64             `json:"product_id"`
-	Source    string            `json:"source"                                                                            enum:"manual,stripe"`
+	Source    string            `json:"source"                                                                                                                     enum:"manual,stripe"`
 	Email     string            `json:"email"`
 	Customer  string            `json:"customer"   doc:"Display name, not part of the key"`
 	Plan      string            `json:"plan"`
 	ExpiresAt *time.Time        `json:"expires_at" doc:"Null for a perpetual license"`
 	Meta      map[string]string `json:"meta"       doc:"Extra claims signed into the key"`
 	Note      string            `json:"note"`
-	Status    string            `json:"status"     doc:"Subscription status at the provider, empty for a manual license"`
+	Status    string            `json:"status"     doc:"Subscription status at the provider, paid or refunded for a one time purchase, empty for a manual license"`
 	Renews    bool              `json:"renews"     doc:"Whether the provider will bill another period"`
 	Key       string            `json:"key"        doc:"The signed license key"`
 	CreatedAt time.Time         `json:"created_at"`

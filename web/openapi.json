@@ -80,6 +80,7 @@
 						"minimum": 0,
 						"type": "integer"
 					},
+					"key_days": { "format": "int64", "maximum": 3650, "minimum": 0, "type": "integer" },
 					"name": { "maxLength": 64, "minLength": 1, "type": "string" },
 					"plan": { "maxLength": 32, "minLength": 1, "type": "string" },
 					"prefix": {
@@ -160,7 +161,7 @@
 						"type": ["string", "null"]
 					},
 					"id": {
-						"description": "Subscription id at the provider, or lic_... for a manual license",
+						"description": "Subscription or checkout session id at the provider, or lic_... for a manual license",
 						"type": "string"
 					},
 					"key": { "description": "The signed license key", "type": "string" },
@@ -178,7 +179,7 @@
 					},
 					"source": { "enum": ["manual", "stripe"], "type": "string" },
 					"status": {
-						"description": "Subscription status at the provider, empty for a manual license",
+						"description": "Subscription status at the provider, paid or refunded for a one time purchase, empty for a manual license",
 						"type": "string"
 					}
 				},
@@ -234,6 +235,11 @@
 						"type": "integer"
 					},
 					"id": { "format": "int64", "type": "integer" },
+					"key_days": {
+						"description": "Longest life of a provider key in days, 0 has no limit. Apps refresh for the next one",
+						"format": "int64",
+						"type": "integer"
+					},
 					"name": { "type": "string" },
 					"plan": {
 						"description": "Plan claim for provider prices without plan metadata and the default for manual licenses",
@@ -271,6 +277,7 @@
 					"prefix",
 					"plan",
 					"grace_days",
+					"key_days",
 					"public_key",
 					"provider_product",
 					"provider_connected",
@@ -298,11 +305,26 @@
 				"required": ["password"],
 				"type": "object"
 			},
+			"Snapshot": {
+				"additionalProperties": false,
+				"properties": {
+					"active": {
+						"description": "Licenses that had not run out",
+						"format": "int64",
+						"type": "integer"
+					},
+					"day": { "description": "YYYY-MM-DD in UTC", "type": "string" },
+					"plan": { "type": "string" },
+					"product_id": { "format": "int64", "type": "integer" }
+				},
+				"required": ["day", "product_id", "plan", "active"],
+				"type": "object"
+			},
 			"SyncOutputBody": {
 				"additionalProperties": false,
 				"properties": {
 					"licenses": {
-						"description": "License subscriptions found at the provider",
+						"description": "Subscriptions and one time purchases found at the provider",
 						"format": "int64",
 						"type": "integer"
 					}
@@ -314,6 +336,7 @@
 				"additionalProperties": false,
 				"properties": {
 					"grace_days": { "format": "int64", "maximum": 365, "minimum": 0, "type": "integer" },
+					"key_days": { "format": "int64", "maximum": 3650, "minimum": 0, "type": "integer" },
 					"name": { "maxLength": 64, "minLength": 1, "type": "string" },
 					"plan": { "maxLength": 32, "minLength": 1, "type": "string" },
 					"provider_key": { "description": "Empty keeps the stored key", "type": "string" },
@@ -701,6 +724,51 @@
 				},
 				"summary": "Sign in with the password",
 				"tags": ["Session"]
+			}
+		},
+		"/api/stats": {
+			"get": {
+				"description": "One entry per day, product and plan, oldest first. A plan without licenses on a day has no entry.",
+				"operationId": "list-stats",
+				"parameters": [
+					{
+						"description": "How many days to look back",
+						"explode": false,
+						"in": "query",
+						"name": "days",
+						"schema": {
+							"default": 90,
+							"description": "How many days to look back",
+							"format": "int64",
+							"maximum": 3650,
+							"minimum": 1,
+							"type": "integer"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": { "$ref": "#/components/schemas/Snapshot" },
+									"type": ["array", "null"]
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"default": {
+						"content": {
+							"application/problem+json": {
+								"schema": { "$ref": "#/components/schemas/ErrorModel" }
+							}
+						},
+						"description": "Error"
+					}
+				},
+				"summary": "Show how the license counts moved",
+				"tags": ["Licenses"]
 			}
 		}
 	}

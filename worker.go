@@ -67,6 +67,12 @@ func workerCommand() *cli.Command {
 				Sources: cli.EnvVars("INKAN_GRACE_DAYS"),
 				Local:   true,
 			},
+			&cli.Int64Flag{
+				Name:    "key-days",
+				Usage:   "Longest life of a key in days, 0 has no limit. Apps refresh for the next one",
+				Sources: cli.EnvVars("INKAN_KEY_DAYS"),
+				Local:   true,
+			},
 			&cli.StringFlag{
 				Name:    "stripe-webhook-secret",
 				Usage:   "Signing secret of the Stripe webhook endpoint. Without it only refresh is served",
@@ -107,6 +113,7 @@ func runWorker(ctx context.Context, cmd *cli.Command) error {
 		StripeProduct: cmd.String("stripe-product"),
 		Plan:          cmd.String("plan"),
 		GraceDays:     cmd.Int64("grace-days"),
+		KeyDays:       cmd.Int64("key-days"),
 		WebhookSecret: cmd.String("stripe-webhook-secret"),
 	}
 	if cfg.WebhookSecret != "" {
@@ -153,5 +160,6 @@ func workerEnv(ctx context.Context, cmd *cli.Command) error {
 	fmt.Printf("INKAN_STRIPE_PRODUCT=%s\n", p.ProviderProduct)
 	fmt.Printf("INKAN_PLAN=%s\n", p.Plan)
 	fmt.Printf("INKAN_GRACE_DAYS=%d\n", p.GraceDays)
+	fmt.Printf("INKAN_KEY_DAYS=%d\n", p.KeyDays)
 	return nil
 }

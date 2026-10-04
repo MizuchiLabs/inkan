@@ -27,8 +27,8 @@ type Server struct {
 
 // New builds the server. With a password the API needs a sign in, without
 // one it is open and Start only listens on this machine.
-func New(q *db.Queries, password string) (*Server, error) {
-	a, err := newAuth(password)
+func New(q *db.Queries, password, token string) (*Server, error) {
+	a, err := newAuth(password, token)
 	if err != nil {
 		return nil, err
 	}
@@ -42,6 +42,7 @@ func New(q *db.Queries, password string) (*Server, error) {
 	registerProducts(api, q)
 	registerLicenses(api, q)
 	registerCheck(api, q)
+	registerStats(api, q)
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("ok"))
@@ -53,7 +54,7 @@ func New(q *db.Queries, password string) (*Server, error) {
 // Spec builds the OpenAPI description of the API without starting a server.
 func Spec() *huma.OpenAPI {
 	// Only deriving a session key can fail, and no password means no key.
-	s, _ := New(nil, "")
+	s, _ := New(nil, "", "")
 	return s.api.OpenAPI()
 }
 

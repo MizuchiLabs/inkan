@@ -11,9 +11,9 @@ import (
 
 const createProduct = `-- name: CreateProduct :one
 INSERT INTO
-  products (name, prefix, plan, grace_days, private_key)
+  products (name, prefix, plan, grace_days, key_days, private_key)
 VALUES
-  (?, ?, ?, ?, ?) RETURNING id, name, prefix, "plan", grace_days, private_key, provider_key, provider_product, synced_at, sync_error, created_at
+  (?, ?, ?, ?, ?, ?) RETURNING id, name, prefix, "plan", grace_days, key_days, private_key, provider_key, provider_product, synced_at, sync_error, created_at
 `
 
 type CreateProductParams struct {
@@ -21,6 +21,7 @@ type CreateProductParams struct {
 	Prefix     string `json:"prefix"`
 	Plan       string `json:"plan"`
 	GraceDays  int64  `json:"graceDays"`
+	KeyDays    int64  `json:"keyDays"`
 	PrivateKey string `json:"privateKey"`
 }
 
@@ -30,6 +31,7 @@ func (q *Queries) CreateProduct(ctx context.Context, arg *CreateProductParams) (
 		arg.Prefix,
 		arg.Plan,
 		arg.GraceDays,
+		arg.KeyDays,
 		arg.PrivateKey,
 	)
 	var i Product
@@ -39,6 +41,7 @@ func (q *Queries) CreateProduct(ctx context.Context, arg *CreateProductParams) (
 		&i.Prefix,
 		&i.Plan,
 		&i.GraceDays,
+		&i.KeyDays,
 		&i.PrivateKey,
 		&i.ProviderKey,
 		&i.ProviderProduct,
@@ -62,7 +65,7 @@ func (q *Queries) DeleteProduct(ctx context.Context, id int64) error {
 
 const getProduct = `-- name: GetProduct :one
 SELECT
-  id, name, prefix, "plan", grace_days, private_key, provider_key, provider_product, synced_at, sync_error, created_at
+  id, name, prefix, "plan", grace_days, key_days, private_key, provider_key, provider_product, synced_at, sync_error, created_at
 FROM
   products
 WHERE
@@ -78,6 +81,7 @@ func (q *Queries) GetProduct(ctx context.Context, id int64) (*Product, error) {
 		&i.Prefix,
 		&i.Plan,
 		&i.GraceDays,
+		&i.KeyDays,
 		&i.PrivateKey,
 		&i.ProviderKey,
 		&i.ProviderProduct,
@@ -90,7 +94,7 @@ func (q *Queries) GetProduct(ctx context.Context, id int64) (*Product, error) {
 
 const getProductByPrefix = `-- name: GetProductByPrefix :one
 SELECT
-  id, name, prefix, "plan", grace_days, private_key, provider_key, provider_product, synced_at, sync_error, created_at
+  id, name, prefix, "plan", grace_days, key_days, private_key, provider_key, provider_product, synced_at, sync_error, created_at
 FROM
   products
 WHERE
@@ -106,6 +110,7 @@ func (q *Queries) GetProductByPrefix(ctx context.Context, prefix string) (*Produ
 		&i.Prefix,
 		&i.Plan,
 		&i.GraceDays,
+		&i.KeyDays,
 		&i.PrivateKey,
 		&i.ProviderKey,
 		&i.ProviderProduct,
@@ -118,7 +123,7 @@ func (q *Queries) GetProductByPrefix(ctx context.Context, prefix string) (*Produ
 
 const listProducts = `-- name: ListProducts :many
 SELECT
-  id, name, prefix, "plan", grace_days, private_key, provider_key, provider_product, synced_at, sync_error, created_at
+  id, name, prefix, "plan", grace_days, key_days, private_key, provider_key, provider_product, synced_at, sync_error, created_at
 FROM
   products
 ORDER BY
@@ -140,6 +145,7 @@ func (q *Queries) ListProducts(ctx context.Context) ([]*Product, error) {
 			&i.Prefix,
 			&i.Plan,
 			&i.GraceDays,
+			&i.KeyDays,
 			&i.PrivateKey,
 			&i.ProviderKey,
 			&i.ProviderProduct,
@@ -198,16 +204,18 @@ SET
   name = ?,
   plan = ?,
   grace_days = ?,
+  key_days = ?,
   provider_key = ?,
   provider_product = ?
 WHERE
-  id = ? RETURNING id, name, prefix, "plan", grace_days, private_key, provider_key, provider_product, synced_at, sync_error, created_at
+  id = ? RETURNING id, name, prefix, "plan", grace_days, key_days, private_key, provider_key, provider_product, synced_at, sync_error, created_at
 `
 
 type UpdateProductParams struct {
 	Name            string `json:"name"`
 	Plan            string `json:"plan"`
 	GraceDays       int64  `json:"graceDays"`
+	KeyDays         int64  `json:"keyDays"`
 	ProviderKey     string `json:"providerKey"`
 	ProviderProduct string `json:"providerProduct"`
 	ID              int64  `json:"id"`
@@ -218,6 +226,7 @@ func (q *Queries) UpdateProduct(ctx context.Context, arg *UpdateProductParams) (
 		arg.Name,
 		arg.Plan,
 		arg.GraceDays,
+		arg.KeyDays,
 		arg.ProviderKey,
 		arg.ProviderProduct,
 		arg.ID,
@@ -229,6 +238,7 @@ func (q *Queries) UpdateProduct(ctx context.Context, arg *UpdateProductParams) (
 		&i.Prefix,
 		&i.Plan,
 		&i.GraceDays,
+		&i.KeyDays,
 		&i.PrivateKey,
 		&i.ProviderKey,
 		&i.ProviderProduct,

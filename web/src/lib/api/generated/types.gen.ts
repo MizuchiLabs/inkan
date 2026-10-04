@@ -60,6 +60,7 @@ export type CreateLicenseInputBody = {
 
 export type CreateProductInputBody = {
     grace_days?: number;
+    key_days?: number;
     name: string;
     plan: string;
     /**
@@ -126,7 +127,7 @@ export type License = {
      */
     expires_at: string | null;
     /**
-     * Subscription id at the provider, or lic_... for a manual license
+     * Subscription or checkout session id at the provider, or lic_... for a manual license
      */
     id: string;
     /**
@@ -148,7 +149,7 @@ export type License = {
     renews: boolean;
     source: 'manual' | 'stripe';
     /**
-     * Subscription status at the provider, empty for a manual license
+     * Subscription status at the provider, paid or refunded for a one time purchase, empty for a manual license
      */
     status: string;
 };
@@ -180,6 +181,10 @@ export type Product = {
      */
     grace_days: number;
     id: number;
+    /**
+     * Longest life of a provider key in days, 0 has no limit. Apps refresh for the next one
+     */
+    key_days: number;
     name: string;
     /**
      * Plan claim for provider prices without plan metadata and the default for manual licenses
@@ -226,15 +231,29 @@ export type SignInInputBody = {
     password: string;
 };
 
+export type Snapshot = {
+    /**
+     * Licenses that had not run out
+     */
+    active: number;
+    /**
+     * YYYY-MM-DD in UTC
+     */
+    day: string;
+    plan: string;
+    product_id: number;
+};
+
 export type SyncOutputBody = {
     /**
-     * License subscriptions found at the provider
+     * Subscriptions and one time purchases found at the provider
      */
     licenses: number;
 };
 
 export type UpdateProductInputBody = {
     grace_days: number;
+    key_days?: number;
     name: string;
     plan: string;
     /**
@@ -583,3 +602,33 @@ export type SignInResponses = {
 };
 
 export type SignInResponse = SignInResponses[keyof SignInResponses];
+
+export type ListStatsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * How many days to look back
+         */
+        days?: number;
+    };
+    url: '/api/stats';
+};
+
+export type ListStatsErrors = {
+    /**
+     * Error
+     */
+    default: ErrorModel;
+};
+
+export type ListStatsError = ListStatsErrors[keyof ListStatsErrors];
+
+export type ListStatsResponses = {
+    /**
+     * OK
+     */
+    200: Array<Snapshot> | null;
+};
+
+export type ListStatsResponse = ListStatsResponses[keyof ListStatsResponses];

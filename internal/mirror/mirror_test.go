@@ -131,3 +131,73 @@ func TestSyncBundle(t *testing.T) {
 		assert.Equal(t, want[p.Name].expires, l.ExpiresAt, p.Name)
 	}
 }
+
+// Two products behind one Stripe key are read in one go. A key that may not
+// read Checkout sessions still syncs its subscriptions.
+func TestSyncSharedKey(t *testing.T) {
+	var lists int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/checkout/sessions" {
+			if r.Header.Get("Authorization") == "Bearer sk_subs_only" {
+				w.WriteHeader(http.StatusForbidden)
+				_, _ = w.Write([]byte(`{"error": {"message": "The key lacks the permission"}}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"has_more": false, "data": [
+				{"id": "cs_1", "mode": "payment", "payment_status": "paid", "created": 1780000000,
+					"customer_details": {"email": "b@x.io"},
+					"line_items": {"data": [{"quantity": 2,
+						"price": {"product": "prod_b", "metadata": {"meta_tier": "gold", "quantity": "seats"}}}]}}
+			]}`))
+			return
+		}
+		lists++
+		_, _ = w.Write([]byte(`{"has_more": false, "data": [
+			{"id": "sub_1", "status": "active", "customer": {"email": "a@x.io"}, "items": {"data": [
+				{"price": {"product": "prod_a"}, "current_period_end": 1800000000}]}}
+		]}`))
+	}))
+	t.Cleanup(srv.Close)
+	live := stripe.APIURL
+	stripe.APIURL = srv.URL                    //nolint:reassign // the var exists so tests can fake Stripe
+	t.Cleanup(func() { stripe.APIURL = live }) //nolint:reassign // see above
+
+	ctx := t.Context()
+	q, err := db.Open(ctx, t.TempDir())
+	require.NoError(t, err)
+	var products []*db.Product
+	for _, name := range []string{"a", "b"} {
+		p, err := q.CreateProduct(ctx, &db.CreateProductParams{Name: name, Prefix: "APP" + name, Plan: "pro"})
+		require.NoError(t, err)
+		p, err = q.UpdateProduct(ctx, &db.UpdateProductParams{
+			Name: p.Name, Plan: p.Plan, ProviderKey: "sk_good", ProviderProduct: "prod_" + name, ID: p.ID,
+		})
+		require.NoError(t, err)
+		products = append(products, p)
+	}
+
+	n, err := Sync(ctx, q, products...)
+	require.NoError(t, err)
+	assert.Equal(t, 2, n, "one subscription for a, one purchase for b")
+	assert.Equal(t, 1, lists, "Stripe is read once for both products")
+
+	l, err := q.GetLicense(ctx, &db.GetLicenseParams{ProductID: products[1].ID, ID: "cs_1"})
+	require.NoError(t, err)
+	assert.Zero(t, l.ExpiresAt, "a one time purchase never expires")
+	assert.Equal(t, "paid", l.Status)
+	assert.JSONEq(t, `{"seats": "2", "tier": "gold"}`, l.Meta, "the price metadata is signed into the key")
+
+	for _, p := range products {
+		p.ProviderKey = "sk_subs_only"
+	}
+	n, err = Sync(ctx, q, products...)
+	require.NoError(t, err, "a key without access to Checkout still syncs")
+	assert.Equal(t, 1, n)
+
+	require.NoError(t, snapshot(ctx, q))
+	require.NoError(t, snapshot(ctx, q), "a second count on the same day replaces the first")
+	snapshots, err := q.ListSnapshots(ctx, "2000-01-01")
+	require.NoError(t, err)
+	require.Len(t, snapshots, 2)
+	assert.Equal(t, int64(1), snapshots[0].Active)
+}
