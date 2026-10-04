@@ -5,7 +5,7 @@ go 1.27.0
 require (
 	github.com/danielgtaylor/huma/v2 v2.39.1
 	github.com/go-chi/httplog/v3 v3.5.0
-	github.com/mizuchilabs/inkan/license v0.0.0
+	github.com/mizuchilabs/inkan/license v0.1.0
 	github.com/mizuchilabs/kata v0.1.15
 	github.com/mizuchilabs/sqlite-schema-diff v0.3.1
 	github.com/stretchr/testify v1.12.1
@@ -28,5 +28,3 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
 )
-
-replace github.com/mizuchilabs/inkan/license => ./license
