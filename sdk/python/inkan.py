@@ -12,14 +12,17 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
+from http.client import HTTPResponse
+from typing import TypeVar, cast
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
-__all__ = ["Claims", "LicenseError", "clean", "verify", "refresh"]
+__all__ = ["Claims", "LicenseError", "clean", "refresh", "verify"]
 
 _WIRE_VERSION = 1
 _SIGNATURE_SIZE = 64
+_T = TypeVar("_T")
 _MESSAGES = {
     "format": "license format is invalid",
     "signature": "signature verification failed",
@@ -37,7 +40,9 @@ class Claims:
     email: str
     exp: int  # unix seconds, 0 never expires
     id: str = ""  # stable id of the license, empty in old keys
-    meta: dict[str, str] = field(default_factory=dict)  # extras the app defines, like seats
+    meta: dict[str, str] = field(
+        default_factory=dict
+    )  # extras the app defines, like seats
 
 
 class LicenseError(Exception):
@@ -45,6 +50,9 @@ class LicenseError(Exception):
 
     An expired key carries its claims, to show who it was for.
     """
+
+    code: str
+    claims: Claims | None
 
     def __init__(self, code: str, claims: Claims | None = None):
         super().__init__(_MESSAGES[code])
@@ -107,13 +115,15 @@ def refresh(endpoint: str, key: str, app: str, public_keys: str) -> str:
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=15) as response:
+        with cast(
+            HTTPResponse, urllib.request.urlopen(request, timeout=15)
+        ) as response:
             answer = response.read(16 << 10).decode().strip()
     except urllib.error.HTTPError as err:
         body = err.read(16 << 10).decode(errors="replace").strip()
         raise RuntimeError(f"refreshing license: {err.code}: {body[:200]}") from err
     try:
-        verify(answer, app, public_keys)
+        _ = verify(answer, app, public_keys)
     except LicenseError as err:
         if err.code != "expired":
             raise
@@ -150,13 +160,14 @@ def _decode(text: str) -> bytes | None:
 
 def _parse(payload: bytes) -> Claims:
     try:
-        fields = json.loads(payload.decode(errors="replace"))
+        loaded = cast(object, json.loads(payload.decode(errors="replace")))
     except ValueError:
         raise LicenseError("format") from None
-    if not isinstance(fields, dict):
+    if not isinstance(loaded, dict):
         raise LicenseError("format")
+    fields = cast(dict[str, object], loaded)
 
-    def get(name, kind, zero):
+    def get(name: str, kind: type[_T], zero: _T) -> _T:
         value = fields.get(name)
         if value is None:
             return zero
@@ -165,9 +176,15 @@ def _parse(payload: bytes) -> Claims:
             raise LicenseError("format")
         return value
 
-    meta = get("meta", dict, {})
-    if not all(isinstance(value, str) for value in meta.values()):
-        raise LicenseError("format")
+    meta: dict[str, str] = {}
+    raw_meta = fields.get("meta")
+    if raw_meta is not None:
+        if not isinstance(raw_meta, dict):
+            raise LicenseError("format")
+        for key, value in cast(dict[object, object], raw_meta).items():
+            if not isinstance(key, str) or not isinstance(value, str):
+                raise LicenseError("format")
+            meta[key] = value
     return Claims(
         v=get("v", int, 0),
         app=get("app", str, ""),
