@@ -59,6 +59,7 @@
 
 	function deleteLicense() {
 		if (!license) return;
+		confirmDelete = false;
 		remove.mutate(
 			{ path: { product_id: license.product_id, id: license.id } },
 			{
@@ -128,7 +129,8 @@
 					<dt class="text-muted-foreground">Source</dt>
 					<dd class="col-span-2">
 						{#if license.source === 'stripe'}
-							Stripe subscription, {license.status.replaceAll('_', ' ')}
+							{license.id.startsWith('cs_') ? 'Stripe purchase' : 'Stripe subscription'},
+							{license.status.replaceAll('_', ' ')}
 						{:else}
 							Issued by hand
 						{/if}
@@ -186,7 +188,7 @@
 </Sheet.Root>
 
 <AlertDialog.Root bind:open={confirmDelete}>
-	<AlertDialog.Content>
+	<AlertDialog.Content interactOutsideBehavior="close">
 		<AlertDialog.Header>
 			<AlertDialog.Title>Delete this license?</AlertDialog.Title>
 			<AlertDialog.Description>

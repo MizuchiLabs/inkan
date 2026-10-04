@@ -209,7 +209,7 @@
 	open={deleting !== undefined}
 	onOpenChange={(isOpen) => !isOpen && (deleting = undefined)}
 >
-	<AlertDialog.Content>
+	<AlertDialog.Content interactOutsideBehavior="close">
 		<AlertDialog.Header>
 			<AlertDialog.Title>Delete {deleting?.name}?</AlertDialog.Title>
 			<AlertDialog.Description>
