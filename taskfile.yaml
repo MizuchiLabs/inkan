@@ -37,7 +37,20 @@ tasks:
       - go vet ./...
       - govulncheck ./...
       - go test -race -count=1 -cover ./...
+      - cd license && go vet ./... && go test -race -count=1 -cover ./...
       - golangci-lint run --fix
+
+  test-sdk:
+    desc: Run the verifiers and the Cloudflare worker against the test vectors
+    cmds:
+      - cd sdk/ts && node --test
+      - cd sdk/python && python3 -m unittest
+      - cd workers/cloudflare && node --test
+
+  vectors:
+    desc: Rewrite the test vectors after a deliberate change of the key format
+    cmds:
+      - cd license && go test -run TestVectors -update .
 
   build:
     desc: Build binary

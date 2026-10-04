@@ -100,6 +100,8 @@ func (k *Keeper) Renew(ctx context.Context, endpoint string, save func(key strin
 
 		old := k.Key()
 		if old == "" {
+			// A key pasted later must not wait a day for its first refresh.
+			wait = time.Minute
 			continue
 		}
 		key, err := Refresh(ctx, endpoint, old, k.app)
