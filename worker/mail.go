@@ -335,7 +335,7 @@ func writeQuoted(w io.Writer, body []byte) error {
 
 // Sample makes up a key to show the mail with. It is signed with a key made
 // for the occasion, so it looks real and works nowhere.
-func Sample(app, email string) (string, license.Claims, error) {
+func Sample(app, email, plan string) (string, license.Claims, error) {
 	privateKey, _, err := license.GenerateKey()
 	if err != nil {
 		return "", license.Claims{}, err
@@ -346,7 +346,7 @@ func Sample(app, email string) (string, license.Claims, error) {
 	}
 	claims := license.Claims{
 		App:       app,
-		Plan:      "pro",
+		Plan:      plan,
 		Email:     email,
 		ExpiresAt: time.Now().AddDate(1, 0, 0).Unix(),
 		ID:        "sub_sample",

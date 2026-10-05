@@ -204,7 +204,7 @@ func workerMail(ctx context.Context, cmd *cli.Command) error {
 		return err
 	}
 	to := cmd.Args().First()
-	key, claims, err := worker.Sample("SAMPLE", cmp.Or(to, "you@example.com"))
+	key, claims, err := worker.Sample("SAMPLE", cmp.Or(to, "you@example.com"), "pro")
 	if err != nil {
 		return err
 	}

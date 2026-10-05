@@ -297,7 +297,7 @@ func (h *productHandlers) previewMail(ctx context.Context, in *MailPreviewInput)
 	if err != nil {
 		return nil, err
 	}
-	key, claims, err := worker.Sample(p.Prefix, "customer@example.com")
+	key, claims, err := worker.Sample(p.Prefix, "customer@example.com", p.Plan)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to make a sample key")
 	}
