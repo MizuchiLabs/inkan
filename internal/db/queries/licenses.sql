@@ -54,13 +54,15 @@ WHERE
 -- The provider owns everything but the note.
 -- name: UpsertProviderLicense :exec
 INSERT INTO
-  licenses (id, product_id, source, email, customer, plan, expires_at, meta, status, renews, created_at)
+  licenses (id, product_id, source, email, customer, customer_gone, plan, expires_at, meta, status, renews, created_at)
 VALUES
-  (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (product_id, id) DO UPDATE
 SET
-  email = excluded.email,
-  customer = excluded.customer,
+  -- A deleted customer comes back empty, the row keeps who it was.
+  email = CASE excluded.email WHEN '' THEN licenses.email ELSE excluded.email END,
+  customer = CASE excluded.customer WHEN '' THEN licenses.customer ELSE excluded.customer END,
+  customer_gone = excluded.customer_gone,
   plan = excluded.plan,
   expires_at = excluded.expires_at,
   meta = excluded.meta,

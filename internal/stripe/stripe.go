@@ -41,8 +41,9 @@ type Subscription struct {
 	CurrentPeriodEnd   int64             `json:"current_period_end"`
 	Metadata           map[string]string `json:"metadata"`
 	Customer           struct {
-		Email string `json:"email"`
-		Name  string `json:"name"`
+		Email   string `json:"email"`
+		Name    string `json:"name"`
+		Deleted bool   `json:"deleted"` // Stripe keeps only the id of a deleted customer
 	} `json:"customer"`
 	CancellationDetails struct {
 		Reason string `json:"reason"`
@@ -104,6 +105,7 @@ type License struct {
 	ID        string // the subscription id
 	Email     string
 	Customer  string // display name, not part of the key
+	Gone      bool   // the customer was deleted at Stripe, email and name are lost there
 	Plan      string
 	Meta      map[string]string // extra claims from the price metadata, nil without any
 	ExpiresAt int64
@@ -149,6 +151,7 @@ func (s *Subscription) License(p Product, now time.Time) (*License, error) {
 		ID:       s.ID,
 		Email:    cmp.Or(s.Metadata["email"], s.Customer.Email),
 		Customer: cmp.Or(s.Metadata["org"], s.Customer.Name),
+		Gone:     s.Customer.Deleted,
 		Plan:     cmp.Or(it.Price.Metadata["plan"], p.Plan),
 		Meta:     meta(it.Price.Metadata, it.Quantity),
 		// The grace keeps the old key alive until the renewed one is in place.

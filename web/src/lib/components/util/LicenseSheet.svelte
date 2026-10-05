@@ -90,7 +90,9 @@
 					</div>
 					<div class="min-w-0">
 						<Sheet.Title>
-							<span class="block truncate">{license.customer || license.email}</span>
+							<span class="block truncate">
+								{license.customer || license.email || 'Unknown customer'}
+							</span>
 						</Sheet.Title>
 						<Sheet.Description>{product?.name} {license.plan} license</Sheet.Description>
 					</div>
@@ -124,7 +126,12 @@
 					</dd>
 
 					<dt class="text-muted-foreground">Email</dt>
-					<dd class="col-span-2 break-all">{license.email || 'None'}</dd>
+					<dd class="col-span-2 flex flex-wrap items-center gap-2 break-all">
+						{license.email || 'None'}
+						{#if license.customer_gone}
+							<Badge variant="secondary">Deleted in Stripe</Badge>
+						{/if}
+					</dd>
 
 					<dt class="text-muted-foreground">Source</dt>
 					<dd class="col-span-2">

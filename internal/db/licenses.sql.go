@@ -13,7 +13,7 @@ const createLicense = `-- name: CreateLicense :one
 INSERT INTO
   licenses (id, product_id, source, email, customer, plan, expires_at, meta, note)
 VALUES
-  (?, ?, 'manual', ?, ?, ?, ?, ?, ?) RETURNING id, product_id, source, email, customer, "plan", expires_at, meta, note, status, renews, created_at
+  (?, ?, 'manual', ?, ?, ?, ?, ?, ?) RETURNING id, product_id, source, email, customer, customer_gone, "plan", expires_at, meta, note, status, renews, created_at
 `
 
 type CreateLicenseParams struct {
@@ -45,6 +45,7 @@ func (q *Queries) CreateLicense(ctx context.Context, arg *CreateLicenseParams) (
 		&i.Source,
 		&i.Email,
 		&i.Customer,
+		&i.CustomerGone,
 		&i.Plan,
 		&i.ExpiresAt,
 		&i.Meta,
@@ -90,7 +91,7 @@ func (q *Queries) DeleteSnapshots(ctx context.Context, day string) error {
 
 const getLicense = `-- name: GetLicense :one
 SELECT
-  id, product_id, source, email, customer, "plan", expires_at, meta, note, status, renews, created_at
+  id, product_id, source, email, customer, customer_gone, "plan", expires_at, meta, note, status, renews, created_at
 FROM
   licenses
 WHERE
@@ -112,6 +113,7 @@ func (q *Queries) GetLicense(ctx context.Context, arg *GetLicenseParams) (*Licen
 		&i.Source,
 		&i.Email,
 		&i.Customer,
+		&i.CustomerGone,
 		&i.Plan,
 		&i.ExpiresAt,
 		&i.Meta,
@@ -125,7 +127,7 @@ func (q *Queries) GetLicense(ctx context.Context, arg *GetLicenseParams) (*Licen
 
 const listLicenses = `-- name: ListLicenses :many
 SELECT
-  id, product_id, source, email, customer, "plan", expires_at, meta, note, status, renews, created_at
+  id, product_id, source, email, customer, customer_gone, "plan", expires_at, meta, note, status, renews, created_at
 FROM
   licenses
 ORDER BY
@@ -148,6 +150,7 @@ func (q *Queries) ListLicenses(ctx context.Context) ([]*License, error) {
 			&i.Source,
 			&i.Email,
 			&i.Customer,
+			&i.CustomerGone,
 			&i.Plan,
 			&i.ExpiresAt,
 			&i.Meta,
@@ -216,7 +219,7 @@ SET
   note = ?
 WHERE
   product_id = ?
-  AND id = ? RETURNING id, product_id, source, email, customer, "plan", expires_at, meta, note, status, renews, created_at
+  AND id = ? RETURNING id, product_id, source, email, customer, customer_gone, "plan", expires_at, meta, note, status, renews, created_at
 `
 
 type SetLicenseNoteParams struct {
@@ -234,6 +237,7 @@ func (q *Queries) SetLicenseNote(ctx context.Context, arg *SetLicenseNoteParams)
 		&i.Source,
 		&i.Email,
 		&i.Customer,
+		&i.CustomerGone,
 		&i.Plan,
 		&i.ExpiresAt,
 		&i.Meta,
@@ -281,7 +285,7 @@ SET
 WHERE
   product_id = ?
   AND id = ?
-  AND source = 'manual' RETURNING id, product_id, source, email, customer, "plan", expires_at, meta, note, status, renews, created_at
+  AND source = 'manual' RETURNING id, product_id, source, email, customer, customer_gone, "plan", expires_at, meta, note, status, renews, created_at
 `
 
 type UpdateLicenseParams struct {
@@ -313,6 +317,7 @@ func (q *Queries) UpdateLicense(ctx context.Context, arg *UpdateLicenseParams) (
 		&i.Source,
 		&i.Email,
 		&i.Customer,
+		&i.CustomerGone,
 		&i.Plan,
 		&i.ExpiresAt,
 		&i.Meta,
@@ -326,13 +331,15 @@ func (q *Queries) UpdateLicense(ctx context.Context, arg *UpdateLicenseParams) (
 
 const upsertProviderLicense = `-- name: UpsertProviderLicense :exec
 INSERT INTO
-  licenses (id, product_id, source, email, customer, plan, expires_at, meta, status, renews, created_at)
+  licenses (id, product_id, source, email, customer, customer_gone, plan, expires_at, meta, status, renews, created_at)
 VALUES
-  (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (product_id, id) DO UPDATE
 SET
-  email = excluded.email,
-  customer = excluded.customer,
+  -- A deleted customer comes back empty, the row keeps who it was.
+  email = CASE excluded.email WHEN '' THEN licenses.email ELSE excluded.email END,
+  customer = CASE excluded.customer WHEN '' THEN licenses.customer ELSE excluded.customer END,
+  customer_gone = excluded.customer_gone,
   plan = excluded.plan,
   expires_at = excluded.expires_at,
   meta = excluded.meta,
@@ -341,17 +348,18 @@ SET
 `
 
 type UpsertProviderLicenseParams struct {
-	ID        string `json:"id"`
-	ProductID int64  `json:"productId"`
-	Source    string `json:"source"`
-	Email     string `json:"email"`
-	Customer  string `json:"customer"`
-	Plan      string `json:"plan"`
-	ExpiresAt int64  `json:"expiresAt"`
-	Meta      string `json:"meta"`
-	Status    string `json:"status"`
-	Renews    bool   `json:"renews"`
-	CreatedAt int64  `json:"createdAt"`
+	ID           string `json:"id"`
+	ProductID    int64  `json:"productId"`
+	Source       string `json:"source"`
+	Email        string `json:"email"`
+	Customer     string `json:"customer"`
+	CustomerGone bool   `json:"customerGone"`
+	Plan         string `json:"plan"`
+	ExpiresAt    int64  `json:"expiresAt"`
+	Meta         string `json:"meta"`
+	Status       string `json:"status"`
+	Renews       bool   `json:"renews"`
+	CreatedAt    int64  `json:"createdAt"`
 }
 
 // The provider owns everything but the note.
@@ -362,6 +370,7 @@ func (q *Queries) UpsertProviderLicense(ctx context.Context, arg *UpsertProvider
 		arg.Source,
 		arg.Email,
 		arg.Customer,
+		arg.CustomerGone,
 		arg.Plan,
 		arg.ExpiresAt,
 		arg.Meta,

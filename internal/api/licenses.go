@@ -26,19 +26,20 @@ const (
 
 // License is one issued license with its key.
 type License struct {
-	ID        string            `json:"id"         doc:"Subscription or checkout session id at the provider, or lic_... for a manual license"`
-	ProductID int64             `json:"product_id"`
-	Source    string            `json:"source"                                                                                                                     enum:"manual,stripe"`
-	Email     string            `json:"email"`
-	Customer  string            `json:"customer"   doc:"Display name, not part of the key"`
-	Plan      string            `json:"plan"`
-	ExpiresAt *time.Time        `json:"expires_at" doc:"Null for a perpetual license"`
-	Meta      map[string]string `json:"meta"       doc:"Extra claims signed into the key"`
-	Note      string            `json:"note"`
-	Status    string            `json:"status"     doc:"Subscription status at the provider, paid or refunded for a one time purchase, empty for a manual license"`
-	Renews    bool              `json:"renews"     doc:"Whether the provider will bill another period"`
-	Key       string            `json:"key"        doc:"The signed license key"`
-	CreatedAt time.Time         `json:"created_at"`
+	ID           string            `json:"id"            doc:"Subscription or checkout session id at the provider, or lic_... for a manual license"`
+	ProductID    int64             `json:"product_id"`
+	Source       string            `json:"source"                                                                                                                        enum:"manual,stripe"`
+	Email        string            `json:"email"`
+	Customer     string            `json:"customer"      doc:"Display name, not part of the key"`
+	CustomerGone bool              `json:"customer_gone" doc:"The customer was deleted at the provider, email and customer are the last known ones"`
+	Plan         string            `json:"plan"`
+	ExpiresAt    *time.Time        `json:"expires_at"    doc:"Null for a perpetual license"`
+	Meta         map[string]string `json:"meta"          doc:"Extra claims signed into the key"`
+	Note         string            `json:"note"`
+	Status       string            `json:"status"        doc:"Subscription status at the provider, paid or refunded for a one time purchase, empty for a manual license"`
+	Renews       bool              `json:"renews"        doc:"Whether the provider will bill another period"`
+	Key          string            `json:"key"           doc:"The signed license key"`
+	CreatedAt    time.Time         `json:"created_at"`
 }
 
 type LicensesOutput struct {
@@ -265,18 +266,19 @@ func toLicense(p *db.Product, l *db.License) (License, error) {
 	}
 
 	out := License{
-		ID:        l.ID,
-		ProductID: l.ProductID,
-		Source:    l.Source,
-		Email:     l.Email,
-		Customer:  l.Customer,
-		Plan:      l.Plan,
-		Meta:      meta,
-		Note:      l.Note,
-		Status:    l.Status,
-		Renews:    l.Renews,
-		Key:       key,
-		CreatedAt: time.Unix(l.CreatedAt, 0),
+		ID:           l.ID,
+		ProductID:    l.ProductID,
+		Source:       l.Source,
+		Email:        l.Email,
+		Customer:     l.Customer,
+		CustomerGone: l.CustomerGone,
+		Plan:         l.Plan,
+		Meta:         meta,
+		Note:         l.Note,
+		Status:       l.Status,
+		Renews:       l.Renews,
+		Key:          key,
+		CreatedAt:    time.Unix(l.CreatedAt, 0),
 	}
 	if l.ExpiresAt != 0 {
 		out.ExpiresAt = new(time.Unix(l.ExpiresAt, 0))

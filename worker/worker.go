@@ -18,6 +18,7 @@ import (
 	"encoding/hex"
 	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -90,8 +91,21 @@ type cachedKey struct {
 
 // New checks the config and returns the handler.
 func New(cfg Config) (http.Handler, error) {
-	if cfg.Prefix == "" || cfg.StripeKey == "" || cfg.StripeProduct == "" {
-		return nil, errors.New("worker: prefix, Stripe key and Stripe product are required")
+	var missing []string
+	if cfg.Prefix == "" {
+		missing = append(missing, "prefix")
+	}
+	if cfg.PrivateKey == "" {
+		missing = append(missing, "private key")
+	}
+	if cfg.StripeKey == "" {
+		missing = append(missing, "Stripe key")
+	}
+	if cfg.StripeProduct == "" {
+		missing = append(missing, "Stripe product")
+	}
+	if len(missing) > 0 {
+		return nil, fmt.Errorf("worker: not set: %s", strings.Join(missing, ", "))
 	}
 	if (cfg.WebhookSecret == "") != (cfg.Send == nil) {
 		return nil, errors.New("worker: the webhook needs both a secret and a way to send keys")
@@ -117,6 +131,15 @@ func New(cfg Config) (http.Handler, error) {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("ok"))
 	})
+	// The usual slip is a webhook endpoint or a refresh url without its path.
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		hint := "this worker serves POST /refresh"
+		if cfg.Send != nil {
+			hint += " and POST /webhook"
+		}
+		slog.Warn("no such endpoint, "+hint, "method", r.Method, "path", r.URL.Path)
+		http.Error(w, hint, http.StatusNotFound)
+	})
 	return mux, nil
 }
 
@@ -141,7 +164,7 @@ func (h *handler) refresh(w http.ResponseWriter, r *http.Request) {
 	if cached, ok := h.cached(claims.ID); ok {
 		key = cached
 	} else if claims.ID != "" && !strings.HasPrefix(claims.ID, "lic_") {
-		key, _, _, err = h.issue(r.Context(), claims.ID)
+		key, _, _, err = h.issue(r.Context(), claims.ID, claims.Email)
 		if errors.Is(err, stripe.ErrNotFound) || errors.Is(err, stripe.ErrOtherProduct) ||
 			errors.Is(err, stripe.ErrNotOwed) {
 			http.Error(w, "no license behind this key", http.StatusNotFound)
@@ -209,7 +232,7 @@ func (h *handler) webhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	key, claims, period, err := h.issue(r.Context(), subID)
+	key, claims, period, err := h.issue(r.Context(), subID, "")
 	if errors.Is(err, stripe.ErrOtherProduct) {
 		return
 	}
@@ -241,10 +264,11 @@ func (h *handler) webhook(w http.ResponseWriter, r *http.Request) {
 }
 
 // issue signs the key a subscription or one time purchase is owed right now.
-// period is how many seconds one billing period of it lasts.
+// period is how many seconds one billing period of it lasts. Stripe forgets
+// the email of a deleted customer, lastEmail is the one of the key in hand.
 func (h *handler) issue(
 	ctx context.Context,
-	id string,
+	id, lastEmail string,
 ) (key string, claims license.Claims, period int64, err error) {
 	product := stripe.Product{
 		ID:        h.cfg.StripeProduct,
@@ -260,7 +284,7 @@ func (h *handler) issue(
 	claims = license.Claims{
 		App:       h.cfg.Prefix,
 		Plan:      l.Plan,
-		Email:     l.Email,
+		Email:     cmp.Or(l.Email, lastEmail),
 		ExpiresAt: l.ExpiresAt,
 		ID:        l.ID,
 		Meta:      l.Meta,

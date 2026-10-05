@@ -69,7 +69,7 @@ async function refresh(request: Request, env: Env): Promise<Response> {
 		key = cached.key;
 	} else if (claims.id && !claims.id.startsWith('lic_')) {
 		try {
-			({ key } = await sign(env, claims.id));
+			({ key } = await sign(env, claims.id, claims.email));
 		} catch (err) {
 			if (err instanceof NotFound || err instanceof OtherProduct || err instanceof NotOwed) {
 				return text('no license behind this key', 404);
@@ -156,7 +156,9 @@ async function webhook(request: Request, env: Env): Promise<Response> {
 }
 
 // sign signs the key a subscription or one time purchase is owed right now.
-async function sign(env: Env, id: string): Promise<{ key: string; claims: Claims; period: number }> {
+// Stripe forgets the email of a deleted customer, lastEmail is the one of the
+// key in hand.
+async function sign(env: Env, id: string, lastEmail = ''): Promise<{ key: string; claims: Claims; period: number }> {
 	const product: Product = {
 		id: env.INKAN_STRIPE_PRODUCT,
 		plan: env.INKAN_PLAN,
@@ -167,7 +169,7 @@ async function sign(env: Env, id: string): Promise<{ key: string; claims: Claims
 	const claims: Claims = {
 		app: env.INKAN_PREFIX,
 		plan: license.plan,
-		email: license.email,
+		email: license.email || lastEmail,
 		exp: license.expires_at,
 		id: license.id,
 		meta: license.meta ?? {}

@@ -124,9 +124,11 @@ func runWorker(ctx context.Context, cmd *cli.Command) error {
 			From: cmd.String("mail-from"),
 		}
 		if mailer.Addr == "" || mailer.From == "" {
-			return errors.New("the webhook mails keys, so it needs --smtp-addr and --mail-from")
+			slog.Warn("No mail server and sender are set, so keys are not mailed. Only refresh is served")
+			cfg.WebhookSecret = ""
+		} else {
+			cfg.Send = mailer.Send
 		}
-		cfg.Send = mailer.Send
 	}
 	handler, err := worker.New(cfg)
 	if err != nil {
@@ -161,5 +163,25 @@ func workerEnv(ctx context.Context, cmd *cli.Command) error {
 	fmt.Printf("INKAN_PLAN=%s\n", p.Plan)
 	fmt.Printf("INKAN_GRACE_DAYS=%d\n", p.GraceDays)
 	fmt.Printf("INKAN_KEY_DAYS=%d\n", p.KeyDays)
+
+	// The rest is only needed to mail keys. What the product does not have
+	// yet is printed as a comment, so the file shows what is left to fill in.
+	fmt.Println()
+	fmt.Println("# Mailing keys. Add a webhook endpoint in Stripe for https://<worker>/webhook that sends")
+	fmt.Println("# invoice.paid, checkout.session.completed and checkout.session.async_payment_succeeded.")
+	fmt.Println("# For local tests the secret is the one `stripe listen --print-secret` prints.")
+	for _, v := range []struct{ name, value, hint string }{
+		{"INKAN_STRIPE_WEBHOOK_SECRET", p.WebhookSecret, "whsec_..."},
+		{"INKAN_SMTP_ADDR", p.SmtpAddr, "smtp.example.com:587"},
+		{"INKAN_SMTP_USER", p.SmtpUser, ""},
+		{"INKAN_SMTP_PASS", p.SmtpPass, ""},
+		{"INKAN_MAIL_FROM", p.MailFrom, "licenses@example.com"},
+	} {
+		if v.value == "" {
+			fmt.Printf("# %s=%s\n", v.name, v.hint)
+			continue
+		}
+		fmt.Printf("%s=%s\n", v.name, v.value)
+	}
 	return nil
 }

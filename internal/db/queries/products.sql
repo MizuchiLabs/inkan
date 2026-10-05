@@ -36,7 +36,12 @@ SET
   grace_days = ?,
   key_days = ?,
   provider_key = ?,
-  provider_product = ?
+  provider_product = ?,
+  webhook_secret = ?,
+  smtp_addr = ?,
+  smtp_user = ?,
+  smtp_pass = ?,
+  mail_from = ?
 WHERE
   id = ? RETURNING *;
 

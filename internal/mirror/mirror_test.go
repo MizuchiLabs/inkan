@@ -84,6 +84,47 @@ func TestSync(t *testing.T) {
 	assert.Contains(t, p.SyncError, "Invalid API Key provided", "the failure is kept for the UI")
 }
 
+// Stripe keeps only the id of a deleted customer. The row must not lose who
+// the license was for.
+func TestSyncDeletedCustomer(t *testing.T) {
+	customer := `{"email": "a@x.io", "name": "Acme"}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/subscriptions" {
+			_, _ = w.Write([]byte(`{"has_more": false, "data": []}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"has_more": false, "data": [
+			{"id": "sub_1", "status": "active", "customer": ` + customer + `, ` + item + `}
+		]}`))
+	}))
+	t.Cleanup(srv.Close)
+	live := stripe.APIURL
+	stripe.APIURL = srv.URL                    //nolint:reassign // the var exists so tests can fake Stripe
+	t.Cleanup(func() { stripe.APIURL = live }) //nolint:reassign // see above
+
+	ctx := t.Context()
+	q, err := db.Open(ctx, t.TempDir())
+	require.NoError(t, err)
+	p, err := q.CreateProduct(ctx, &db.CreateProductParams{Name: "App", Prefix: "APP", Plan: "pro"})
+	require.NoError(t, err)
+	p, err = q.UpdateProduct(ctx, &db.UpdateProductParams{
+		Name: p.Name, Plan: p.Plan, ProviderKey: "sk_good", ProviderProduct: "prod_app", ID: p.ID,
+	})
+	require.NoError(t, err)
+
+	_, err = Sync(ctx, q, p)
+	require.NoError(t, err)
+	customer = `{"id": "cus_1", "deleted": true}`
+	_, err = Sync(ctx, q, p)
+	require.NoError(t, err)
+
+	l, err := q.GetLicense(ctx, &db.GetLicenseParams{ProductID: p.ID, ID: "sub_1"})
+	require.NoError(t, err)
+	assert.True(t, l.CustomerGone)
+	assert.Equal(t, "a@x.io", l.Email)
+	assert.Equal(t, "Acme", l.Customer)
+}
+
 // One subscription can hold two products. Each gets its own license with its
 // own plan and expiry, they must not fight over one row.
 func TestSyncBundle(t *testing.T) {

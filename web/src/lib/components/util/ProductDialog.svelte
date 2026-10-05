@@ -31,7 +31,12 @@
 			keyDays: product?.key_days ?? 0,
 			privateKey: '',
 			providerProduct: product?.provider_product ?? '',
-			providerKey: ''
+			providerKey: '',
+			webhookSecret: '',
+			smtpAddr: product?.smtp_addr ?? '',
+			smtpUser: product?.smtp_user ?? '',
+			smtpPass: '',
+			mailFrom: product?.mail_from ?? ''
 		};
 	}
 	const form = $state(initial());
@@ -48,7 +53,12 @@
 						grace_days: form.graceDays,
 						key_days: form.keyDays,
 						provider_product: form.providerProduct,
-						provider_key: form.providerKey
+						provider_key: form.providerKey,
+						webhook_secret: form.webhookSecret,
+						smtp_addr: form.smtpAddr,
+						smtp_user: form.smtpUser,
+						smtp_pass: form.smtpPass,
+						mail_from: form.mailFrom
 					}
 				},
 				{
@@ -84,7 +94,7 @@
 </script>
 
 <Dialog.Root open onOpenChange={(isOpen) => !isOpen && onclose()}>
-	<Dialog.Content class="sm:max-w-lg">
+	<Dialog.Content class="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
 		<Dialog.Header>
 			<Dialog.Title>{product ? `Edit ${product.name}` : 'Add a product'}</Dialog.Title>
 			<Dialog.Description>
@@ -163,8 +173,10 @@
 						required
 					/>
 					<Field.Description>
-						The longest a Stripe key lives. The app has to refresh for the next one, which is what
-						stops a refunded or canceled license. Leave it at 0 for apps that run offline.
+						Cuts every Stripe key short, so the app has to refresh and a refund, a cancellation or a
+						plan change takes effect. A key lasts between half and all of these days. 30 suits
+						yearly plans and one time purchases in an app that is online. Leave it at 0 for apps
+						that run offline or have monthly plans only.
 					</Field.Description>
 				</Field.Field>
 
@@ -200,6 +212,67 @@
 							purchases also need Checkout sessions, payment intents and charges.
 						</Field.Description>
 					</Field.Field>
+
+					<Field.Separator />
+					<Field.Description>
+						Only for a worker that mails keys. Inkan sends no mail itself, it keeps these so
+						<code class="font-mono">inkan worker env</code> prints a complete file.
+					</Field.Description>
+					<Field.Field>
+						<Field.Label for="product-webhook-secret">Webhook signing secret</Field.Label>
+						<Input
+							id="product-webhook-secret"
+							type="password"
+							bind:value={form.webhookSecret}
+							placeholder={product.webhook_secret_set
+								? 'Stored. Leave empty to keep it'
+								: 'whsec_...'}
+							autocomplete="off"
+						/>
+						<Field.Description>
+							Of the Stripe webhook endpoint that points at
+							<code class="font-mono">/webhook</code> of the worker.
+						</Field.Description>
+					</Field.Field>
+					<div class="grid gap-4 sm:grid-cols-2">
+						<Field.Field>
+							<Field.Label for="product-smtp-addr">Mail server</Field.Label>
+							<Input
+								id="product-smtp-addr"
+								bind:value={form.smtpAddr}
+								placeholder="smtp.example.com:587"
+								autocomplete="off"
+							/>
+						</Field.Field>
+						<Field.Field>
+							<Field.Label for="product-mail-from">Sender</Field.Label>
+							<Input
+								id="product-mail-from"
+								bind:value={form.mailFrom}
+								required={!!form.smtpAddr}
+								placeholder="licenses@example.com"
+								autocomplete="off"
+							/>
+						</Field.Field>
+						<Field.Field>
+							<Field.Label for="product-smtp-user">Mail login</Field.Label>
+							<Input id="product-smtp-user" bind:value={form.smtpUser} autocomplete="off" />
+						</Field.Field>
+						<Field.Field>
+							<Field.Label for="product-smtp-pass">Mail password</Field.Label>
+							<Input
+								id="product-smtp-pass"
+								type="password"
+								bind:value={form.smtpPass}
+								placeholder={product.smtp_pass_set ? 'Stored. Leave empty to keep it' : ''}
+								autocomplete="new-password"
+							/>
+						</Field.Field>
+					</div>
+					<Field.Description>
+						The server has to speak STARTTLS, usually on port 587. An empty mail server forgets the
+						login and the sender.
+					</Field.Description>
 				{:else}
 					<Field.Field>
 						<Field.Label for="product-private-key">Existing private key</Field.Label>

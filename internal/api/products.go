@@ -1,6 +1,7 @@
 package api
 
 import (
+	"cmp"
 	"context"
 	"crypto/ed25519"
 	"database/sql"
@@ -29,6 +30,11 @@ type Product struct {
 	PublicKey         string     `json:"public_key"         doc:"Hex Ed25519 public key to build into the product"`
 	ProviderProduct   string     `json:"provider_product"   doc:"Payment provider product id. Its subscriptions are licenses"`
 	ProviderConnected bool       `json:"provider_connected" doc:"Whether an API key and a provider product are stored"`
+	SMTPAddr          string     `json:"smtp_addr"          doc:"Mail server a worker sends keys through, host:port with STARTTLS"`
+	SMTPUser          string     `json:"smtp_user"`
+	MailFrom          string     `json:"mail_from"          doc:"Sender of the key mails"`
+	WebhookSecretSet  bool       `json:"webhook_secret_set" doc:"Whether a webhook signing secret is stored"`
+	SMTPPassSet       bool       `json:"smtp_pass_set"      doc:"Whether a mail server password is stored"`
 	SyncedAt          *time.Time `json:"synced_at"          doc:"Last successful provider sync"`
 	SyncError         string     `json:"sync_error"         doc:"Why the last provider sync failed, empty when it worked"`
 	CreatedAt         time.Time  `json:"created_at"`
@@ -67,6 +73,11 @@ type UpdateProductInput struct {
 		KeyDays         int64  `json:"key_days,omitempty"     minimum:"0"   maximum:"3650"`
 		ProviderProduct string `json:"provider_product,omitempty"                            doc:"Empty disconnects the provider"`
 		ProviderKey     string `json:"provider_key,omitempty"                                doc:"Empty keeps the stored key"`
+		WebhookSecret   string `json:"webhook_secret,omitempty" maxLength:"256" doc:"Signing secret of the webhook endpoint of the worker. Empty keeps the stored one"`
+		SMTPAddr        string `json:"smtp_addr,omitempty" maxLength:"256" doc:"Mail server of the worker, host:port with STARTTLS. Empty forgets the mail server"`
+		SMTPUser        string `json:"smtp_user,omitempty" maxLength:"256"`
+		SMTPPass        string `json:"smtp_pass,omitempty" maxLength:"256" doc:"Empty keeps the stored password"`
+		MailFrom        string `json:"mail_from,omitempty" maxLength:"256" doc:"An address or \"Name <address>\""`
 	}
 }
 
@@ -174,6 +185,17 @@ func (h *productHandlers) update(ctx context.Context, in *UpdateProductInput) (*
 	if providerKey == "" {
 		providerKey = current.ProviderKey
 	}
+	// These only travel on to worker env, inkan sends no mail itself.
+	mail := db.UpdateProductParams{
+		WebhookSecret: cmp.Or(strings.TrimSpace(in.Body.WebhookSecret), current.WebhookSecret),
+		SmtpAddr:      strings.TrimSpace(in.Body.SMTPAddr),
+		SmtpUser:      strings.TrimSpace(in.Body.SMTPUser),
+		SmtpPass:      cmp.Or(in.Body.SMTPPass, current.SmtpPass),
+		MailFrom:      strings.TrimSpace(in.Body.MailFrom),
+	}
+	if mail.SmtpAddr == "" {
+		mail = db.UpdateProductParams{WebhookSecret: mail.WebhookSecret}
+	}
 	p, err := h.q.UpdateProduct(ctx, &db.UpdateProductParams{
 		Name:            in.Body.Name,
 		Plan:            in.Body.Plan,
@@ -181,6 +203,11 @@ func (h *productHandlers) update(ctx context.Context, in *UpdateProductInput) (*
 		KeyDays:         in.Body.KeyDays,
 		ProviderKey:     providerKey,
 		ProviderProduct: strings.TrimSpace(in.Body.ProviderProduct),
+		WebhookSecret:   mail.WebhookSecret,
+		SmtpAddr:        mail.SmtpAddr,
+		SmtpUser:        mail.SmtpUser,
+		SmtpPass:        mail.SmtpPass,
+		MailFrom:        mail.MailFrom,
 		ID:              in.ID,
 	})
 	if isUnique(err) {
@@ -246,6 +273,11 @@ func toProduct(p *db.Product) Product {
 		KeyDays:           p.KeyDays,
 		ProviderProduct:   p.ProviderProduct,
 		ProviderConnected: mirror.Connected(p),
+		SMTPAddr:          p.SmtpAddr,
+		SMTPUser:          p.SmtpUser,
+		MailFrom:          p.MailFrom,
+		WebhookSecretSet:  p.WebhookSecret != "",
+		SMTPPassSet:       p.SmtpPass != "",
 		SyncError:         p.SyncError,
 		CreatedAt:         time.Unix(p.CreatedAt, 0),
 	}

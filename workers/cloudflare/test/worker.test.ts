@@ -92,6 +92,9 @@ function fakeFetch(t: { mock: { method: Function } }) {
 		}
 		asked.push(url.pathname);
 		if (url.pathname === '/v1/subscriptions/sub_1') return Response.json(sub);
+		if (url.pathname === '/v1/subscriptions/sub_deleted') {
+			return Response.json({ ...sub, id: 'sub_deleted', customer: { id: 'cus_1', deleted: true } });
+		}
 		if (url.pathname === '/v1/checkout/sessions/cs_1') return Response.json(session);
 		return Response.json({ error: { message: 'No such subscription' } }, { status: 404 });
 	});
@@ -102,8 +105,8 @@ function post(path: string, body: string, headers: Record<string, string> = {}):
 	return worker.fetch(new Request('https://worker.test' + path, { method: 'POST', body, headers }), env);
 }
 
-async function keyFor(id: string, exp = 1): Promise<string> {
-	const claims: Claims = { app: 'MYAPP', plan: 'pro', email: '', exp, id, meta: {} };
+async function keyFor(id: string, exp = 1, email = ''): Promise<string> {
+	const claims: Claims = { app: 'MYAPP', plan: 'pro', email, exp, id, meta: {} };
 	return issue(claims, await importPrivateKey(privateB64));
 }
 
@@ -123,6 +126,13 @@ test('refresh trades a key for the one that is owed now', async (t) => {
 
 	const bought = await (await post('/refresh', await keyFor('cs_1'))).text();
 	assert.deepEqual((await verify(bought, 'MYAPP', vectors.public_key)).meta, { seats: '3' });
+
+	const orphan = await (await post('/refresh', await keyFor('sub_deleted', 1, 'left@acme.io'))).text();
+	assert.equal(
+		(await verify(orphan, 'MYAPP', vectors.public_key)).email,
+		'left@acme.io',
+		'Stripe forgot the deleted customer, the key did not'
+	);
 
 	const manual = await keyFor('lic_abc', 0);
 	assert.equal(await (await post('/refresh', `"${manual}"`)).text(), manual, 'a hand issued key comes back as it is');

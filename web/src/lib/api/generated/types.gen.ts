@@ -121,6 +121,10 @@ export type License = {
      * Display name, not part of the key
      */
     customer: string;
+    /**
+     * The customer was deleted at the provider, email and customer are the last known ones
+     */
+    customer_gone: boolean;
     email: string;
     /**
      * Null for a perpetual license
@@ -185,6 +189,10 @@ export type Product = {
      * Longest life of a provider key in days, 0 has no limit. Apps refresh for the next one
      */
     key_days: number;
+    /**
+     * Sender of the key mails
+     */
+    mail_from: string;
     name: string;
     /**
      * Plan claim for provider prices without plan metadata and the default for manual licenses
@@ -207,6 +215,15 @@ export type Product = {
      */
     public_key: string;
     /**
+     * Mail server a worker sends keys through, host:port with STARTTLS
+     */
+    smtp_addr: string;
+    /**
+     * Whether a mail server password is stored
+     */
+    smtp_pass_set: boolean;
+    smtp_user: string;
+    /**
      * Why the last provider sync failed, empty when it worked
      */
     sync_error: string;
@@ -214,6 +231,10 @@ export type Product = {
      * Last successful provider sync
      */
     synced_at: string | null;
+    /**
+     * Whether a webhook signing secret is stored
+     */
+    webhook_secret_set: boolean;
 };
 
 export type Session = {
@@ -254,6 +275,10 @@ export type SyncOutputBody = {
 export type UpdateProductInputBody = {
     grace_days: number;
     key_days?: number;
+    /**
+     * An address or "Name <address>"
+     */
+    mail_from?: string;
     name: string;
     plan: string;
     /**
@@ -264,6 +289,19 @@ export type UpdateProductInputBody = {
      * Empty disconnects the provider
      */
     provider_product?: string;
+    /**
+     * Mail server of the worker, host:port with STARTTLS. Empty forgets the mail server
+     */
+    smtp_addr?: string;
+    /**
+     * Empty keeps the stored password
+     */
+    smtp_pass?: string;
+    smtp_user?: string;
+    /**
+     * Signing secret of the webhook endpoint of the worker. Empty keeps the stored one
+     */
+    webhook_secret?: string;
 };
 
 export type CheckKeyData = {

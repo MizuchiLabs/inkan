@@ -124,11 +124,27 @@ curl -H "Authorization: Bearer $INKAN_API_TOKEN" http://127.0.0.1:3000/api/licen
 - **Seats and features.** Price metadata that starts with `meta_` is signed
   into the key, `meta_tier=gold` becomes the claim `tier=gold`. The metadata
   `quantity=seats` puts the bought quantity into the claim `seats`.
-- **Key days.** A product can limit how long its Stripe keys live. With 30 key
-  days a key lasts 15 to 30 days and the app refreshes for the next one. That
-  is what stops a license after a refund or a cancellation. Leave it at 0 for
-  apps that run offline, their customers would have to paste a new key every
-  few weeks.
+- **Key days.** A signed key cannot be taken back. Without key days it runs
+  to the end of the paid period plus the grace days, whatever happens in
+  between. Key days cut every Stripe key short, so the app has to refresh and
+  the next key says what Stripe says now. A key lasts between half and all of
+  the key days. That is what ends a license after a refund, a chargeback or
+  an immediate cancellation, and what stops an old key from keeping a plan or
+  seats the customer no longer pays for.
+
+  | Product                                        | Key days |
+  | ---------------------------------------------- | -------- |
+  | App that runs offline                          | `0`      |
+  | Monthly plans only                             | `0`      |
+  | Yearly plans, app is online                    | `30`     |
+  | One time purchases with refunds, app is online | `30`     |
+  | Strict, the app is always online               | `14`     |
+
+  Half of the key days is how long the app may stay offline, so 30 allows two
+  weeks. All of them is the longest a refunded key keeps working in an app
+  that is kept from refreshing. An app that does refresh picks up a change
+  within a day, key days or not.
+
 - **History.** Once a day the active licenses are counted per product and
   plan. The Licenses page shows how they moved.
 - **Check.** Paste any key on the Licenses page. Inkan verifies it the way the
@@ -234,6 +250,13 @@ Stripe for `https://<worker>/webhook` that sends `invoice.paid`, plus
 you sell one time purchases. Leave out the webhook secret and the mail
 settings to serve refresh only.
 
+The webhook secret and the mail settings can be stored on the product, under
+Edit on the Products page. `worker env` then prints them too. What is not
+stored is printed as a comment, so the file shows what is left to fill in.
+
+To try it against Stripe test mode, `task worker -- MYAPP` runs the worker on
+port 4242 with the Stripe CLI forwarding the three events to it.
+
 ### How it behaves
 
 - **Mails.** The first payment always sends the key. A renewal only sends one
@@ -244,6 +267,9 @@ settings to serve refresh only.
   the same key again, so an old key never stops working as a ticket.
 - **Hand issued keys.** A key with a `lic_…` id, or none, always comes back as
   it is.
+- **Deleted customers.** Stripe cancels their subscriptions and forgets who
+  they were. The ledger keeps the last name and email it saw and marks the
+  row, and a refresh keeps the email of the key it was sent.
 - **Refunds.** Cancel a refunded subscription right away and its next key ends
   with the cancellation. A refunded purchase gets an expired key. An app that
   refreshes picks that up, see key days above.

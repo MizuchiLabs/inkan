@@ -5,18 +5,19 @@
 package db
 
 type License struct {
-	ID        string `json:"id"`
-	ProductID int64  `json:"productId"`
-	Source    string `json:"source"`
-	Email     string `json:"email"`
-	Customer  string `json:"customer"`
-	Plan      string `json:"plan"`
-	ExpiresAt int64  `json:"expiresAt"`
-	Meta      string `json:"meta"`
-	Note      string `json:"note"`
-	Status    string `json:"status"`
-	Renews    bool   `json:"renews"`
-	CreatedAt int64  `json:"createdAt"`
+	ID           string `json:"id"`
+	ProductID    int64  `json:"productId"`
+	Source       string `json:"source"`
+	Email        string `json:"email"`
+	Customer     string `json:"customer"`
+	CustomerGone bool   `json:"customerGone"`
+	Plan         string `json:"plan"`
+	ExpiresAt    int64  `json:"expiresAt"`
+	Meta         string `json:"meta"`
+	Note         string `json:"note"`
+	Status       string `json:"status"`
+	Renews       bool   `json:"renews"`
+	CreatedAt    int64  `json:"createdAt"`
 }
 
 type Product struct {
@@ -29,6 +30,11 @@ type Product struct {
 	PrivateKey      string `json:"privateKey"`
 	ProviderKey     string `json:"providerKey"`
 	ProviderProduct string `json:"providerProduct"`
+	WebhookSecret   string `json:"webhookSecret"`
+	SmtpAddr        string `json:"smtpAddr"`
+	SmtpUser        string `json:"smtpUser"`
+	SmtpPass        string `json:"smtpPass"`
+	MailFrom        string `json:"mailFrom"`
 	SyncedAt        *int64 `json:"syncedAt"`
 	SyncError       string `json:"syncError"`
 	CreatedAt       int64  `json:"createdAt"`

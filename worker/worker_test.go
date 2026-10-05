@@ -69,6 +69,11 @@ func fakeStripe(t *testing.T) *atomic.Int64 {
 			_, _ = w.Write([]byte(`{"id": "sub_monthly", "status": "active", "customer": {"email": "m@acme.io"},
 				"items": {"data": [{"price": {"product": "prod_app"},
 					"current_period_start": 1797408000, "current_period_end": 1800000000}]}}`))
+		case "/v1/subscriptions/sub_deleted":
+			_, _ = w.Write([]byte(`{"id": "sub_deleted", "status": "canceled", "ended_at": 1799000000,
+				"customer": {"id": "cus_1", "deleted": true},
+				"items": {"data": [{"price": {"product": "prod_app"},
+					"current_period_start": 1797000000, "current_period_end": 1800000000}]}}`))
 		case "/v1/subscriptions/sub_other":
 			_, _ = w.Write([]byte(`{"id": "sub_other", "status": "active", "customer": {"email": "x@x.io"},
 				"items": {"data": [{"price": {"product": "prod_other"}, "current_period_end": 1800000000}]}}`))
@@ -130,7 +135,7 @@ func TestNew(t *testing.T) {
 	broken = cfg
 	broken.StripeProduct = ""
 	_, err = New(broken)
-	require.Error(t, err)
+	require.ErrorContains(t, err, "Stripe product", "the error names what is missing")
 
 	broken = cfg
 	broken.WebhookSecret = secret
@@ -175,6 +180,14 @@ func TestRefresh(t *testing.T) {
 	assert.Zero(t, claims.ExpiresAt, "a one time purchase never expires")
 	assert.Equal(t, "lifetime", claims.Plan)
 	assert.Equal(t, map[string]string{"seats": "3"}, claims.Meta, "the quantity becomes the seats")
+
+	orphan := issue(license.Claims{Plan: "pro", Email: "left@acme.io", ExpiresAt: periodEnd, ID: "sub_deleted"}, priv)
+	status, key = post(t, h, "/refresh", orphan, nil)
+	require.Equal(t, http.StatusOK, status)
+	claims, err = license.VerifyWith(key, "APP", pub)
+	require.NoError(t, err)
+	assert.Equal(t, "left@acme.io", claims.Email, "Stripe forgot the deleted customer, the key did not")
+	assert.Equal(t, int64(1_799_000_000+grace), claims.ExpiresAt)
 
 	manual := issue(license.Claims{Plan: "pro", Email: "a@x.io", ID: "lic_abc"}, priv)
 	status, key = post(t, h, "/refresh", manual, nil)

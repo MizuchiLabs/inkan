@@ -154,6 +154,10 @@
 				"properties": {
 					"created_at": { "format": "date-time", "type": "string" },
 					"customer": { "description": "Display name, not part of the key", "type": "string" },
+					"customer_gone": {
+						"description": "The customer was deleted at the provider, email and customer are the last known ones",
+						"type": "boolean"
+					},
 					"email": { "type": "string" },
 					"expires_at": {
 						"description": "Null for a perpetual license",
@@ -189,6 +193,7 @@
 					"source",
 					"email",
 					"customer",
+					"customer_gone",
 					"plan",
 					"expires_at",
 					"meta",
@@ -240,6 +245,7 @@
 						"format": "int64",
 						"type": "integer"
 					},
+					"mail_from": { "description": "Sender of the key mails", "type": "string" },
 					"name": { "type": "string" },
 					"plan": {
 						"description": "Plan claim for provider prices without plan metadata and the default for manual licenses",
@@ -261,6 +267,15 @@
 						"description": "Hex Ed25519 public key to build into the product",
 						"type": "string"
 					},
+					"smtp_addr": {
+						"description": "Mail server a worker sends keys through, host:port with STARTTLS",
+						"type": "string"
+					},
+					"smtp_pass_set": {
+						"description": "Whether a mail server password is stored",
+						"type": "boolean"
+					},
+					"smtp_user": { "type": "string" },
 					"sync_error": {
 						"description": "Why the last provider sync failed, empty when it worked",
 						"type": "string"
@@ -269,6 +284,10 @@
 						"description": "Last successful provider sync",
 						"format": "date-time",
 						"type": ["string", "null"]
+					},
+					"webhook_secret_set": {
+						"description": "Whether a webhook signing secret is stored",
+						"type": "boolean"
 					}
 				},
 				"required": [
@@ -281,6 +300,11 @@
 					"public_key",
 					"provider_product",
 					"provider_connected",
+					"smtp_addr",
+					"smtp_user",
+					"mail_from",
+					"webhook_secret_set",
+					"smtp_pass_set",
 					"synced_at",
 					"sync_error",
 					"created_at"
@@ -337,10 +361,31 @@
 				"properties": {
 					"grace_days": { "format": "int64", "maximum": 365, "minimum": 0, "type": "integer" },
 					"key_days": { "format": "int64", "maximum": 3650, "minimum": 0, "type": "integer" },
+					"mail_from": {
+						"description": "An address or \"Name \u003caddress\u003e\"",
+						"maxLength": 256,
+						"type": "string"
+					},
 					"name": { "maxLength": 64, "minLength": 1, "type": "string" },
 					"plan": { "maxLength": 32, "minLength": 1, "type": "string" },
 					"provider_key": { "description": "Empty keeps the stored key", "type": "string" },
-					"provider_product": { "description": "Empty disconnects the provider", "type": "string" }
+					"provider_product": { "description": "Empty disconnects the provider", "type": "string" },
+					"smtp_addr": {
+						"description": "Mail server of the worker, host:port with STARTTLS. Empty forgets the mail server",
+						"maxLength": 256,
+						"type": "string"
+					},
+					"smtp_pass": {
+						"description": "Empty keeps the stored password",
+						"maxLength": 256,
+						"type": "string"
+					},
+					"smtp_user": { "maxLength": 256, "type": "string" },
+					"webhook_secret": {
+						"description": "Signing secret of the webhook endpoint of the worker. Empty keeps the stored one",
+						"maxLength": 256,
+						"type": "string"
+					}
 				},
 				"required": ["name", "plan", "grace_days"],
 				"type": "object"

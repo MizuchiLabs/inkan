@@ -8,6 +8,12 @@ CREATE TABLE products (
   private_key TEXT NOT NULL, -- base64 Ed25519, signs every key of this product
   provider_key TEXT NOT NULL DEFAULT '', -- API key of the payment provider, reads subscriptions and customers
   provider_product TEXT NOT NULL DEFAULT '', -- product id at the provider, its subscriptions are licenses
+  -- What a worker needs to mail keys. Only kept here so worker env can print it.
+  webhook_secret TEXT NOT NULL DEFAULT '', -- signing secret of the webhook endpoint at the provider
+  smtp_addr TEXT NOT NULL DEFAULT '', -- host:port with STARTTLS
+  smtp_user TEXT NOT NULL DEFAULT '',
+  smtp_pass TEXT NOT NULL DEFAULT '',
+  mail_from TEXT NOT NULL DEFAULT '', -- an address or "Name <address>"
   synced_at INTEGER, -- last successful provider sync
   sync_error TEXT NOT NULL DEFAULT '',
   created_at INTEGER NOT NULL DEFAULT (unixepoch())
@@ -21,6 +27,7 @@ CREATE TABLE licenses (
   source TEXT NOT NULL, -- manual, or the name of the provider, like stripe
   email TEXT NOT NULL,
   customer TEXT NOT NULL DEFAULT '', -- display name, not part of the key
+  customer_gone BOOLEAN NOT NULL DEFAULT 0, -- deleted at the provider, email and customer are the last known ones
   plan TEXT NOT NULL,
   expires_at INTEGER NOT NULL, -- unix seconds, 0 is perpetual
   meta TEXT NOT NULL DEFAULT '{}', -- json object of strings, signed into the key

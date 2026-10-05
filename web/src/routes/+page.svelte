@@ -193,8 +193,17 @@
 											type="button"
 											class="flex max-w-64 flex-col text-left outline-none focus-visible:underline"
 										>
-											<span class="truncate font-medium">{license.customer || license.email}</span>
-											{#if license.customer}
+											{#if license.customer || license.email}
+												<span class="truncate font-medium">{license.customer || license.email}</span
+												>
+											{:else}
+												<span class="truncate text-muted-foreground">Unknown customer</span>
+											{/if}
+											{#if license.customer_gone}
+												<span class="truncate text-xs text-muted-foreground">
+													{license.customer ? `${license.email}, deleted` : 'Deleted in Stripe'}
+												</span>
+											{:else if license.customer}
 												<span class="truncate text-xs text-muted-foreground">{license.email}</span>
 											{/if}
 										</button>

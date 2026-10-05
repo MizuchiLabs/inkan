@@ -133,17 +133,18 @@ func store(ctx context.Context, q *db.Queries, p *db.Product, l *stripe.License)
 		meta = string(b)
 	}
 	if err := q.UpsertProviderLicense(ctx, &db.UpsertProviderLicenseParams{
-		ID:        l.ID,
-		ProductID: p.ID,
-		Source:    "stripe",
-		Email:     l.Email,
-		Customer:  l.Customer,
-		Plan:      l.Plan,
-		ExpiresAt: l.ExpiresAt,
-		Meta:      meta,
-		Status:    l.Status,
-		Renews:    l.Renews,
-		CreatedAt: l.CreatedAt,
+		ID:           l.ID,
+		ProductID:    p.ID,
+		Source:       "stripe",
+		Email:        l.Email,
+		Customer:     l.Customer,
+		CustomerGone: l.Gone,
+		Plan:         l.Plan,
+		ExpiresAt:    l.ExpiresAt,
+		Meta:         meta,
+		Status:       l.Status,
+		Renews:       l.Renews,
+		CreatedAt:    l.CreatedAt,
 	}); err != nil {
 		return fmt.Errorf("storing license %s: %w", l.ID, err)
 	}

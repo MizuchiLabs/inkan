@@ -166,6 +166,7 @@ func TestLicenseCases(t *testing.T) {
 		ID        string            `json:"id"`
 		Email     string            `json:"email"`
 		Customer  string            `json:"customer"`
+		Gone      bool              `json:"gone"`
 		Plan      string            `json:"plan"`
 		Meta      map[string]string `json:"meta"`
 		ExpiresAt int64             `json:"expires_at"`

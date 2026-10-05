@@ -13,7 +13,7 @@ const createProduct = `-- name: CreateProduct :one
 INSERT INTO
   products (name, prefix, plan, grace_days, key_days, private_key)
 VALUES
-  (?, ?, ?, ?, ?, ?) RETURNING id, name, prefix, "plan", grace_days, key_days, private_key, provider_key, provider_product, synced_at, sync_error, created_at
+  (?, ?, ?, ?, ?, ?) RETURNING id, name, prefix, "plan", grace_days, key_days, private_key, provider_key, provider_product, webhook_secret, smtp_addr, smtp_user, smtp_pass, mail_from, synced_at, sync_error, created_at
 `
 
 type CreateProductParams struct {
@@ -45,6 +45,11 @@ func (q *Queries) CreateProduct(ctx context.Context, arg *CreateProductParams) (
 		&i.PrivateKey,
 		&i.ProviderKey,
 		&i.ProviderProduct,
+		&i.WebhookSecret,
+		&i.SmtpAddr,
+		&i.SmtpUser,
+		&i.SmtpPass,
+		&i.MailFrom,
 		&i.SyncedAt,
 		&i.SyncError,
 		&i.CreatedAt,
@@ -65,7 +70,7 @@ func (q *Queries) DeleteProduct(ctx context.Context, id int64) error {
 
 const getProduct = `-- name: GetProduct :one
 SELECT
-  id, name, prefix, "plan", grace_days, key_days, private_key, provider_key, provider_product, synced_at, sync_error, created_at
+  id, name, prefix, "plan", grace_days, key_days, private_key, provider_key, provider_product, webhook_secret, smtp_addr, smtp_user, smtp_pass, mail_from, synced_at, sync_error, created_at
 FROM
   products
 WHERE
@@ -85,6 +90,11 @@ func (q *Queries) GetProduct(ctx context.Context, id int64) (*Product, error) {
 		&i.PrivateKey,
 		&i.ProviderKey,
 		&i.ProviderProduct,
+		&i.WebhookSecret,
+		&i.SmtpAddr,
+		&i.SmtpUser,
+		&i.SmtpPass,
+		&i.MailFrom,
 		&i.SyncedAt,
 		&i.SyncError,
 		&i.CreatedAt,
@@ -94,7 +104,7 @@ func (q *Queries) GetProduct(ctx context.Context, id int64) (*Product, error) {
 
 const getProductByPrefix = `-- name: GetProductByPrefix :one
 SELECT
-  id, name, prefix, "plan", grace_days, key_days, private_key, provider_key, provider_product, synced_at, sync_error, created_at
+  id, name, prefix, "plan", grace_days, key_days, private_key, provider_key, provider_product, webhook_secret, smtp_addr, smtp_user, smtp_pass, mail_from, synced_at, sync_error, created_at
 FROM
   products
 WHERE
@@ -114,6 +124,11 @@ func (q *Queries) GetProductByPrefix(ctx context.Context, prefix string) (*Produ
 		&i.PrivateKey,
 		&i.ProviderKey,
 		&i.ProviderProduct,
+		&i.WebhookSecret,
+		&i.SmtpAddr,
+		&i.SmtpUser,
+		&i.SmtpPass,
+		&i.MailFrom,
 		&i.SyncedAt,
 		&i.SyncError,
 		&i.CreatedAt,
@@ -123,7 +138,7 @@ func (q *Queries) GetProductByPrefix(ctx context.Context, prefix string) (*Produ
 
 const listProducts = `-- name: ListProducts :many
 SELECT
-  id, name, prefix, "plan", grace_days, key_days, private_key, provider_key, provider_product, synced_at, sync_error, created_at
+  id, name, prefix, "plan", grace_days, key_days, private_key, provider_key, provider_product, webhook_secret, smtp_addr, smtp_user, smtp_pass, mail_from, synced_at, sync_error, created_at
 FROM
   products
 ORDER BY
@@ -149,6 +164,11 @@ func (q *Queries) ListProducts(ctx context.Context) ([]*Product, error) {
 			&i.PrivateKey,
 			&i.ProviderKey,
 			&i.ProviderProduct,
+			&i.WebhookSecret,
+			&i.SmtpAddr,
+			&i.SmtpUser,
+			&i.SmtpPass,
+			&i.MailFrom,
 			&i.SyncedAt,
 			&i.SyncError,
 			&i.CreatedAt,
@@ -206,9 +226,14 @@ SET
   grace_days = ?,
   key_days = ?,
   provider_key = ?,
-  provider_product = ?
+  provider_product = ?,
+  webhook_secret = ?,
+  smtp_addr = ?,
+  smtp_user = ?,
+  smtp_pass = ?,
+  mail_from = ?
 WHERE
-  id = ? RETURNING id, name, prefix, "plan", grace_days, key_days, private_key, provider_key, provider_product, synced_at, sync_error, created_at
+  id = ? RETURNING id, name, prefix, "plan", grace_days, key_days, private_key, provider_key, provider_product, webhook_secret, smtp_addr, smtp_user, smtp_pass, mail_from, synced_at, sync_error, created_at
 `
 
 type UpdateProductParams struct {
@@ -218,6 +243,11 @@ type UpdateProductParams struct {
 	KeyDays         int64  `json:"keyDays"`
 	ProviderKey     string `json:"providerKey"`
 	ProviderProduct string `json:"providerProduct"`
+	WebhookSecret   string `json:"webhookSecret"`
+	SmtpAddr        string `json:"smtpAddr"`
+	SmtpUser        string `json:"smtpUser"`
+	SmtpPass        string `json:"smtpPass"`
+	MailFrom        string `json:"mailFrom"`
 	ID              int64  `json:"id"`
 }
 
@@ -229,6 +259,11 @@ func (q *Queries) UpdateProduct(ctx context.Context, arg *UpdateProductParams) (
 		arg.KeyDays,
 		arg.ProviderKey,
 		arg.ProviderProduct,
+		arg.WebhookSecret,
+		arg.SmtpAddr,
+		arg.SmtpUser,
+		arg.SmtpPass,
+		arg.MailFrom,
 		arg.ID,
 	)
 	var i Product
@@ -242,6 +277,11 @@ func (q *Queries) UpdateProduct(ctx context.Context, arg *UpdateProductParams) (
 		&i.PrivateKey,
 		&i.ProviderKey,
 		&i.ProviderProduct,
+		&i.WebhookSecret,
+		&i.SmtpAddr,
+		&i.SmtpUser,
+		&i.SmtpPass,
+		&i.MailFrom,
 		&i.SyncedAt,
 		&i.SyncError,
 		&i.CreatedAt,
