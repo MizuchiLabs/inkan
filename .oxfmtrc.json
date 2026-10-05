@@ -1,0 +1,22 @@
+{
+	"$schema": "./web/node_modules/oxfmt/configuration_schema.json",
+	"ignorePatterns": ["worker/templates/**", "**/testdata/**", "web/src/lib/api/generated/**"],
+	"useTabs": true,
+	"singleQuote": true,
+	"trailingComma": "none",
+	"printWidth": 100,
+	"tabWidth": 2,
+	"overrides": [
+		{
+			"files": ["web/**"],
+			"options": {
+				"svelte": true,
+				"sortTailwindcss": {
+					"stylesheet": "./web/src/routes/layout.css",
+					"functions": ["clsx", "cn"],
+					"preserveWhitespace": true
+				}
+			}
+		}
+	]
+}

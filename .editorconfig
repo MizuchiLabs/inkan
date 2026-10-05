@@ -1,0 +1,5 @@
+root = true
+
+# A final newline here ends up in every text mail and breaks worker/testdata/mails.json.
+[worker/templates/body.txt]
+insert_final_newline = false
