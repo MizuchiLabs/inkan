@@ -16,6 +16,32 @@ tasks:
     cmds:
       - pnpm run dev
 
+  worker:
+    desc: Run the worker of a product with the Stripe CLI forwarding test webhooks to it, task worker -- MYAPP
+    cmds:
+      - |
+        while IFS= read -r line; do
+          case "$line" in ""|"#"*) ;; *) export "$line" ;; esac
+        done <<EOF
+        $(go run . worker env {{.CLI_ARGS}})
+        EOF
+        export INKAN_STRIPE_WEBHOOK_SECRET="$(stripe listen --print-secret)"
+        stripe listen --forward-to localhost:4242/webhook \
+          --events invoice.paid,checkout.session.completed,checkout.session.async_payment_succeeded &
+        trap 'kill $!' EXIT
+        go run . worker --addr :4242
+
+  seed:
+    desc: Fill data/demo with made up products, licenses and 90 days of history
+    cmds:
+      - rm -rf data/demo && mkdir -p data/demo
+      - cat internal/db/schemas/*.sql internal/db/testdata/seed.sql | sqlite3 data/demo/inkan.db
+
+  demo:
+    desc: Run the backend on the made up data of task seed
+    cmds:
+      - go run . --password 123 --data-dir data/demo
+
   update:
     desc: Update dependencies
     cmds:

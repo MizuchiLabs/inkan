@@ -29,3 +29,6 @@ go.work
 .envrc
 dist/
 data/
+
+# Envs
+*.env*
