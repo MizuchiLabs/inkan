@@ -1,11 +1,17 @@
 <script lang="ts">
-	import { useCreateProduct, useUpdateProduct, type Product } from '#lib/api/queries.js';
+	import {
+		useCreateProduct,
+		useMailPreview,
+		useUpdateProduct,
+		type Product
+	} from '#lib/api/queries.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Dialog from '#lib/components/ui/dialog/index.js';
 	import * as Field from '#lib/components/ui/field/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import { Spinner } from '#lib/components/ui/spinner/index.js';
 	import { Textarea } from '#lib/components/ui/textarea/index.js';
+	import { Debounced } from 'runed';
 	import { toast } from 'svelte-sonner';
 	import Seal from './Seal.svelte';
 
@@ -36,10 +42,33 @@
 			smtpAddr: product?.smtp_addr ?? '',
 			smtpUser: product?.smtp_user ?? '',
 			smtpPass: '',
-			mailFrom: product?.mail_from ?? ''
+			mailFrom: product?.mail_from ?? '',
+			mailLogo: product?.mail_logo ?? '',
+			mailAccent: product?.mail_accent ?? '',
+			mailFooter: product?.mail_footer ?? '',
+			mailCompany: product?.mail_company ?? ''
 		};
 	}
 	const form = $state(initial());
+
+	let previewing = $state(false);
+	const look = new Debounced(
+		() => ({
+			name: form.name,
+			mail_logo: form.mailLogo,
+			mail_accent: form.mailAccent,
+			mail_footer: form.mailFooter,
+			mail_company: form.mailCompany
+		}),
+		300
+	);
+	const preview = useMailPreview(
+		() => product?.id,
+		() => (previewing ? look.current : undefined)
+	);
+	// A link would load its page inside the preview. The sandbox allows no
+	// new windows, so sending them there leaves a click without effect.
+	const inert = $derived(preview.data?.html.replace('<head>', '<head><base target="_blank">'));
 
 	function save(event: SubmitEvent) {
 		event.preventDefault();
@@ -58,7 +87,11 @@
 						smtp_addr: form.smtpAddr,
 						smtp_user: form.smtpUser,
 						smtp_pass: form.smtpPass,
-						mail_from: form.mailFrom
+						mail_from: form.mailFrom,
+						mail_logo: form.mailLogo,
+						mail_accent: form.mailAccent,
+						mail_footer: form.mailFooter,
+						mail_company: form.mailCompany
 					}
 				},
 				{
@@ -273,6 +306,97 @@
 						The server has to speak STARTTLS, usually on port 587. An empty mail server forgets the
 						login and the sender.
 					</Field.Description>
+
+					<Field.Separator />
+					<Field.Description>
+						How the key mail looks. All of it is optional, the mail calls the product by its name.
+					</Field.Description>
+					<div class="grid gap-4 sm:grid-cols-2">
+						<Field.Field>
+							<Field.Label for="product-mail-logo">Logo</Field.Label>
+							<Input
+								id="product-mail-logo"
+								type="url"
+								bind:value={form.mailLogo}
+								pattern="https://.+"
+								placeholder="https://example.com/logo.png"
+								autocomplete="off"
+							/>
+						</Field.Field>
+						<Field.Field>
+							<Field.Label for="product-mail-accent">Accent color</Field.Label>
+							<Input
+								id="product-mail-accent"
+								bind:value={form.mailAccent}
+								pattern={'#[0-9a-fA-F]{6}'}
+								placeholder="#2f3e8f"
+								autocomplete="off"
+							/>
+						</Field.Field>
+					</div>
+					<Field.Description>
+						The logo sits on the dark header, 32 pixels high, so it has to read on a dark
+						background.
+					</Field.Description>
+					<Field.Field>
+						<Field.Label for="product-mail-footer">Footer</Field.Label>
+						<Input
+							id="product-mail-footer"
+							bind:value={form.mailFooter}
+							maxlength={256}
+							placeholder="Questions? Write to support@example.com"
+						/>
+					</Field.Field>
+					<Field.Field>
+						<Field.Label for="product-mail-company">Company details</Field.Label>
+						<Input
+							id="product-mail-company"
+							bind:value={form.mailCompany}
+							maxlength={512}
+							placeholder="Example GmbH, Street 1, 12345 Berlin, HRB 12345"
+						/>
+						<Field.Description>
+							The last line of the mail, for what your business has to state in its mail. Links and
+							email addresses in it and in the footer can be clicked.
+						</Field.Description>
+					</Field.Field>
+					<div class="flex flex-col gap-2">
+						<Button
+							variant="outline"
+							size="sm"
+							class="self-start"
+							aria-expanded={previewing}
+							aria-controls="product-mail-preview"
+							onclick={() => (previewing = !previewing)}
+						>
+							{previewing ? 'Hide preview' : 'Preview the mail'}
+						</Button>
+						{#if previewing}
+							<div id="product-mail-preview" class="flex flex-col gap-2">
+								{#if preview.data}
+									<p class="text-sm text-muted-foreground">
+										Subject: <span class="text-foreground">{preview.data.subject}</span>
+									</p>
+									<!-- An empty sandbox runs nothing, the mail is markup only. -->
+									<iframe
+										title="Preview of the key mail"
+										srcdoc={inert}
+										sandbox=""
+										class="h-144 w-full rounded-lg border"
+									></iframe>
+									<p class="text-xs text-muted-foreground">
+										The key is made up and the links do nothing here. A worker with templates of its
+										own sends those instead. <code class="font-mono">inkan worker mail</code> sends a
+										sample to a real inbox.
+									</p>
+								{:else if preview.isError}
+									<p class="text-sm text-destructive">The preview could not be loaded.</p>
+								{:else}
+									<Spinner />
+								{/if}
+							</div>
+						{/if}
+					</div>
 				{:else}
 					<Field.Field>
 						<Field.Label for="product-private-key">Existing private key</Field.Label>

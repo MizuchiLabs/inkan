@@ -243,6 +243,12 @@ services:
 | `INKAN_SMTP_USER`             | -                | Mail server login                              |
 | `INKAN_SMTP_PASS`             | -                | Mail server password                           |
 | `INKAN_MAIL_FROM`             | -                | Sender of the key mails                        |
+| `INKAN_PRODUCT_NAME`          | the prefix       | How the key mail calls the product             |
+| `INKAN_MAIL_LOGO`             | -                | https url of a logo for the dark header        |
+| `INKAN_MAIL_ACCENT`           | `#2f3e8f`        | Color of the key mail                          |
+| `INKAN_MAIL_FOOTER`           | -                | One line under the key, like where to get help |
+| `INKAN_MAIL_COMPANY`          | -                | Last line of the mail, your company details    |
+| `INKAN_MAIL_TEMPLATES`        | -                | Directory with a key mail of your own          |
 
 `worker env` prints the first seven. For the mails, add a webhook endpoint in
 Stripe for `https://<worker>/webhook` that sends `invoice.paid`, plus
@@ -256,6 +262,65 @@ stored is printed as a comment, so the file shows what is left to fill in.
 
 To try it against Stripe test mode, `task worker -- MYAPP` runs the worker on
 port 4242 with the Stripe CLI forwarding the three events to it.
+
+### The key mail
+
+The mail shows the key, its plan, how long it is valid and who it is for, as
+HTML with a plain text twin. A dark header carries the name of the product or
+its logo. These make it yours. Set them on the product under Edit, `worker
+env` prints them.
+
+- **Logo.** An https url. It sits on the dark header, 32 pixels high, so it
+  has to read on a dark background.
+- **Accent color.** Tints the key and colors the plan and the links. A pale or
+  a dark color is adjusted where it would be hard to read.
+- **Footer.** One line under the key, like where to get help.
+- **Company details.** The last line of the mail. Many countries want a
+  business to state who it is in its mail, in Germany that is the legal name,
+  the address, the register number and the directors. What exactly you have
+  to state is yours to check.
+
+Links and email addresses in the footer and the company details can be
+clicked.
+
+The Edit dialog of a product has a preview that follows what you type. To
+see it in a real mail client, send yourself a sample. The key in it is made
+up and works nowhere.
+
+```sh
+inkan worker mail you@example.com
+# or only look at it, this also shows templates of your own
+inkan worker mail --html > mail.html
+```
+
+For a mail of your own, point `INKAN_MAIL_TEMPLATES` at a directory with any
+of `subject.txt`, `body.txt` and `body.html`. A missing file is the built in
+one, a `body.txt` without a `body.html` goes out as plain text. They are Go
+templates, `text/template` and `html/template`, over these fields:
+
+| Field        |                                                        |
+| ------------ | ------------------------------------------------------ |
+| `.Key`       | The license key                                        |
+| `.Name`      | Name of the product, its prefix when none is set       |
+| `.App`       | Key prefix of the product                              |
+| `.Plan`      | Plan of the key                                        |
+| `.Email`     | Who the key is for                                     |
+| `.Expires`   | Like `15 January 2027`, empty for a key without an end |
+| `.ExpiresAt` | The same as a `time.Time`, to format it yourself       |
+| `.Meta`      | Extra claims, `{{.Meta.seats}}`                        |
+| `.Logo`      | What the product sets, each may be empty               |
+| `.Accent`    |                                                        |
+| `.Footer`    |                                                        |
+| `.Company`   |                                                        |
+| `.Shades`    | Colors worked out from the accent, see below           |
+
+`.Shades` holds what the built in mail makes of the accent: `Text` and
+`TextDark` for the accent as text on a light and a dark mail, and `Tint`,
+`TintBorder`, `TintDark` and `TintBorderDark` for the box of the key. In `body.html`, `{{linked .Footer .Shades.Text}}` turns the
+links and email addresses of a text into links of that color.
+
+Any tool that writes HTML works. With React Email, put the fields into the
+component as plain strings like `{'{{.Key}}'}` and export it to `body.html`.
 
 ### How it behaves
 

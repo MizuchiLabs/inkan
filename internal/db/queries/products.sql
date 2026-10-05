@@ -41,7 +41,11 @@ SET
   smtp_addr = ?,
   smtp_user = ?,
   smtp_pass = ?,
-  mail_from = ?
+  mail_from = ?,
+  mail_logo = ?,
+  mail_accent = ?,
+  mail_footer = ?,
+  mail_company = ?
 WHERE
   id = ? RETURNING *;
 

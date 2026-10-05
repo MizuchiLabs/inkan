@@ -14,6 +14,10 @@ CREATE TABLE products (
   smtp_user TEXT NOT NULL DEFAULT '',
   smtp_pass TEXT NOT NULL DEFAULT '',
   mail_from TEXT NOT NULL DEFAULT '', -- an address or "Name <address>"
+  mail_logo TEXT NOT NULL DEFAULT '', -- https url, shown in the key mail
+  mail_accent TEXT NOT NULL DEFAULT '', -- color of the key mail, #rrggbb
+  mail_footer TEXT NOT NULL DEFAULT '', -- one line under the key
+  mail_company TEXT NOT NULL DEFAULT '', -- legal name, address and the like, the last line of the key mail
   synced_at INTEGER, -- last successful provider sync
   sync_error TEXT NOT NULL DEFAULT '',
   created_at INTEGER NOT NULL DEFAULT (unixepoch())

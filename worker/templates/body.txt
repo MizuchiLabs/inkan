@@ -1,0 +1,13 @@
+Here is the {{.Name}} license for {{.Email}}. Paste the key into the app to activate it, and keep this mail in case you need it again.
+
+{{.Key}}
+
+Plan: {{.Plan}}
+{{if .Expires}}Valid until: {{.Expires}}{{else}}It never expires.{{end}}
+{{if .Footer}}
+{{.Footer}}
+{{end}}
+--
+You are getting this mail because a license for {{.Name}} was paid for with this address.
+{{if .Company}}{{.Company}}
+{{end}}

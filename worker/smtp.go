@@ -2,13 +2,11 @@ package worker
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/tls"
 	"fmt"
 	"net"
 	"net/mail"
 	"net/smtp"
-	"strings"
 	"time"
 
 	"github.com/mizuchilabs/inkan/license"
@@ -21,6 +19,11 @@ type SMTP struct {
 	User string
 	Pass string
 	From string // an address, or "Name <address>"
+
+	// Brand shapes the built in mail.
+	Brand Brand
+	// Templates replace the built in mail, see [LoadTemplates]. May be nil.
+	Templates *Templates
 }
 
 // Send mails the key to the email in its claims. It fits [Config.Send].
@@ -35,6 +38,10 @@ func (s SMTP) Send(ctx context.Context, key string, claims license.Claims) error
 		return fmt.Errorf("smtp: recipient: %w", err)
 	}
 	host, _, err := net.SplitHostPort(s.Addr)
+	if err != nil {
+		return fmt.Errorf("smtp: %w", err)
+	}
+	msg, err := s.Templates.message(from, to, key, claims, s.Brand)
 	if err != nil {
 		return fmt.Errorf("smtp: %w", err)
 	}
@@ -73,30 +80,11 @@ func (s SMTP) Send(ctx context.Context, key string, claims license.Claims) error
 	if err != nil {
 		return fmt.Errorf("smtp: %w", err)
 	}
-	if _, err := data.Write(message(from, to, key, claims)); err != nil {
+	if _, err := data.Write(msg); err != nil {
 		return fmt.Errorf("smtp: %w", err)
 	}
 	if err := data.Close(); err != nil {
 		return fmt.Errorf("smtp: %w", err)
 	}
 	return client.Quit()
-}
-
-func message(from, to *mail.Address, key string, claims license.Claims) []byte {
-	_, domain, _ := strings.Cut(from.Address, "@")
-	var b strings.Builder
-	fmt.Fprintf(&b, "From: %s\r\n", from)
-	fmt.Fprintf(&b, "To: %s\r\n", to)
-	fmt.Fprintf(&b, "Subject: Your %s license key\r\n", claims.App)
-	fmt.Fprintf(&b, "Date: %s\r\n", time.Now().Format(time.RFC1123Z))
-	fmt.Fprintf(&b, "Message-ID: <%s@%s>\r\n", rand.Text(), domain)
-	b.WriteString("MIME-Version: 1.0\r\n")
-	b.WriteString("Content-Type: text/plain; charset=utf-8\r\n\r\n")
-
-	fmt.Fprintf(&b, "This is your license key for %s:\r\n\r\n%s\r\n\r\n", claims.App, key)
-	if claims.ExpiresAt != 0 {
-		until := time.Unix(claims.ExpiresAt, 0).UTC().Format("2 January 2006")
-		fmt.Fprintf(&b, "It is valid until %s.\r\n", until)
-	}
-	return []byte(b.String())
 }

@@ -17,6 +17,7 @@ import (
 
 	"github.com/mizuchilabs/inkan/internal/db"
 	"github.com/mizuchilabs/inkan/internal/mirror"
+	"github.com/mizuchilabs/inkan/worker"
 )
 
 // Product is one app that keys are issued for. Secrets never leave the server.
@@ -33,6 +34,10 @@ type Product struct {
 	SMTPAddr          string     `json:"smtp_addr"          doc:"Mail server a worker sends keys through, host:port with STARTTLS"`
 	SMTPUser          string     `json:"smtp_user"`
 	MailFrom          string     `json:"mail_from"          doc:"Sender of the key mails"`
+	MailLogo          string     `json:"mail_logo"          doc:"https url of a logo for the dark header of the key mail"`
+	MailAccent        string     `json:"mail_accent"        doc:"Color of the key mail, #rrggbb"`
+	MailFooter        string     `json:"mail_footer"        doc:"One line under the key in the mail"`
+	MailCompany       string     `json:"mail_company"       doc:"Last line of the key mail: legal name, address, register number"`
 	WebhookSecretSet  bool       `json:"webhook_secret_set" doc:"Whether a webhook signing secret is stored"`
 	SMTPPassSet       bool       `json:"smtp_pass_set"      doc:"Whether a mail server password is stored"`
 	SyncedAt          *time.Time `json:"synced_at"          doc:"Last successful provider sync"`
@@ -77,7 +82,30 @@ type UpdateProductInput struct {
 		SMTPAddr        string `json:"smtp_addr,omitempty" maxLength:"256" doc:"Mail server of the worker, host:port with STARTTLS. Empty forgets the mail server"`
 		SMTPUser        string `json:"smtp_user,omitempty" maxLength:"256"`
 		SMTPPass        string `json:"smtp_pass,omitempty" maxLength:"256" doc:"Empty keeps the stored password"`
+		MailLogo        string `json:"mail_logo,omitempty" maxLength:"512" pattern:"^(https://.+)?$" doc:"https url of a logo for the dark header of the key mail"`
+		MailAccent      string `json:"mail_accent,omitempty" pattern:"^(#[0-9a-fA-F]{6})?$" doc:"Color of the key mail, like #2f3e8f"`
+		MailFooter      string `json:"mail_footer,omitempty" maxLength:"256" doc:"One line under the key in the mail, like where to get help"`
+		MailCompany     string `json:"mail_company,omitempty" maxLength:"512" doc:"Last line of the key mail, for what a business has to state: legal name, address, register number"`
 		MailFrom        string `json:"mail_from,omitempty" maxLength:"256" doc:"An address or \"Name <address>\""`
+	}
+}
+
+type MailPreviewInput struct {
+	ProductPath
+
+	Body struct {
+		Name        string `json:"name,omitempty"        maxLength:"64"`
+		MailLogo    string `json:"mail_logo,omitempty"   maxLength:"512"`
+		MailAccent  string `json:"mail_accent,omitempty" maxLength:"32"`
+		MailFooter  string `json:"mail_footer,omitempty" maxLength:"256"`
+		MailCompany string `json:"mail_company,omitempty" maxLength:"512"`
+	}
+}
+
+type MailPreviewOutput struct {
+	Body struct {
+		Subject string `json:"subject"`
+		HTML    string `json:"html"`
 	}
 }
 
@@ -133,6 +161,14 @@ func registerProducts(api huma.API, q *db.Queries) {
 		Summary:     "Sync a product with its provider",
 		Tags:        []string{"Products"},
 	}, h.sync)
+	huma.Register(api, huma.Operation{
+		OperationID: "preview-mail",
+		Method:      http.MethodPost,
+		Path:        "/api/products/{id}/mail-preview",
+		Summary:     "Preview the key mail of a product",
+		Description: "Renders the built in mail with a made up key. The look comes from the request, so it can be tried before it is saved.",
+		Tags:        []string{"Products"},
+	}, h.previewMail)
 }
 
 func (h *productHandlers) list(ctx context.Context, _ *struct{}) (*ProductsOutput, error) {
@@ -208,6 +244,10 @@ func (h *productHandlers) update(ctx context.Context, in *UpdateProductInput) (*
 		SmtpUser:        mail.SmtpUser,
 		SmtpPass:        mail.SmtpPass,
 		MailFrom:        mail.MailFrom,
+		MailLogo:        strings.TrimSpace(in.Body.MailLogo),
+		MailAccent:      in.Body.MailAccent,
+		MailFooter:      strings.TrimSpace(in.Body.MailFooter),
+		MailCompany:     strings.TrimSpace(in.Body.MailCompany),
 		ID:              in.ID,
 	})
 	if isUnique(err) {
@@ -252,6 +292,30 @@ func (h *productHandlers) sync(ctx context.Context, in *ProductPath) (*SyncOutpu
 	return out, nil
 }
 
+func (h *productHandlers) previewMail(ctx context.Context, in *MailPreviewInput) (*MailPreviewOutput, error) {
+	p, err := h.get(ctx, in.ID)
+	if err != nil {
+		return nil, err
+	}
+	key, claims, err := worker.Sample(p.Prefix, "customer@example.com")
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to make a sample key")
+	}
+	var templates *worker.Templates
+	out := &MailPreviewOutput{}
+	out.Body.Subject, _, out.Body.HTML, err = templates.Render(key, claims, worker.Brand{
+		Name:    cmp.Or(strings.TrimSpace(in.Body.Name), p.Name),
+		Logo:    strings.TrimSpace(in.Body.MailLogo),
+		Accent:  in.Body.MailAccent,
+		Footer:  strings.TrimSpace(in.Body.MailFooter),
+		Company: strings.TrimSpace(in.Body.MailCompany),
+	})
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to render the mail")
+	}
+	return out, nil
+}
+
 func (h *productHandlers) get(ctx context.Context, id int64) (*db.Product, error) {
 	p, err := h.q.GetProduct(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -276,6 +340,10 @@ func toProduct(p *db.Product) Product {
 		SMTPAddr:          p.SmtpAddr,
 		SMTPUser:          p.SmtpUser,
 		MailFrom:          p.MailFrom,
+		MailLogo:          p.MailLogo,
+		MailAccent:        p.MailAccent,
+		MailFooter:        p.MailFooter,
+		MailCompany:       p.MailCompany,
 		WebhookSecretSet:  p.WebhookSecret != "",
 		SMTPPassSet:       p.SmtpPass != "",
 		SyncError:         p.SyncError,

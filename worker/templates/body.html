@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<title>Your {{.Name}} license key</title>
+<style>
+@media (prefers-color-scheme: dark) {
+  .page { background: #101113 !important; }
+  .band { border-color: #2e3138 !important; }
+  .body { background: #1b1d21 !important; border-color: #2e3138 !important; }
+  .foot { background: #16181b !important; border-color: #2e3138 !important; }
+  .text { color: #ededf0 !important; }
+  .soft { color: #a2a6af !important; }
+  .rule { border-color: #2e3138 !important; }
+  .keybox { background: {{.Shades.TintDark}} !important; border-color: {{.Shades.TintBorderDark}} !important; }
+  .accent { color: {{.Shades.TextDark}} !important; }
+}
+</style>
+</head>
+<body class="page" style="margin:0; padding:0; background:#f1f2f5;">
+<table role="presentation" class="page" width="100%" cellpadding="0" cellspacing="0" bgcolor="#f1f2f5" style="background:#f1f2f5;">
+<tr><td align="center" style="padding:32px 12px; font-family:-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+  <tr><td class="band" bgcolor="#15171c" style="background:#15171c; border:1px solid #15171c; border-radius:14px 14px 0 0; padding:26px 32px;">
+    {{if .Logo}}<img src="{{.Logo}}" alt="{{.Name}}" height="32" style="display:block; height:32px; border:0;">{{else}}<span style="font-size:22px; line-height:32px; font-weight:700; letter-spacing:-0.3px; color:#ffffff;">{{.Name}}</span>{{end}}
+  </td></tr>
+  <tr><td class="body" bgcolor="#ffffff" style="background:#ffffff; border-left:1px solid #dfe1e7; border-right:1px solid #dfe1e7; padding:36px 32px 32px;">
+    <p class="accent" style="margin:0 0 10px; font-size:12px; line-height:16px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:{{.Shades.Text}};">{{.Plan}} license</p>
+    <h1 class="text" style="margin:0 0 14px; font-size:28px; line-height:34px; font-weight:700; letter-spacing:-0.5px; color:#17181c;">Your license key</h1>
+    <p class="soft" style="margin:0 0 28px; font-size:16px; line-height:26px; color:#555a65;">Here is the {{.Name}} license for <strong class="text" style="color:#17181c;">{{.Email}}</strong>. Paste the key into the app to activate it, and keep this mail in case you need it again.</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+    <tr><td class="keybox" bgcolor="{{.Shades.Tint}}" style="background:{{.Shades.Tint}}; border:1px solid {{.Shades.TintBorder}}; border-radius:12px; padding:18px 20px;">
+      <p class="soft" style="margin:0 0 6px; font-size:11px; line-height:16px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:#555a65;">License key</p>
+      <p class="text" style="margin:0 0 12px; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:13px; line-height:21px; font-weight:600; color:#17181c; word-break:break-all;">{{.Key}}</p>
+      <p class="soft" style="margin:0; font-size:13px; line-height:20px; color:#555a65;">{{if .Expires}}Valid until <strong class="text" style="color:#17181c;">{{.Expires}}</strong>.{{else}}It never expires.{{end}}</p>
+    </td></tr>
+    </table>
+    {{if .Footer}}<p class="soft rule" style="margin:28px 0 0; padding:24px 0 0; border-top:1px solid #e6e8ed; font-size:15px; line-height:23px; color:#555a65;">{{linked .Footer .Shades.Text}}</p>{{end}}
+  </td></tr>
+  <tr><td class="foot" bgcolor="#f8f9fb" style="background:#f8f9fb; border:1px solid #dfe1e7; border-radius:0 0 14px 14px; padding:24px 32px 26px;">
+    <p class="soft" style="margin:0; font-size:13px; line-height:20px; color:#555a65;">You are getting this mail because a license for {{.Name}} was paid for with this address.</p>
+    {{if .Company}}<p class="soft" style="margin:12px 0 0; font-size:12px; line-height:19px; color:#555a65;">{{linked .Company .Shades.Text}}</p>{{end}}
+  </td></tr>
+  </table>
+</td></tr>
+</table>
+</body>
+</html>

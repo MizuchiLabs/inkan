@@ -3,8 +3,8 @@
 import { type MutationOptions, queryOptions } from '@tanstack/svelte-query';
 
 import { client } from '../client.gen';
-import { checkKey, createLicense, createProduct, deleteLicense, deleteProduct, getSession, listLicenses, listProducts, listStats, type Options, signIn, signOut, syncProduct, updateLicense, updateProduct } from '../sdk.gen';
-import type { CheckKeyData, CheckKeyError, CheckKeyResponse, CreateLicenseData, CreateLicenseError, CreateLicenseResponse, CreateProductData, CreateProductError, CreateProductResponse, DeleteLicenseData, DeleteLicenseError, DeleteLicenseResponse, DeleteProductData, DeleteProductError, DeleteProductResponse, GetSessionData, GetSessionError, GetSessionResponse, ListLicensesData, ListLicensesError, ListLicensesResponse, ListProductsData, ListProductsError, ListProductsResponse, ListStatsData, ListStatsError, ListStatsResponse, SignInData, SignInError, SignInResponse, SignOutData, SignOutError, SignOutResponse, SyncProductData, SyncProductError, SyncProductResponse, UpdateLicenseData, UpdateLicenseError, UpdateLicenseResponse, UpdateProductData, UpdateProductError, UpdateProductResponse } from '../types.gen';
+import { checkKey, createLicense, createProduct, deleteLicense, deleteProduct, getSession, listLicenses, listProducts, listStats, type Options, previewMail, signIn, signOut, syncProduct, updateLicense, updateProduct } from '../sdk.gen';
+import type { CheckKeyData, CheckKeyError, CheckKeyResponse, CreateLicenseData, CreateLicenseError, CreateLicenseResponse, CreateProductData, CreateProductError, CreateProductResponse, DeleteLicenseData, DeleteLicenseError, DeleteLicenseResponse, DeleteProductData, DeleteProductError, DeleteProductResponse, GetSessionData, GetSessionError, GetSessionResponse, ListLicensesData, ListLicensesError, ListLicensesResponse, ListProductsData, ListProductsError, ListProductsResponse, ListStatsData, ListStatsError, ListStatsResponse, PreviewMailData, PreviewMailError, PreviewMailResponse, SignInData, SignInError, SignInResponse, SignOutData, SignOutError, SignOutResponse, SyncProductData, SyncProductError, SyncProductResponse, UpdateLicenseData, UpdateLicenseError, UpdateLicenseResponse, UpdateProductData, UpdateProductError, UpdateProductResponse } from '../types.gen';
 
 /**
  * Check a license key
@@ -160,6 +160,25 @@ export const updateProductMutation = (options?: Partial<Options<UpdateProductDat
     const mutationOptions: MutationOptions<UpdateProductResponse, UpdateProductError, Options<UpdateProductData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await updateProduct({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Preview the key mail of a product
+ *
+ * Renders the built in mail with a made up key. The look comes from the request, so it can be tried before it is saved.
+ */
+export const previewMailMutation = (options?: Partial<Options<PreviewMailData>>): MutationOptions<PreviewMailResponse, PreviewMailError, Options<PreviewMailData>> => {
+    const mutationOptions: MutationOptions<PreviewMailResponse, PreviewMailError, Options<PreviewMailData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await previewMail({
                 ...options,
                 ...fnOptions,
                 throwOnError: true

@@ -6,11 +6,23 @@ import { test } from 'node:test';
 import { verify } from '../../../sdk/ts/src/index.ts';
 import worker, { type Env } from '../src/index.ts';
 import { importPrivateKey, issue, payload, type Claims } from '../src/sign.ts';
+import { render } from '../src/mail.ts';
 import { NotOwed, OtherProduct, sessionLicense, subscriptionLicense } from '../src/stripe.ts';
 
 const read = (path: string) => JSON.parse(readFileSync(new URL('../../../' + path, import.meta.url), 'utf8'));
 const vectors = read('license/testdata/vectors.json');
 const cases = read('internal/stripe/testdata/licenses.json');
+const mails = read('worker/testdata/mails.json');
+
+for (const c of mails) {
+	test(`mail: ${c.name}`, () => {
+		const claims: Claims = { app: c.app, plan: c.plan, email: c.email, exp: c.exp, id: '', meta: {} };
+		const mail = render(c.key, claims, c.brand);
+		assert.equal(mail.subject, c.subject);
+		assert.equal(mail.text, c.text);
+		assert.equal(mail.html, c.html);
+	});
+}
 
 // The Go private key format, base64 of seed and public key.
 const hexBytes = (hex: string) => Buffer.from(hex, 'hex');
@@ -53,7 +65,9 @@ const env: Env = {
 	INKAN_PLAN: 'pro',
 	INKAN_STRIPE_WEBHOOK_SECRET: 'whsec_test',
 	INKAN_MAIL_FROM: 'keys@example.com',
-	RESEND_API_KEY: 're_test'
+	RESEND_API_KEY: 're_test',
+	INKAN_PRODUCT_NAME: 'My <App>',
+	INKAN_MAIL_ACCENT: 'red; background: url(x)'
 };
 
 const sub = {
@@ -83,7 +97,7 @@ const session = {
 // Stands in for Stripe and Resend. Returns what was asked and what was mailed.
 function fakeFetch(t: { mock: { method: Function } }) {
 	const asked: string[] = [];
-	const mails: { to: string[]; text: string }[] = [];
+	const mails: { to: string[]; subject: string; text: string; html: string }[] = [];
 	t.mock.method(globalThis, 'fetch', async (input: string, init?: RequestInit) => {
 		const url = new URL(input);
 		if (url.host === 'api.resend.com') {
@@ -162,7 +176,11 @@ test('webhook mails the key once', async (t) => {
 	assert.deepEqual(mails[0].to, ['ops@acme.io']);
 	const key = mails[0].text.match(/MYAPP-\S+/)![0];
 	assert.equal((await verify(key, 'MYAPP', vectors.public_key)).id, 'sub_1');
-	assert.match(mails[0].text, /valid until 16 October 2096/);
+	assert.match(mails[0].text, /Valid until: 16 October 2096/);
+	assert.equal(mails[0].subject, 'Your My <App> license key');
+	assert.ok(mails[0].html.includes(key), 'the html mail holds the same key');
+	assert.ok(mails[0].html.includes('My &lt;App&gt;'), 'a product name cannot bring markup');
+	assert.ok(mails[0].html.includes('#2f3e8f') && !mails[0].html.includes('red;'), 'only a hex color gets in');
 
 	const bought = JSON.stringify({
 		id: 'evt_2',

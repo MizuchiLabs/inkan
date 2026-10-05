@@ -35,6 +35,10 @@ type Product struct {
 	SmtpUser        string `json:"smtpUser"`
 	SmtpPass        string `json:"smtpPass"`
 	MailFrom        string `json:"mailFrom"`
+	MailLogo        string `json:"mailLogo"`
+	MailAccent      string `json:"mailAccent"`
+	MailFooter      string `json:"mailFooter"`
+	MailCompany     string `json:"mailCompany"`
 	SyncedAt        *int64 `json:"syncedAt"`
 	SyncError       string `json:"syncError"`
 	CreatedAt       int64  `json:"createdAt"`

@@ -99,6 +99,25 @@ func TestProductKeys(t *testing.T) {
 		map[string]any{"name": "Bad", "prefix": "BAD", "plan": "pro", "private_key": "nope"}, nil))
 }
 
+func TestMailPreview(t *testing.T) {
+	srv, _ := newTestServer(t)
+	var p Product
+	body := map[string]any{"name": "App", "prefix": "APP", "plan": "pro"}
+	require.Equal(t, http.StatusCreated, call(t, srv, http.MethodPost, "/api/products", body, &p))
+
+	var mail struct {
+		Subject string `json:"subject"`
+		HTML    string `json:"html"`
+	}
+	look := map[string]any{"name": "Renamed", "mail_accent": "#c2410c", "mail_footer": "Ask <us>"}
+	path := fmt.Sprintf("/api/products/%d/mail-preview", p.ID)
+	require.Equal(t, http.StatusOK, call(t, srv, http.MethodPost, path, look, &mail))
+	assert.Equal(t, "Your Renamed license key", mail.Subject, "the look comes from the request, saved or not")
+	assert.Contains(t, mail.HTML, "#c2410c")
+	assert.Contains(t, mail.HTML, "Ask &lt;us&gt;")
+	assert.Contains(t, mail.HTML, "APP-", "with a sample key of the product")
+}
+
 func TestIssueAndCheck(t *testing.T) {
 	t.Parallel()
 	srv, _ := newTestServer(t)

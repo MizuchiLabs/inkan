@@ -178,6 +178,19 @@ export type LicenseFields = {
     plan?: string;
 };
 
+export type MailPreviewInputBody = {
+    mail_accent?: string;
+    mail_company?: string;
+    mail_footer?: string;
+    mail_logo?: string;
+    name?: string;
+};
+
+export type MailPreviewOutputBody = {
+    html: string;
+    subject: string;
+};
+
 export type Product = {
     created_at: string;
     /**
@@ -190,9 +203,25 @@ export type Product = {
      */
     key_days: number;
     /**
+     * Color of the key mail, #rrggbb
+     */
+    mail_accent: string;
+    /**
+     * Last line of the key mail: legal name, address, register number
+     */
+    mail_company: string;
+    /**
+     * One line under the key in the mail
+     */
+    mail_footer: string;
+    /**
      * Sender of the key mails
      */
     mail_from: string;
+    /**
+     * https url of a logo for the dark header of the key mail
+     */
+    mail_logo: string;
     name: string;
     /**
      * Plan claim for provider prices without plan metadata and the default for manual licenses
@@ -276,9 +305,25 @@ export type UpdateProductInputBody = {
     grace_days: number;
     key_days?: number;
     /**
+     * Color of the key mail, like #2f3e8f
+     */
+    mail_accent?: string;
+    /**
+     * Last line of the key mail, for what a business has to state: legal name, address, register number
+     */
+    mail_company?: string;
+    /**
+     * One line under the key in the mail, like where to get help
+     */
+    mail_footer?: string;
+    /**
      * An address or "Name <address>"
      */
     mail_from?: string;
+    /**
+     * https url of a logo for the dark header of the key mail
+     */
+    mail_logo?: string;
     name: string;
     plan: string;
     /**
@@ -482,6 +527,33 @@ export type UpdateProductResponses = {
 };
 
 export type UpdateProductResponse = UpdateProductResponses[keyof UpdateProductResponses];
+
+export type PreviewMailData = {
+    body: MailPreviewInputBody;
+    path: {
+        id: number;
+    };
+    query?: never;
+    url: '/api/products/{id}/mail-preview';
+};
+
+export type PreviewMailErrors = {
+    /**
+     * Error
+     */
+    default: ErrorModel;
+};
+
+export type PreviewMailError = PreviewMailErrors[keyof PreviewMailErrors];
+
+export type PreviewMailResponses = {
+    /**
+     * OK
+     */
+    200: MailPreviewOutputBody;
+};
+
+export type PreviewMailResponse = PreviewMailResponses[keyof PreviewMailResponses];
 
 export type SyncProductData = {
     body?: never;

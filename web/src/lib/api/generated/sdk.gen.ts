@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { CheckKeyData, CheckKeyErrors, CheckKeyResponses, CreateLicenseData, CreateLicenseErrors, CreateLicenseResponses, CreateProductData, CreateProductErrors, CreateProductResponses, DeleteLicenseData, DeleteLicenseErrors, DeleteLicenseResponses, DeleteProductData, DeleteProductErrors, DeleteProductResponses, GetSessionData, GetSessionErrors, GetSessionResponses, ListLicensesData, ListLicensesErrors, ListLicensesResponses, ListProductsData, ListProductsErrors, ListProductsResponses, ListStatsData, ListStatsErrors, ListStatsResponses, SignInData, SignInErrors, SignInResponses, SignOutData, SignOutErrors, SignOutResponses, SyncProductData, SyncProductErrors, SyncProductResponses, UpdateLicenseData, UpdateLicenseErrors, UpdateLicenseResponses, UpdateProductData, UpdateProductErrors, UpdateProductResponses } from './types.gen';
+import type { CheckKeyData, CheckKeyErrors, CheckKeyResponses, CreateLicenseData, CreateLicenseErrors, CreateLicenseResponses, CreateProductData, CreateProductErrors, CreateProductResponses, DeleteLicenseData, DeleteLicenseErrors, DeleteLicenseResponses, DeleteProductData, DeleteProductErrors, DeleteProductResponses, GetSessionData, GetSessionErrors, GetSessionResponses, ListLicensesData, ListLicensesErrors, ListLicensesResponses, ListProductsData, ListProductsErrors, ListProductsResponses, ListStatsData, ListStatsErrors, ListStatsResponses, PreviewMailData, PreviewMailErrors, PreviewMailResponses, SignInData, SignInErrors, SignInResponses, SignOutData, SignOutErrors, SignOutResponses, SyncProductData, SyncProductErrors, SyncProductResponses, UpdateLicenseData, UpdateLicenseErrors, UpdateLicenseResponses, UpdateProductData, UpdateProductErrors, UpdateProductResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -84,6 +84,20 @@ export const deleteProduct = <ThrowOnError extends boolean = false>(options: Opt
  */
 export const updateProduct = <ThrowOnError extends boolean = false>(options: Options<UpdateProductData, ThrowOnError>): RequestResult<UpdateProductResponses, UpdateProductErrors, ThrowOnError> => (options.client ?? client).put<UpdateProductResponses, UpdateProductErrors, ThrowOnError>({
     url: '/api/products/{id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Preview the key mail of a product
+ *
+ * Renders the built in mail with a made up key. The look comes from the request, so it can be tried before it is saved.
+ */
+export const previewMail = <ThrowOnError extends boolean = false>(options: Options<PreviewMailData, ThrowOnError>): RequestResult<PreviewMailResponses, PreviewMailErrors, ThrowOnError> => (options.client ?? client).post<PreviewMailResponses, PreviewMailErrors, ThrowOnError>({
+    url: '/api/products/{id}/mail-preview',
     ...options,
     headers: {
         'Content-Type': 'application/json',

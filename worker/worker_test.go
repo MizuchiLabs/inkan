@@ -6,12 +6,19 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json/v2"
 	"errors"
+	"io"
+	"mime"
+	"mime/multipart"
+	"mime/quotedprintable"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/mail"
 	"net/textproto"
+	"os"
+	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -20,11 +27,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	_ "modernc.org/sqlite"
 
-	"github.com/mizuchilabs/inkan/internal/api"
-	"github.com/mizuchilabs/inkan/internal/db"
-	"github.com/mizuchilabs/inkan/internal/mirror"
 	"github.com/mizuchilabs/inkan/internal/stripe"
 	"github.com/mizuchilabs/inkan/license"
 )
@@ -326,50 +329,6 @@ func TestWebhook(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, status)
 }
 
-// The promise of the whole design: for the same subscription the worker hands
-// out the very key the ledger shows.
-func TestWorkerAndLedgerAgree(t *testing.T) {
-	fakeStripe(t)
-	cfg, priv := testConfig(t)
-	// Key days make the expiry depend on the clock, both sides have to cut it alike.
-	cfg.KeyDays = 30
-	ctx := t.Context()
-
-	q, err := db.Open(ctx, t.TempDir())
-	require.NoError(t, err)
-	p, err := q.CreateProduct(ctx, &db.CreateProductParams{
-		Name: "App", Prefix: cfg.Prefix, Plan: cfg.Plan, GraceDays: cfg.GraceDays, PrivateKey: cfg.PrivateKey,
-	})
-	require.NoError(t, err)
-	p, err = q.UpdateProduct(ctx, &db.UpdateProductParams{
-		Name: p.Name, Plan: p.Plan, GraceDays: p.GraceDays, KeyDays: cfg.KeyDays,
-		ProviderKey: cfg.StripeKey, ProviderProduct: cfg.StripeProduct, ID: p.ID,
-	})
-	require.NoError(t, err)
-	_, err = mirror.Sync(ctx, q, p)
-	require.NoError(t, err)
-
-	rec := httptest.NewRecorder()
-	ledgerAPI, err := api.New(q, "", "")
-	require.NoError(t, err)
-	ledgerAPI.Handler().ServeHTTP(rec, httptest.NewRequestWithContext(ctx, http.MethodGet, "/api/licenses", nil))
-	require.Equal(t, http.StatusOK, rec.Code)
-	var ledger []api.License
-	require.NoError(t, json.UnmarshalRead(rec.Body, &ledger))
-	require.Len(t, ledger, 2, "the subscription and the one time purchase")
-
-	h, err := New(cfg)
-	require.NoError(t, err)
-	for _, l := range ledger {
-		// Signed by the same product but stale, so the worker has to ask Stripe.
-		stale, err := license.Issue(cfg.Prefix, license.Claims{ExpiresAt: 1, ID: l.ID}, priv)
-		require.NoError(t, err)
-		status, key := post(t, h, "/refresh", stale, nil)
-		require.Equal(t, http.StatusOK, status, l.ID)
-		assert.Equal(t, l.Key, key, l.ID)
-	}
-}
-
 // The client an app calls and the handler have to speak the same language.
 func TestRefreshClient(t *testing.T) {
 	fakeStripe(t)
@@ -444,21 +403,117 @@ func fakeSMTP(t *testing.T) smtpServer {
 	return srv
 }
 
+// read takes a sent mail apart into its headers and its decoded bodies by type.
+func read(t *testing.T, lines []string) (mail.Header, map[string]string) {
+	t.Helper()
+	start := slices.Index(lines, "DATA") + 1
+	require.Positive(t, start)
+	msg, err := mail.ReadMessage(strings.NewReader(strings.Join(lines[start:len(lines)-1], "\r\n")))
+	require.NoError(t, err)
+	kind, params, err := mime.ParseMediaType(msg.Header.Get("Content-Type"))
+	require.NoError(t, err)
+
+	decode := func(r io.Reader) string {
+		b, err := io.ReadAll(quotedprintable.NewReader(r))
+		require.NoError(t, err)
+		return string(b)
+	}
+	if kind == "text/plain" {
+		return msg.Header, map[string]string{kind: decode(msg.Body)}
+	}
+	bodies := map[string]string{}
+	parts := multipart.NewReader(msg.Body, params["boundary"])
+	for {
+		// NextRawPart leaves the quoted-printable decoding to decode.
+		part, err := parts.NextRawPart()
+		if errors.Is(err, io.EOF) {
+			return msg.Header, bodies
+		}
+		require.NoError(t, err)
+		partKind, _, err := mime.ParseMediaType(part.Header.Get("Content-Type"))
+		require.NoError(t, err)
+		bodies[partKind] = decode(part)
+	}
+}
+
 func TestSMTPSend(t *testing.T) {
 	t.Parallel()
 	srv := fakeSMTP(t)
 	sender := SMTP{Addr: srv.addr, From: "Acme Keys <keys@acme.io>"}
 	claims := license.Claims{App: "APP", Plan: "team", Email: "ops@acme.io", ExpiresAt: periodEnd}
+	// Longer than a line of mail may be, 998 bytes.
+	key := "APP-" + strings.Repeat("AAAAA-", 200) + "ZZZZZ"
 
-	require.NoError(t, sender.Send(t.Context(), "APP-AAAAA-BBBBB", claims))
+	require.NoError(t, sender.Send(t.Context(), key, claims))
 	lines := <-srv.lines
 	assert.Contains(t, lines, "MAIL FROM:<keys@acme.io>")
 	assert.Contains(t, lines, "RCPT TO:<ops@acme.io>")
-	assert.Contains(t, lines, "Subject: Your APP license key")
-	assert.Contains(t, lines, "APP-AAAAA-BBBBB")
-	assert.Contains(t, lines, "It is valid until 15 January 2027.")
+	for _, line := range lines {
+		assert.LessOrEqual(t, len(line), 998)
+	}
+	header, bodies := read(t, lines)
+	assert.Equal(t, "Your APP license key", header.Get("Subject"))
+	assert.Contains(t, bodies["text/plain"], key)
+	assert.Contains(t, bodies["text/plain"], "Valid until: 15 January 2027")
+	assert.Contains(t, bodies["text/html"], key)
+	assert.Contains(t, bodies["text/html"], defaultAccent)
 
 	claims.Email = "ops@acme.io\r\nBcc: thief@evil.io"
-	err := sender.Send(t.Context(), "APP-AAAAA-BBBBB", claims)
+	err := sender.Send(t.Context(), key, claims)
 	require.Error(t, err, "an address from Stripe must not be able to add headers")
+}
+
+// What the brand does to the markup is in TestMailCases.
+func TestSMTPBrand(t *testing.T) {
+	t.Parallel()
+	srv := fakeSMTP(t)
+	sender := SMTP{Addr: srv.addr, From: "keys@acme.io", Brand: Brand{
+		Name:    "Acme Pro\r\nBcc: thief@evil.io",
+		Company: "Acme GmbH, Street 1, 12345 Berlin",
+	}}
+	claims := license.Claims{App: "APP", Plan: "team", Email: "ops@acme.io"}
+
+	require.NoError(t, sender.Send(t.Context(), "APP-AAAAA", claims))
+	header, bodies := read(t, <-srv.lines)
+	assert.Equal(t, "Your Acme Pro Bcc: thief@evil.io license key", header.Get("Subject"))
+	assert.Empty(t, header.Get("Bcc"), "a product name must not be able to add headers")
+	assert.Contains(t, bodies["text/html"], "Acme GmbH, Street 1, 12345 Berlin")
+	assert.Contains(t, bodies["text/plain"], "Acme GmbH, Street 1, 12345 Berlin")
+}
+
+func TestLoadTemplates(t *testing.T) {
+	t.Parallel()
+	claims := license.Claims{App: "APP", Plan: "team", Email: "ops@acme.io", Meta: map[string]string{"seats": "5"}}
+	send := func(dir string) (mail.Header, map[string]string) {
+		templates, err := LoadTemplates(dir)
+		require.NoError(t, err)
+		srv := fakeSMTP(t)
+		sender := SMTP{Addr: srv.addr, From: "keys@acme.io", Templates: templates}
+		require.NoError(t, sender.Send(t.Context(), "APP-AAAAA", claims))
+		return read(t, <-srv.lines)
+	}
+	write := func(dir, name, body string) {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600))
+	}
+
+	own := t.TempDir()
+	write(own, "subject.txt", "{{.Name}}: {{.Meta.seats}} seats\n")
+	write(own, "body.html", `<p>{{.Key}} for {{.Email}}, {{linked "ask help@acme.io" .Shades.Text}}</p>`)
+	header, bodies := send(own)
+	assert.Equal(t, "APP: 5 seats", header.Get("Subject"))
+	assert.Equal(t, `<p>APP-AAAAA for ops@acme.io, ask <a href="mailto:help@acme.io" class="accent" `+
+		`style="color:#2f3e8f;">help@acme.io</a></p>`, bodies["text/html"])
+	assert.Contains(t, bodies["text/plain"], "Here is the APP license", "the missing file is the built in one")
+
+	plain := t.TempDir()
+	write(plain, "body.txt", "Key: {{.Key}}")
+	_, bodies = send(plain)
+	assert.Equal(t, map[string]string{"text/plain": "Key: APP-AAAAA"}, bodies, "a text of your own goes out alone")
+
+	_, err := LoadTemplates(t.TempDir())
+	require.Error(t, err, "an empty directory is a wrong path")
+	broken := t.TempDir()
+	write(broken, "body.txt", "{{.Key")
+	_, err = LoadTemplates(broken)
+	require.Error(t, err)
 }

@@ -6,6 +6,7 @@
 // Nothing is stored. Stripe says what is paid and the private key signs it.
 
 import { clean, LicenseError, verify, type Claims as SignedClaims } from '../../../sdk/ts/src/index.ts';
+import { render } from './mail.ts';
 import { importPrivateKey, issue, publicKeyHex, type Claims } from './sign.ts';
 import { NotFound, NotOwed, OtherProduct, owed, type Product } from './stripe.ts';
 
@@ -21,6 +22,12 @@ export type Env = {
 	INKAN_STRIPE_WEBHOOK_SECRET?: string;
 	INKAN_MAIL_FROM?: string;
 	RESEND_API_KEY?: string;
+	// How the key mail looks, all optional.
+	INKAN_PRODUCT_NAME?: string;
+	INKAN_MAIL_LOGO?: string;
+	INKAN_MAIL_ACCENT?: string;
+	INKAN_MAIL_FOOTER?: string;
+	INKAN_MAIL_COMPANY?: string;
 };
 
 const webhookTolerance = 5 * 60;
@@ -182,24 +189,22 @@ async function sign(env: Env, id: string, lastEmail = ''): Promise<{ key: string
 // Cloudflare has no SMTP, so the key goes out through the API of Resend.
 // Swap this one function to send it another way.
 async function mail(env: Env, key: string, claims: Claims): Promise<void> {
-	let body = `This is your license key for ${claims.app}:\n\n${key}\n\n`;
-	if (claims.exp !== 0) {
-		const until = new Date(claims.exp * 1000).toLocaleDateString('en-GB', {
-			day: 'numeric',
-			month: 'long',
-			year: 'numeric',
-			timeZone: 'UTC'
-		});
-		body += `It is valid until ${until}.\n`;
-	}
+	const { subject, text: body, html } = render(key, claims, {
+		name: env.INKAN_PRODUCT_NAME,
+		logo: env.INKAN_MAIL_LOGO,
+		accent: env.INKAN_MAIL_ACCENT,
+		footer: env.INKAN_MAIL_FOOTER,
+		company: env.INKAN_MAIL_COMPANY
+	});
 	const response = await fetch('https://api.resend.com/emails', {
 		method: 'POST',
 		headers: { Authorization: 'Bearer ' + env.RESEND_API_KEY, 'Content-Type': 'application/json' },
 		body: JSON.stringify({
 			from: env.INKAN_MAIL_FROM,
 			to: [claims.email],
-			subject: `Your ${claims.app} license key`,
-			text: body
+			subject,
+			text: body,
+			html
 		})
 	});
 	if (!response.ok) throw new Error(`resend: ${response.status}: ${(await response.text()).slice(0, 200)}`);

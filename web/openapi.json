@@ -230,6 +230,23 @@
 				"required": ["email"],
 				"type": "object"
 			},
+			"MailPreviewInputBody": {
+				"additionalProperties": false,
+				"properties": {
+					"mail_accent": { "maxLength": 32, "type": "string" },
+					"mail_company": { "maxLength": 512, "type": "string" },
+					"mail_footer": { "maxLength": 256, "type": "string" },
+					"mail_logo": { "maxLength": 512, "type": "string" },
+					"name": { "maxLength": 64, "type": "string" }
+				},
+				"type": "object"
+			},
+			"MailPreviewOutputBody": {
+				"additionalProperties": false,
+				"properties": { "html": { "type": "string" }, "subject": { "type": "string" } },
+				"required": ["subject", "html"],
+				"type": "object"
+			},
 			"Product": {
 				"additionalProperties": false,
 				"properties": {
@@ -245,7 +262,17 @@
 						"format": "int64",
 						"type": "integer"
 					},
+					"mail_accent": { "description": "Color of the key mail, #rrggbb", "type": "string" },
+					"mail_company": {
+						"description": "Last line of the key mail: legal name, address, register number",
+						"type": "string"
+					},
+					"mail_footer": { "description": "One line under the key in the mail", "type": "string" },
 					"mail_from": { "description": "Sender of the key mails", "type": "string" },
+					"mail_logo": {
+						"description": "https url of a logo for the dark header of the key mail",
+						"type": "string"
+					},
 					"name": { "type": "string" },
 					"plan": {
 						"description": "Plan claim for provider prices without plan metadata and the default for manual licenses",
@@ -303,6 +330,10 @@
 					"smtp_addr",
 					"smtp_user",
 					"mail_from",
+					"mail_logo",
+					"mail_accent",
+					"mail_footer",
+					"mail_company",
 					"webhook_secret_set",
 					"smtp_pass_set",
 					"synced_at",
@@ -361,9 +392,30 @@
 				"properties": {
 					"grace_days": { "format": "int64", "maximum": 365, "minimum": 0, "type": "integer" },
 					"key_days": { "format": "int64", "maximum": 3650, "minimum": 0, "type": "integer" },
+					"mail_accent": {
+						"description": "Color of the key mail, like #2f3e8f",
+						"pattern": "^(#[0-9a-fA-F]{6})?$",
+						"type": "string"
+					},
+					"mail_company": {
+						"description": "Last line of the key mail, for what a business has to state: legal name, address, register number",
+						"maxLength": 512,
+						"type": "string"
+					},
+					"mail_footer": {
+						"description": "One line under the key in the mail, like where to get help",
+						"maxLength": 256,
+						"type": "string"
+					},
 					"mail_from": {
 						"description": "An address or \"Name \u003caddress\u003e\"",
 						"maxLength": 256,
+						"type": "string"
+					},
+					"mail_logo": {
+						"description": "https url of a logo for the dark header of the key mail",
+						"maxLength": 512,
+						"pattern": "^(https://.+)?$",
 						"type": "string"
 					},
 					"name": { "maxLength": 64, "minLength": 1, "type": "string" },
@@ -603,6 +655,48 @@
 					}
 				},
 				"summary": "Update a product",
+				"tags": ["Products"]
+			}
+		},
+		"/api/products/{id}/mail-preview": {
+			"post": {
+				"description": "Renders the built in mail with a made up key. The look comes from the request, so it can be tried before it is saved.",
+				"operationId": "preview-mail",
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": { "format": "int64", "type": "integer" }
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": { "$ref": "#/components/schemas/MailPreviewInputBody" }
+						}
+					},
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/MailPreviewOutputBody" }
+							}
+						},
+						"description": "OK"
+					},
+					"default": {
+						"content": {
+							"application/problem+json": {
+								"schema": { "$ref": "#/components/schemas/ErrorModel" }
+							}
+						},
+						"description": "Error"
+					}
+				},
+				"summary": "Preview the key mail of a product",
 				"tags": ["Products"]
 			}
 		},
