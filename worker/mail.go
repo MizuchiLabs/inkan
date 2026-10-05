@@ -222,7 +222,7 @@ func (t *Templates) Render(
 func shades(accent string) Shades {
 	n, _ := strconv.ParseUint(accent[1:], 16, 32)
 	c := [3]int{int(n >> 16), int(n >> 8 & 0xff), int(n & 0xff)}
-	white, ink, card := [3]int{255, 255, 255}, [3]int{23, 24, 28}, [3]int{27, 29, 33}
+	white, ink, card := [3]int{255, 255, 255}, [3]int{28, 31, 46}, [3]int{26, 29, 41}
 	// share is how many percent of to go into the mix.
 	mix := func(to [3]int, share int) string {
 		var out [3]int
