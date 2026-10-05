@@ -283,8 +283,8 @@ env` prints them.
 Links and email addresses in the footer and the company details can be
 clicked.
 
-The Edit dialog of a product has a preview that follows what you type. To
-see it in a real mail client, send yourself a sample. The key in it is made
+Edit on a product has a Mail tab with a preview that follows what you type.
+To see it in a real mail client, send yourself a sample. The key in it is made
 up and works nowhere.
 
 ```sh

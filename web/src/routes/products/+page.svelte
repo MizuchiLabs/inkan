@@ -14,7 +14,7 @@
 	import { Skeleton } from '#lib/components/ui/skeleton/index.js';
 	import { Spinner } from '#lib/components/ui/spinner/index.js';
 	import CopyBlock from '#lib/components/util/CopyBlock.svelte';
-	import ProductDialog from '#lib/components/util/ProductDialog.svelte';
+	import ProductSheet from '#lib/components/util/ProductSheet.svelte';
 	import Seal from '#lib/components/util/Seal.svelte';
 	import { formatRelativeTime } from '#lib/license.js';
 	import { cn } from '#lib/utils.js';
@@ -37,6 +37,7 @@
 
 	// undefined is closed, null adds a product, a product edits it.
 	let dialog = $state<Product | null>();
+	let dialogTab = $state('general');
 	// The product added a moment ago. Its seal lands on the new card.
 	let createdId = $state<number>();
 	let deleting = $state<Product>();
@@ -107,7 +108,7 @@
 				<Card.Root>
 					<Card.Header>
 						<div class="flex items-center gap-3">
-							<!-- The stamp waits for the dialog to fade. -->
+							<!-- The stamp waits for the sheet to close. -->
 							<div
 								class={cn('shrink-0', product.id === createdId ? 'animate-stamp' : '-rotate-6')}
 								style:--stamp-delay="0.2s"
@@ -186,7 +187,14 @@
 								Sync now
 							</Button>
 						{:else}
-							<Button variant="outline" size="sm" onclick={() => (dialog = product)}>
+							<Button
+								variant="outline"
+								size="sm"
+								onclick={() => {
+									dialogTab = 'stripe';
+									dialog = product;
+								}}
+							>
 								Connect Stripe
 							</Button>
 						{/if}
@@ -198,9 +206,13 @@
 </div>
 
 {#if dialog !== undefined}
-	<ProductDialog
+	<ProductSheet
 		product={dialog ?? undefined}
-		onclose={() => (dialog = undefined)}
+		tab={dialogTab}
+		onclose={() => {
+			dialog = undefined;
+			dialogTab = 'general';
+		}}
 		oncreated={(product) => (createdId = product.id)}
 	/>
 {/if}
