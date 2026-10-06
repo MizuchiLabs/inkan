@@ -13,7 +13,7 @@
           "current_period_start": 1797000000, "current_period_end": 1800000000}
       ]}
     },
-    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "key_days": 0},
+    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "max_key_days": 0},
     "now": 1790000000,
     "want": {"id": "sub_1", "email": "ops@acme.io", "customer": "Acme Inc", "plan": "team",
       "meta": {"seats": "5", "tier": "gold"}, "expires_at": 1801209600, "period": 3000000,
@@ -27,7 +27,7 @@
       "items": {"data": [{"price": {"product": "prod_app"},
         "current_period_start": 1797000000, "current_period_end": 1800000000}]}
     },
-    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "key_days": 0},
+    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "max_key_days": 0},
     "now": 1790000000,
     "want": {"id": "sub_2", "email": "a@x.io", "customer": "", "plan": "pro", "meta": null,
       "expires_at": 1798209600, "period": 3000000, "status": "past_due", "renews": false, "created_at": 1700000000}
@@ -41,7 +41,7 @@
       "items": {"data": [{"price": {"product": "prod_app"},
         "current_period_start": 1797000000, "current_period_end": 1800000000}]}
     },
-    "product": {"id": "prod_app", "plan": "pro", "grace_days": 0, "key_days": 0},
+    "product": {"id": "prod_app", "plan": "pro", "grace_days": 0, "max_key_days": 0},
     "now": 1790000000,
     "want": {"id": "sub_3", "email": "a@x.io", "customer": "", "plan": "pro", "meta": null,
       "expires_at": 1798000000, "period": 3000000, "status": "canceled", "renews": false, "created_at": 1700000000}
@@ -53,7 +53,7 @@
       "id": "sub_4", "status": "incomplete", "customer": {"email": "a@x.io"},
       "items": {"data": [{"price": {"product": "prod_app"}, "current_period_end": 1800000000}]}
     },
-    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "key_days": 0},
+    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "max_key_days": 0},
     "now": 1790000000,
     "error": "not_owed"
   },
@@ -64,7 +64,7 @@
       "id": "sub_5", "status": "active", "customer": {"email": "a@x.io"},
       "items": {"data": [{"price": {"product": "prod_other"}, "current_period_end": 1800000000}]}
     },
-    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "key_days": 0},
+    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "max_key_days": 0},
     "now": 1790000000,
     "error": "other_product"
   },
@@ -76,7 +76,7 @@
       "items": {"data": [{"price": {"product": "prod_app"},
         "current_period_start": 1797000000, "current_period_end": 1800000000}]}
     },
-    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "key_days": 30},
+    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "max_key_days": 30},
     "now": 1790000000,
     "want": {"id": "sub_6", "email": "a@x.io", "customer": "", "plan": "pro", "meta": null,
       "expires_at": 1792368000, "period": 3000000, "status": "active", "renews": true, "created_at": 1700000000}
@@ -90,7 +90,7 @@
       "items": {"data": [{"price": {"product": "prod_app"},
         "current_period_start": 1797000000, "current_period_end": 1800000000}]}
     },
-    "product": {"id": "prod_app", "plan": "pro", "grace_days": 0, "key_days": 30},
+    "product": {"id": "prod_app", "plan": "pro", "grace_days": 0, "max_key_days": 30},
     "now": 1790000000,
     "want": {"id": "sub_7", "email": "a@x.io", "customer": "", "plan": "pro", "meta": null,
       "expires_at": 1790500000, "period": 3000000, "status": "canceled", "renews": false, "created_at": 1700000000}
@@ -107,7 +107,7 @@
         {"quantity": 1, "price": {"product": "prod_app", "metadata": {"plan": "lifetime"}}}
       ]}
     },
-    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "key_days": 0},
+    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "max_key_days": 0},
     "now": 1790000000,
     "want": {"id": "cs_1", "email": "buyer@acme.io", "customer": "Acme", "plan": "lifetime", "meta": null,
       "expires_at": 0, "period": 0, "status": "paid", "renews": false, "created_at": 1780000000}
@@ -123,7 +123,7 @@
       "line_items": {"data": [{"quantity": 3,
         "price": {"product": "prod_app", "metadata": {"days": "365", "quantity": "seats"}}}]}
     },
-    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "key_days": 0},
+    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "max_key_days": 0},
     "now": 1790000000,
     "want": {"id": "cs_2", "email": "ops@acme.io", "customer": "Acme Inc", "plan": "pro", "meta": {"seats": "3"},
       "expires_at": 1812745600, "period": 0, "status": "paid", "renews": false, "created_at": 1780000000}
@@ -137,7 +137,7 @@
       "payment_intent": {"latest_charge": {"refunded": true}},
       "line_items": {"data": [{"quantity": 1, "price": {"product": "prod_app"}}]}
     },
-    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "key_days": 0},
+    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "max_key_days": 0},
     "now": 1790000000,
     "want": {"id": "cs_3", "email": "buyer@acme.io", "customer": "", "plan": "pro", "meta": null,
       "expires_at": 1781209600, "period": 0, "status": "refunded", "renews": false, "created_at": 1780000000}
@@ -151,7 +151,7 @@
       "payment_intent": null,
       "line_items": {"data": [{"quantity": 1, "price": {"product": "prod_app"}}]}
     },
-    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "key_days": 30},
+    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "max_key_days": 30},
     "now": 1790000000,
     "want": {"id": "cs_4", "email": "buyer@acme.io", "customer": "Acme", "plan": "pro", "meta": null,
       "expires_at": 1792368000, "period": 0, "status": "paid", "renews": false, "created_at": 1780000000}
@@ -164,7 +164,7 @@
       "customer_details": {"email": "buyer@acme.io"},
       "line_items": {"data": [{"quantity": 1, "price": {"product": "prod_app"}}]}
     },
-    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "key_days": 0},
+    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "max_key_days": 0},
     "now": 1790000000,
     "error": "not_owed"
   },
@@ -176,7 +176,7 @@
       "customer_details": {"email": "buyer@acme.io"},
       "line_items": {"data": [{"quantity": 1, "price": {"product": "prod_app"}}]}
     },
-    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "key_days": 0},
+    "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "max_key_days": 0},
     "now": 1790000000,
     "error": "other_product"
   }

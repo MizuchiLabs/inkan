@@ -290,16 +290,55 @@ func TestSyncNoticesOtherSettings(t *testing.T) {
 	for i := range w.pages {
 		w.pages[i].Product.StripeProduct = "prod_app"
 		w.pages[i].Product.GraceDays = 7
-		w.pages[i].Product.KeyDays = 30
+		w.pages[i].Product.MaxKeyDays = 30
 	}
 	said := notice()
 	assert.Contains(t, said, "7 grace days")
-	assert.Contains(t, said, "30 key days")
+	assert.Contains(t, said, "30 max key days")
 	assert.False(t, has(t, q, p, "sub_stale"))
 
 	for i := range w.pages {
 		w.pages[i].Product.GraceDays = 14
-		w.pages[i].Product.KeyDays = 0
+		w.pages[i].Product.MaxKeyDays = 0
 	}
 	assert.Empty(t, notice())
+}
+
+// After a rotation the worker keeps signing with the old key until its env is
+// exported and deployed. Its licenses are still the product's.
+func TestSyncAfterRotation(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	q, err := db.Open(ctx, t.TempDir())
+	require.NoError(t, err)
+	w, url := newWorker(t)
+	p := newProduct(t, q, url)
+	sync := func() string {
+		t.Helper()
+		n, err := Sync(ctx, q, p)
+		require.NoError(t, err)
+		assert.Equal(t, 3, n)
+		stored, err := q.GetProduct(ctx, p.ID)
+		require.NoError(t, err)
+		return stored.SyncError
+	}
+
+	fresh, freshPub, err := license.GenerateKey()
+	require.NoError(t, err)
+	workerPub := w.pages[0].Product.PublicKey
+	p, err = q.SetProductKeys(ctx, &db.SetProductKeysParams{PrivateKey: fresh, OldPublicKeys: workerPub, ID: p.ID})
+	require.NoError(t, err)
+	assert.Contains(t, sync(), "still signs with the key from before the rotation")
+	assert.True(t, has(t, q, p, "sub_ok_1"))
+
+	// Deployed with the new key, but without the list of old ones.
+	for i := range w.pages {
+		w.pages[i].Product.PublicKey = freshPub
+	}
+	assert.Contains(t, sync(), "other old keys")
+
+	for i := range w.pages {
+		w.pages[i].Product.OldPublicKeys = []string{workerPub}
+	}
+	assert.Empty(t, sync())
 }

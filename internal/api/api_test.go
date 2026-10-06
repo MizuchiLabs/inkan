@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json/v2"
 	"fmt"
 	"net/http"
@@ -99,6 +100,81 @@ func TestProductKeys(t *testing.T) {
 		map[string]any{"name": "Bad", "prefix": "BAD", "plan": "pro", "private_key": "nope"}, nil))
 }
 
+// A rotation must not strand the keys that are out. The product carries the
+// old public key next to the new one until they are gone.
+func TestRotateKey(t *testing.T) {
+	t.Parallel()
+	srv, q := newTestServer(t)
+	p := createProduct(t, srv)
+	path := fmt.Sprintf("/api/products/%d", p.ID)
+
+	var before License
+	require.Equal(t, http.StatusCreated, call(t, srv, http.MethodPost, "/api/licenses",
+		map[string]any{"product_id": p.ID, "email": "ops@acme.io"}, &before))
+	was, err := q.GetProduct(t.Context(), p.ID)
+	require.NoError(t, err)
+
+	var rotated Product
+	require.Equal(t, http.StatusOK, call(t, srv, http.MethodPost, path+"/rotate-key", nil, &rotated))
+	assert.NotEqual(t, p.PublicKey, rotated.PublicKey)
+	assert.Equal(t, []string{p.PublicKey}, rotated.OldPublicKeys)
+	now, err := q.GetProduct(t.Context(), p.ID)
+	require.NoError(t, err)
+	assert.NotEqual(t, was.PrivateKey, now.PrivateKey, "the old private key is gone")
+
+	var listed []License
+	require.Equal(t, http.StatusOK, call(t, srv, http.MethodGet, "/api/licenses", nil, &listed))
+	require.Len(t, listed, 1)
+	assert.NotEqual(t, before.Key, listed[0].Key, "a manual license is signed with the new key")
+	pub, err := hex.DecodeString(rotated.PublicKey)
+	require.NoError(t, err)
+	_, err = license.VerifyWith(listed[0].Key, "APP", pub)
+	require.NoError(t, err)
+
+	var res CheckResult
+	call(t, srv, http.MethodPost, "/api/check", map[string]string{"key": before.Key}, &res)
+	assert.Equal(t, stateValid, res.State, "a key from before the rotation is still a key of the product")
+
+	var again Product
+	require.Equal(t, http.StatusOK, call(t, srv, http.MethodPost, path+"/rotate-key", nil, &again))
+	assert.Equal(t, []string{rotated.PublicKey, p.PublicKey}, again.OldPublicKeys, "newest first")
+
+	var dropped Product
+	require.Equal(t, http.StatusOK, call(t, srv, http.MethodDelete, path+"/old-keys", nil, &dropped))
+	assert.Empty(t, dropped.OldPublicKeys)
+	assert.Equal(t, again.PublicKey, dropped.PublicKey, "dropping the old keys leaves the current one alone")
+	call(t, srv, http.MethodPost, "/api/check", map[string]string{"key": before.Key}, &res)
+	assert.Equal(t, stateInvalid, res.State)
+
+	assert.Equal(t, http.StatusNotFound, call(t, srv, http.MethodPost, "/api/products/999/rotate-key", nil, nil))
+}
+
+func TestListLicensesInPages(t *testing.T) {
+	t.Parallel()
+	srv, _ := newTestServer(t)
+	p := createProduct(t, srv)
+	for i := range 3 {
+		require.Equal(t, http.StatusCreated, call(t, srv, http.MethodPost, "/api/licenses",
+			map[string]any{"product_id": p.ID, "email": fmt.Sprintf("%d@acme.io", i)}, nil))
+	}
+
+	ids := func(query string) []string {
+		t.Helper()
+		var page []License
+		require.Equal(t, http.StatusOK, call(t, srv, http.MethodGet, "/api/licenses"+query, nil, &page))
+		out := make([]string, len(page))
+		for i, l := range page {
+			out[i] = l.ID
+		}
+		return out
+	}
+	all := ids("")
+	require.Len(t, all, 3, "without a limit the whole ledger comes back")
+	assert.Equal(t, all[:2], ids("?limit=2"))
+	assert.Equal(t, all[2:], ids("?limit=2&offset=2"), "a page shorter than the limit is the last one")
+	assert.Empty(t, ids("?limit=2&offset=4"))
+}
+
 // The worker settings of a product are only kept for worker env. Saving them
 // reads the worker right away.
 func TestProductWorker(t *testing.T) {
@@ -119,14 +195,14 @@ func TestProductWorker(t *testing.T) {
 
 	path := fmt.Sprintf("/api/products/%d", p.ID)
 	settings := map[string]any{
-		"name": "App", "plan": "team", "grace_days": 7, "key_days": 30, "provider_product": "prod_app",
+		"name": "App", "plan": "team", "grace_days": 7, "max_key_days": 30, "provider_product": "prod_app",
 		"worker_url": worker.URL, "mail_from": "Keys <keys@example.com>", "mail_accent": "#c2410c",
 	}
 	var saved Product
 	require.Equal(t, http.StatusOK, call(t, srv, http.MethodPut, path, settings, &saved))
 	assert.True(t, saved.WorkerConnected)
 	assert.Equal(t, "team", saved.Plan)
-	assert.Equal(t, int64(30), saved.KeyDays)
+	assert.Equal(t, int64(30), saved.MaxKeyDays)
 	assert.Contains(t, saved.SyncError, "Invalid API Key provided", "a failed sync is not a failed update")
 	assert.Equal(t, http.StatusBadGateway, call(t, srv, http.MethodPost, path+"/sync", nil, nil))
 
@@ -166,9 +242,9 @@ func TestIssueAndCheck(t *testing.T) {
 	assert.Equal(t, sourceManual, l.Source)
 
 	// The key has to hold up in a product that only knows the public key.
-	require.NoError(t, license.SetPublicKey(p.PublicKey))
-	t.Cleanup(func() { _ = license.SetPublicKey("") })
-	claims, err := license.Verify(l.Key, "APP")
+	pub, err := hex.DecodeString(p.PublicKey)
+	require.NoError(t, err)
+	claims, err := license.VerifyWith(l.Key, "APP", pub)
 	require.NoError(t, err)
 	assert.Equal(t, l.ID, claims.ID)
 	assert.Equal(t, "ops@acme.io", claims.Email)
@@ -223,6 +299,8 @@ func TestIssueAndCheck(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, call(t, srv, http.MethodPut, licensePath(p.ID+1, l.ID),
 		map[string]any{"email": "ops@acme.io"}, nil), "a license is only found under its own product")
 	assert.Equal(t, http.StatusNoContent, call(t, srv, http.MethodDelete, licensePath(p.ID, l.ID), nil, nil))
+	assert.Equal(t, http.StatusNotFound, call(t, srv, http.MethodDelete, licensePath(p.ID, l.ID), nil, nil),
+		"a license that is not there is not a conflict")
 	call(t, srv, http.MethodPost, "/api/check", map[string]string{"key": l.Key}, &res)
 	assert.Equal(t, stateValid, res.State, "a deleted license still has a working key out there")
 	assert.False(t, res.Known)

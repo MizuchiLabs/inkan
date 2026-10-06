@@ -1,3 +1,4 @@
+-- A limit of -1 lists all of them.
 -- name: ListLicenses :many
 SELECT
   *
@@ -5,7 +6,12 @@ FROM
   licenses
 ORDER BY
   created_at DESC,
-  id;
+  product_id,
+  id
+LIMIT
+  sqlc.arg (limit)
+OFFSET
+  sqlc.arg (offset);
 
 -- name: GetLicense :one
 SELECT

@@ -1,5 +1,12 @@
 <script lang="ts">
-	import { useCreateProduct, useUpdateProduct, type Product } from '#lib/api/queries.js';
+	import {
+		useCreateProduct,
+		useDropOldProductKeys,
+		useRotateProductKey,
+		useUpdateProduct,
+		type Product
+	} from '#lib/api/queries.js';
+	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Field from '#lib/components/ui/field/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
@@ -8,6 +15,7 @@
 	import * as Tabs from '#lib/components/ui/tabs/index.js';
 	import { Textarea } from '#lib/components/ui/textarea/index.js';
 	import { render } from '#lib/mail.js';
+	import { RotateCwIcon } from '@lucide/svelte';
 	import { Debounced } from 'runed';
 	import { tick } from 'svelte';
 	import { toast } from 'svelte-sonner';
@@ -26,7 +34,13 @@
 
 	const create = useCreateProduct();
 	const update = useUpdateProduct();
-	const pending = $derived(create.isPending || update.isPending);
+	const rotate = useRotateProductKey();
+	const dropOld = useDropOldProductKeys();
+	const pending = $derived(
+		create.isPending || update.isPending || rotate.isPending || dropOld.isPending
+	);
+	// The key action that waits for a yes.
+	let confirming = $state<'rotate' | 'drop'>();
 
 	// The sheet is mounted per use, so the form is a snapshot of the product.
 	function initial() {
@@ -38,7 +52,7 @@
 			workerUrl: product?.worker_url ?? '',
 			providerProduct: product?.provider_product ?? '',
 			graceDays: product?.grace_days ?? 14,
-			keyDays: product?.key_days ?? 0,
+			maxKeyDays: product?.max_key_days ?? 0,
 			mailFrom: product?.mail_from ?? '',
 			mailLogo: product?.mail_logo ?? '',
 			mailAccent: product?.mail_accent ?? '',
@@ -83,6 +97,34 @@
 	// new windows, so sending them there leaves a click without effect.
 	const inert = $derived(preview.html.replace('<head>', '<head><base target="_blank">'));
 
+	// The sheet shows a snapshot, so it closes on a product whose keys changed.
+	function changeKeys() {
+		if (!product) return;
+		const path = { id: product.id };
+		if (confirming === 'rotate') {
+			rotate.mutate(
+				{ path },
+				{
+					onSuccess: () => {
+						onclose();
+						toast.success('Rotated the key. Ship the new public keys, then deploy the worker.');
+					}
+				}
+			);
+		} else {
+			dropOld.mutate(
+				{ path },
+				{
+					onSuccess: () => {
+						onclose();
+						toast.success('Dropped the old keys');
+					}
+				}
+			);
+		}
+		confirming = undefined;
+	}
+
 	// A hidden tab cannot show what is wrong with its fields, so the form
 	// checks itself and opens the tab of the first one first.
 	async function save(event: SubmitEvent & { currentTarget: HTMLFormElement }) {
@@ -105,7 +147,7 @@
 						worker_url: form.workerUrl,
 						provider_product: form.providerProduct,
 						grace_days: form.graceDays,
-						key_days: form.keyDays,
+						max_key_days: form.maxKeyDays,
 						mail_from: form.mailFrom,
 						mail_logo: form.mailLogo,
 						mail_accent: form.mailAccent,
@@ -212,6 +254,40 @@
 						<div class="px-6 pt-2 pb-6">
 							<Field.Group>
 								{@render general()}
+
+								<Field.Separator />
+								<Field.Field>
+									<Field.Title>Signing key</Field.Title>
+									<Field.Description>
+										Rotate it when the private key may have leaked. Keys that are out keep working
+										in an app that carries the old public key next to the new one.
+										{#if product.old_public_keys.length}
+											This product carries {product.old_public_keys.length} old public
+											{product.old_public_keys.length === 1 ? 'key' : 'keys'}.
+										{/if}
+									</Field.Description>
+									<div class="flex flex-wrap gap-2">
+										<Button
+											variant="outline"
+											size="sm"
+											disabled={pending}
+											onclick={() => (confirming = 'rotate')}
+										>
+											<RotateCwIcon data-icon="inline-start" />
+											Rotate key
+										</Button>
+										{#if product.old_public_keys.length}
+											<Button
+												variant="outline"
+												size="sm"
+												disabled={pending}
+												onclick={() => (confirming = 'drop')}
+											>
+												Drop old keys
+											</Button>
+										{/if}
+									</div>
+								</Field.Field>
 							</Field.Group>
 						</div>
 					</Tabs.Content>
@@ -275,24 +351,24 @@
 										/>
 									</Field.Field>
 									<Field.Field>
-										<Field.Label for="product-key-days">Key days</Field.Label>
+										<Field.Label for="product-max-key-days">Max key days</Field.Label>
 										<Input
-											id="product-key-days"
+											id="product-max-key-days"
 											type="number"
 											min={0}
 											max={3650}
-											bind:value={form.keyDays}
+											bind:value={form.maxKeyDays}
 											required
 										/>
 									</Field.Field>
 								</div>
 								<Field.Description>
 									A paid license stays valid the grace days past its paid period, so the renewed key
-									arrives before the old one runs out. Key days cut every paid key short, so the app
-									has to refresh and a refund, a cancellation or a plan change takes effect. A key
-									lasts between half and all of them. 30 suits yearly plans and one time purchases
-									in an app that is online. Leave it at 0 for apps that run offline or have monthly
-									plans only.
+									arrives before the old one runs out. Max key days cut every paid key short, so the
+									app has to refresh and a refund, a cancellation or a plan change takes effect. A
+									key lasts between half and all of them. 30 suits yearly plans and one time
+									purchases in an app that is online. Leave it at 0 for apps that run offline or
+									have monthly plans only.
 								</Field.Description>
 							</Field.Group>
 						</div>
@@ -420,3 +496,35 @@
 		</Sheet.Footer>
 	</Sheet.Content>
 </Sheet.Root>
+
+<AlertDialog.Root
+	open={confirming !== undefined}
+	onOpenChange={(isOpen) => !isOpen && (confirming = undefined)}
+>
+	<AlertDialog.Content interactOutsideBehavior="close">
+		<AlertDialog.Header>
+			{#if confirming === 'drop'}
+				<AlertDialog.Title>Drop the old keys of {product?.name}?</AlertDialog.Title>
+				<AlertDialog.Description>
+					A key signed before the rotation then counts as forged, here and in every build that ships
+					without the old public keys. The worker stops refreshing such keys once its env is
+					exported and deployed. There is no undo.
+				</AlertDialog.Description>
+			{:else}
+				<AlertDialog.Title>Rotate the key of {product?.name}?</AlertDialog.Title>
+				<AlertDialog.Description>
+					This makes a new signing key and destroys the old private key. Manual licenses get new
+					keys right away. Ship a build with the public keys the Products page shows after this,
+					then export worker env and deploy it. A build from before cannot take a key of the new
+					signing key. There is no undo.
+				</AlertDialog.Description>
+			{/if}
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>Keep as it is</AlertDialog.Cancel>
+			<AlertDialog.Action variant="destructive" onclick={changeKeys}>
+				{confirming === 'drop' ? 'Drop old keys' : 'Rotate key'}
+			</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createHmac } from 'node:crypto';
+import { createHmac, generateKeyPairSync } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { test, type TestContext } from 'node:test';
 
@@ -273,7 +273,7 @@ const paidUntil: [string, object, number][] = [
 for (const [name, fields, want] of paidUntil) {
 	test(`paid until: ${name}`, () => {
 		const sub = { id: 'sub_1', status: '', items: { data: [item] }, ...fields };
-		const product = { id: 'prod_app', plan: 'pro', grace_days: 14, key_days: 0 };
+		const product = { id: 'prod_app', plan: 'pro', grace_days: 14, max_key_days: 0 };
 		if (want === 0) {
 			assert.throws(() => subscriptionLicense(sub, product, 0), NotOwed);
 			return;
@@ -337,6 +337,50 @@ test('refresh trades a key for the one that is owed now', async (t) => {
 		assert.equal(answer.status, want, id);
 		assert.ok(!(await answer.text()).includes('MYAPP-'), `no key goes out for ${id}`);
 	}
+
+	const before = asked.length;
+	assert.equal((await post('/refresh', await keyFor('sub_gone'))).status, 404);
+	assert.equal(
+		asked.length,
+		before,
+		'the key of a license that is gone does not keep asking Stripe'
+	);
+	assert.equal((await post('/refresh', await keyFor('sub_down'))).status, 502);
+	assert.equal(asked.length, before + 1, 'an outage is asked about again');
+});
+
+// After a rotation the worker signs with the new key. The keys that are out
+// carry the old one and still have to be good for a refresh.
+test('refresh takes a key from before a rotation', async (t) => {
+	fakeFetch(t);
+	const pair = generateKeyPairSync('ed25519');
+	const seed = pair.privateKey.export({ format: 'der', type: 'pkcs8' }).subarray(-32);
+	const publicKey = pair.publicKey.export({ format: 'der', type: 'spki' }).subarray(-32);
+	const oldB64 = Buffer.concat([seed, publicKey]).toString('base64');
+	const old = await keyFor('sub_ok_rotated', {}, oldB64);
+
+	assert.equal(
+		(await post('/refresh', old)).status,
+		400,
+		'a worker that does not know the old key'
+	);
+
+	const rotated = { ...env, INKAN_OLD_PUBLIC_KEYS: ` ${publicKey.toString('hex')} ,` };
+	const response = await call('POST', '/refresh', old, {}, rotated);
+	assert.equal(response.status, 200);
+	const claims = await claimsOf(await response.text());
+	assert.equal(claims.id, 'sub_ok_rotated', 'the answer is signed with the new key');
+
+	const manual = await keyFor('lic_abc', { exp: 0 }, oldB64);
+	const kept = await call('POST', '/refresh', manual, {}, rotated);
+	assert.equal(await kept.text(), manual, 'a hand issued key stays as it is, old key and all');
+
+	const broken = { ...env, INKAN_OLD_PUBLIC_KEYS: 'nope' };
+	assert.equal(
+		(await call('POST', '/refresh', old, {}, broken)).status,
+		500,
+		'an old key that is none is a broken worker, not a bad license'
+	);
 });
 
 test('webhook mails the key once', async (t) => {

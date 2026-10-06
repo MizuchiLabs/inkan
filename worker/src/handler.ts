@@ -30,11 +30,14 @@ import {
 export type Env = SendEnv & {
 	INKAN_PREFIX: string;
 	INKAN_PRIVATE_KEY: string;
+	// Hex public keys from before a rotation, comma separated. A refresh takes
+	// their keys too and answers with one of the private key above.
+	INKAN_OLD_PUBLIC_KEYS?: string;
 	INKAN_STRIPE_KEY: string;
 	INKAN_STRIPE_PRODUCT: string;
 	INKAN_PLAN?: string;
 	INKAN_GRACE_DAYS?: string;
-	INKAN_KEY_DAYS?: string;
+	INKAN_MAX_KEY_DAYS?: string;
 	// Lets the dashboard read the licenses. Without it there is no /licenses.
 	INKAN_WORKER_TOKEN?: string;
 	// Without these two or a mail service there is no /webhook.
@@ -58,7 +61,8 @@ const rememberEvents = 72 * 3_600_000;
 // The token is guessed without a limit on tries, so it has to be long.
 const minTokenLength = 32;
 
-// Only shortcuts. Every instance has its own, nothing depends on them.
+// Only shortcuts. Every instance has its own, nothing depends on them. An
+// empty key is a license that was not there.
 const keys = new Map<string, { key: string; at: number }>();
 const events = new Map<string, number>();
 
@@ -99,12 +103,14 @@ async function refresh(request: Request, env: Env): Promise<Response> {
 	const body = await request.text();
 	if (body.length > 8 << 10) return text('the key is too long', 413);
 
-	const publicKey = publicKeyHex(env.INKAN_PRIVATE_KEY);
+	const publicKeys = [publicKeyHex(env.INKAN_PRIVATE_KEY), ...oldPublicKeys(env)].join(',');
 	let claims: SignedClaims;
 	try {
-		claims = await verify(body, env.INKAN_PREFIX, publicKey);
+		claims = await verify(body, env.INKAN_PREFIX, publicKeys);
 	} catch (err) {
-		if (!(err instanceof LicenseError && err.code === 'expired' && err.claims)) {
+		// Anything else is a broken setting, like an old public key that is none.
+		if (!(err instanceof LicenseError)) throw err;
+		if (!(err.code === 'expired' && err.claims)) {
 			return text('not a license key of this product', 400);
 		}
 		claims = err.claims;
@@ -115,12 +121,14 @@ async function refresh(request: Request, env: Env): Promise<Response> {
 	let key = clean(body);
 	const cached = keys.get(claims.id ?? '');
 	if (cached && Date.now() - cached.at < cacheFor) {
+		if (!cached.key) return text('no license behind this key', 404);
 		key = cached.key;
 	} else if (claims.id && !claims.id.startsWith('lic_')) {
 		try {
 			({ key } = await sign(env, claims.id, claims.email));
 		} catch (err) {
 			if (err instanceof NotFound || err instanceof OtherProduct || err instanceof NotOwed) {
+				keys.set(claims.id, { key: '', at: Date.now() });
 				return text('no license behind this key', 404);
 			}
 			console.error('refresh failed', claims.id, err);
@@ -234,11 +242,13 @@ async function licenses(request: Request, env: Env): Promise<Response> {
 	const privateKey = await importPrivateKey(env.INKAN_PRIVATE_KEY);
 	return Response.json({
 		product: {
+			provider: 'stripe',
 			prefix: env.INKAN_PREFIX,
 			public_key: publicKeyHex(env.INKAN_PRIVATE_KEY),
+			old_public_keys: oldPublicKeys(env),
 			plan: settings.plan,
 			grace_days: settings.grace_days,
-			key_days: settings.key_days,
+			max_key_days: settings.max_key_days,
 			stripe_product: settings.id
 		},
 		licenses: await Promise.all(
@@ -287,12 +297,19 @@ function claimsOf(env: Env, license: License, lastEmail = ''): Claims {
 	};
 }
 
+function oldPublicKeys(env: Env): string[] {
+	return (env.INKAN_OLD_PUBLIC_KEYS ?? '')
+		.split(',')
+		.map((key) => key.trim())
+		.filter(Boolean);
+}
+
 function product(env: Env): Product {
 	return {
 		id: env.INKAN_STRIPE_PRODUCT,
 		plan: env.INKAN_PLAN ?? '',
 		grace_days: whole(env.INKAN_GRACE_DAYS, 14),
-		key_days: whole(env.INKAN_KEY_DAYS, 0)
+		max_key_days: whole(env.INKAN_MAX_KEY_DAYS, 0)
 	};
 }
 

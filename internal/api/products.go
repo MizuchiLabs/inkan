@@ -26,10 +26,11 @@ type Product struct {
 	Prefix          string     `json:"prefix"           doc:"Visible key prefix and the app name the product verifies against"`
 	Plan            string     `json:"plan"             doc:"Default for manual licenses. The worker gives it to prices without plan metadata"`
 	PublicKey       string     `json:"public_key"       doc:"Hex Ed25519 public key to build into the product"`
+	OldPublicKeys   []string   `json:"old_public_keys"  doc:"Public keys from before a rotation, newest first. The product carries them next to public_key until their keys have run out" nullable:"false"`
 	WorkerURL       string     `json:"worker_url"       doc:"Where the worker of the product runs. Its paid licenses are mirrored from there"`
 	WorkerConnected bool       `json:"worker_connected" doc:"Whether a worker url is stored"`
 	GraceDays       int64      `json:"grace_days"       doc:"Worker setting. Days a paid license stays valid past its paid period"`
-	KeyDays         int64      `json:"key_days"         doc:"Worker setting. Longest life of a paid key in days, 0 has no limit. Apps refresh for the next one"`
+	MaxKeyDays      int64      `json:"max_key_days"     doc:"Worker setting. Longest life of a paid key in days, 0 has no limit. Apps refresh for the next one"`
 	ProviderProduct string     `json:"provider_product" doc:"Worker setting. Stripe product id, its subscriptions and purchases are licenses"`
 	MailFrom        string     `json:"mail_from"        doc:"Worker setting. Sender of the key mails"`
 	MailLogo        string     `json:"mail_logo"        doc:"Worker setting. https url of a logo for the dark header of the key mail"`
@@ -59,7 +60,7 @@ type CreateProductInput struct {
 		Prefix     string `json:"prefix"                pattern:"^[A-Z0-9]+$" maxLength:"16"  doc:"Uppercase letters and digits. It cannot change later, issued keys are bound to it"`
 		Plan       string `json:"plan"                  minLength:"1"         maxLength:"32"`
 		GraceDays  int64  `json:"grace_days,omitempty"  minimum:"0"           maximum:"365"   default:"14"`
-		KeyDays    int64  `json:"key_days,omitempty"    minimum:"0"           maximum:"3650"`
+		MaxKeyDays int64  `json:"max_key_days,omitempty"    minimum:"0"           maximum:"3650"`
 		PrivateKey string `json:"private_key,omitempty"                                       doc:"Base64 Ed25519 private key of an existing product. A fresh keypair is made when empty"`
 	}
 }
@@ -72,7 +73,7 @@ type UpdateProductInput struct {
 		Plan            string `json:"plan"                       minLength:"1"                    maxLength:"32"`
 		WorkerURL       string `json:"worker_url,omitempty"       pattern:"^(https?://.+)?$"       maxLength:"512" doc:"Where the worker runs. Empty disconnects it"`
 		GraceDays       int64  `json:"grace_days"                 minimum:"0"                      maximum:"365"`
-		KeyDays         int64  `json:"key_days,omitempty"         minimum:"0"                      maximum:"3650"`
+		MaxKeyDays      int64  `json:"max_key_days,omitempty"         minimum:"0"                      maximum:"3650"`
 		ProviderProduct string `json:"provider_product,omitempty"                                  maxLength:"128" doc:"Stripe product id for the worker"`
 		MailFrom        string `json:"mail_from,omitempty"                                         maxLength:"256" doc:"An address or \"Name <address>\""`
 		MailLogo        string `json:"mail_logo,omitempty"        pattern:"^(https://.+)?$"        maxLength:"512" doc:"https url of a logo for the dark header of the key mail"`
@@ -128,6 +129,22 @@ func registerProducts(api huma.API, q *db.Queries) {
 		DefaultStatus: http.StatusNoContent,
 	}, h.delete)
 	huma.Register(api, huma.Operation{
+		OperationID: "rotate-product-key",
+		Method:      http.MethodPost,
+		Path:        "/api/products/{id}/rotate-key",
+		Summary:     "Rotate the signing key of a product",
+		Description: "Makes a fresh keypair and destroys the old private key. Its public half moves to old_public_keys, so keys that are out still verify in a product that carries both. Manual licenses get new keys, the worker signs with the new key once its env is exported and deployed.",
+		Tags:        []string{"Products"},
+	}, h.rotate)
+	huma.Register(api, huma.Operation{
+		OperationID: "drop-old-product-keys",
+		Method:      http.MethodDelete,
+		Path:        "/api/products/{id}/old-keys",
+		Summary:     "Drop the old public keys of a product",
+		Description: "For when no key signed before the rotation is still in use. The worker turns such keys down once its env is exported and deployed.",
+		Tags:        []string{"Products"},
+	}, h.dropOldKeys)
+	huma.Register(api, huma.Operation{
 		OperationID: "sync-product",
 		Method:      http.MethodPost,
 		Path:        "/api/products/{id}/sync",
@@ -164,7 +181,7 @@ func (h *productHandlers) create(ctx context.Context, in *CreateProductInput) (*
 		Prefix:     in.Body.Prefix,
 		Plan:       in.Body.Plan,
 		GraceDays:  in.Body.GraceDays,
-		KeyDays:    in.Body.KeyDays,
+		MaxKeyDays: in.Body.MaxKeyDays,
 		PrivateKey: privateKey,
 		// Two of them, a worker wants at least 32 characters.
 		WorkerToken: rand.Text() + rand.Text(),
@@ -183,7 +200,7 @@ func (h *productHandlers) update(ctx context.Context, in *UpdateProductInput) (*
 		Name:            in.Body.Name,
 		Plan:            in.Body.Plan,
 		GraceDays:       in.Body.GraceDays,
-		KeyDays:         in.Body.KeyDays,
+		MaxKeyDays:      in.Body.MaxKeyDays,
 		ProviderProduct: strings.TrimSpace(in.Body.ProviderProduct),
 		WorkerUrl:       strings.TrimSpace(in.Body.WorkerURL),
 		MailFrom:        strings.TrimSpace(in.Body.MailFrom),
@@ -203,10 +220,59 @@ func (h *productHandlers) update(ctx context.Context, in *UpdateProductInput) (*
 		return nil, huma.Error500InternalServerError("failed to update product")
 	}
 
-	// A failed sync is not a failed update, it shows up as sync_error.
+	return h.synced(ctx, p)
+}
+
+func (h *productHandlers) rotate(ctx context.Context, in *ProductPath) (*ProductOutput, error) {
+	p, err := h.get(ctx, in.ID)
+	if err != nil {
+		return nil, err
+	}
+	priv, err := license.ParsePrivateKey(p.PrivateKey)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("the product has a broken signing key")
+	}
+	fresh, _, err := license.GenerateKey()
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to generate a keypair")
+	}
+	old := append([]string{hex.EncodeToString(publicKey(priv))}, p.OldKeys()...)
+	return h.setKeys(ctx, p.ID, fresh, old)
+}
+
+func (h *productHandlers) dropOldKeys(ctx context.Context, in *ProductPath) (*ProductOutput, error) {
+	p, err := h.get(ctx, in.ID)
+	if err != nil {
+		return nil, err
+	}
+	return h.setKeys(ctx, p.ID, p.PrivateKey, nil)
+}
+
+func (h *productHandlers) setKeys(
+	ctx context.Context,
+	id int64,
+	privateKey string,
+	old []string,
+) (*ProductOutput, error) {
+	p, err := h.q.SetProductKeys(ctx, &db.SetProductKeysParams{
+		PrivateKey:    privateKey,
+		OldPublicKeys: strings.Join(old, ","),
+		ID:            id,
+	})
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to store the keys")
+	}
+	return h.synced(ctx, p)
+}
+
+// synced reads the worker of a product that was just changed, so the answer
+// says what the worker makes of it. A failed sync is not a failed change, it
+// shows up as sync_error.
+func (h *productHandlers) synced(ctx context.Context, p *db.Product) (*ProductOutput, error) {
 	if mirror.Connected(p) {
 		_, _ = mirror.Sync(ctx, h.q, p)
-		if p, err = h.get(ctx, in.ID); err != nil {
+		var err error
+		if p, err = h.get(ctx, p.ID); err != nil {
 			return nil, err
 		}
 	}
@@ -257,7 +323,7 @@ func toProduct(p *db.Product) Product {
 		WorkerURL:       p.WorkerUrl,
 		WorkerConnected: mirror.Connected(p),
 		GraceDays:       p.GraceDays,
-		KeyDays:         p.KeyDays,
+		MaxKeyDays:      p.MaxKeyDays,
 		ProviderProduct: p.ProviderProduct,
 		MailFrom:        p.MailFrom,
 		MailLogo:        p.MailLogo,
@@ -266,6 +332,8 @@ func toProduct(p *db.Product) Product {
 		MailCompany:     p.MailCompany,
 		SyncError:       p.SyncError,
 		CreatedAt:       time.Unix(p.CreatedAt, 0),
+		// Never null, the UI joins it with the current key.
+		OldPublicKeys: append([]string{}, p.OldKeys()...),
 	}
 	if priv, err := license.ParsePrivateKey(p.PrivateKey); err == nil {
 		out.PublicKey = hex.EncodeToString(publicKey(priv))

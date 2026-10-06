@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { CheckKeyData, CheckKeyErrors, CheckKeyResponses, CreateLicenseData, CreateLicenseErrors, CreateLicenseResponses, CreateProductData, CreateProductErrors, CreateProductResponses, DeleteLicenseData, DeleteLicenseErrors, DeleteLicenseResponses, DeleteProductData, DeleteProductErrors, DeleteProductResponses, GetSessionData, GetSessionErrors, GetSessionResponses, ListLicensesData, ListLicensesErrors, ListLicensesResponses, ListProductsData, ListProductsErrors, ListProductsResponses, ListStatsData, ListStatsErrors, ListStatsResponses, SignInData, SignInErrors, SignInResponses, SignOutData, SignOutErrors, SignOutResponses, SyncProductData, SyncProductErrors, SyncProductResponses, UpdateLicenseData, UpdateLicenseErrors, UpdateLicenseResponses, UpdateProductData, UpdateProductErrors, UpdateProductResponses } from './types.gen';
+import type { CheckKeyData, CheckKeyErrors, CheckKeyResponses, CreateLicenseData, CreateLicenseErrors, CreateLicenseResponses, CreateProductData, CreateProductErrors, CreateProductResponses, DeleteLicenseData, DeleteLicenseErrors, DeleteLicenseResponses, DeleteProductData, DeleteProductErrors, DeleteProductResponses, DropOldProductKeysData, DropOldProductKeysErrors, DropOldProductKeysResponses, GetSessionData, GetSessionErrors, GetSessionResponses, ListLicensesData, ListLicensesErrors, ListLicensesResponses, ListProductsData, ListProductsErrors, ListProductsResponses, ListStatsData, ListStatsErrors, ListStatsResponses, RotateProductKeyData, RotateProductKeyErrors, RotateProductKeyResponses, SignInData, SignInErrors, SignInResponses, SignOutData, SignOutErrors, SignOutResponses, SyncProductData, SyncProductErrors, SyncProductResponses, UpdateLicenseData, UpdateLicenseErrors, UpdateLicenseResponses, UpdateProductData, UpdateProductErrors, UpdateProductResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -35,7 +35,7 @@ export const checkKey = <ThrowOnError extends boolean = false>(options: Options<
 /**
  * List licenses
  *
- * Every license with its key, newest first.
+ * Every license with its key, newest first. Page through a long ledger with limit and offset, a page shorter than the limit is the last one.
  */
 export const listLicenses = <ThrowOnError extends boolean = false>(options?: Options<ListLicensesData, ThrowOnError>): RequestResult<ListLicensesResponses, ListLicensesErrors, ThrowOnError> => (options?.client ?? client).get<ListLicensesResponses, ListLicensesErrors, ThrowOnError>({ url: '/api/licenses', ...options });
 
@@ -90,6 +90,20 @@ export const updateProduct = <ThrowOnError extends boolean = false>(options: Opt
         ...options.headers
     }
 });
+
+/**
+ * Drop the old public keys of a product
+ *
+ * For when no key signed before the rotation is still in use. The worker turns such keys down once its env is exported and deployed.
+ */
+export const dropOldProductKeys = <ThrowOnError extends boolean = false>(options: Options<DropOldProductKeysData, ThrowOnError>): RequestResult<DropOldProductKeysResponses, DropOldProductKeysErrors, ThrowOnError> => (options.client ?? client).delete<DropOldProductKeysResponses, DropOldProductKeysErrors, ThrowOnError>({ url: '/api/products/{id}/old-keys', ...options });
+
+/**
+ * Rotate the signing key of a product
+ *
+ * Makes a fresh keypair and destroys the old private key. Its public half moves to old_public_keys, so keys that are out still verify in a product that carries both. Manual licenses get new keys, the worker signs with the new key once its env is exported and deployed.
+ */
+export const rotateProductKey = <ThrowOnError extends boolean = false>(options: Options<RotateProductKeyData, ThrowOnError>): RequestResult<RotateProductKeyResponses, RotateProductKeyErrors, ThrowOnError> => (options.client ?? client).post<RotateProductKeyResponses, RotateProductKeyErrors, ThrowOnError>({ url: '/api/products/{id}/rotate-key', ...options });
 
 /**
  * Sync a product with its worker

@@ -4,12 +4,13 @@ CREATE TABLE products (
   prefix TEXT NOT NULL UNIQUE, -- app name signed into the keys and their visible prefix, uppercase letters and digits
   plan TEXT NOT NULL, -- default for manual licenses, the worker gives it to prices without plan metadata
   private_key TEXT NOT NULL, -- base64 Ed25519, signs every key of this product
+  old_public_keys TEXT NOT NULL DEFAULT '', -- hex, comma separated, newest first. From before a rotation, their keys still verify
   -- The worker hands out the paid licenses, inkan reads them from it.
   worker_url TEXT NOT NULL DEFAULT '', -- where the worker runs, empty without one
   worker_token TEXT NOT NULL DEFAULT '', -- lets inkan read the licenses of the worker
   -- Settings of the worker. Only kept here so worker env can print them.
   grace_days INTEGER NOT NULL DEFAULT 14, -- added to the paid period of a license
-  key_days INTEGER NOT NULL DEFAULT 0, -- longest life of a paid key, 0 has no limit, apps refresh for the next one
+  max_key_days INTEGER NOT NULL DEFAULT 0, -- longest life of a paid key, 0 has no limit, apps refresh for the next one
   provider_product TEXT NOT NULL DEFAULT '', -- product id at Stripe, its subscriptions and purchases are licenses
   mail_from TEXT NOT NULL DEFAULT '', -- an address or "Name <address>"
   mail_logo TEXT NOT NULL DEFAULT '', -- https url, shown in the key mail

@@ -5,7 +5,7 @@ export type Product = {
 	id: string;
 	plan: string;
 	grace_days: number;
-	key_days: number;
+	max_key_days: number;
 };
 
 export type License = {
@@ -109,7 +109,7 @@ export function subscriptionLicense(sub: Subscription, product: Product, now: nu
 		plan: item.price.metadata?.plan || product.plan,
 		meta: metaOf(item.price.metadata, item.quantity),
 		// The grace keeps the old key alive until the renewed one is in place.
-		expires_at: capped(paid + product.grace_days * day, product.key_days, now),
+		expires_at: capped(paid + product.grace_days * day, product.max_key_days, now),
 		period,
 		status: sub.status,
 		renews: active && !sub.cancel_at_period_end,
@@ -138,7 +138,7 @@ export function sessionLicense(session: Session, product: Product, now: number):
 		customer_gone: false,
 		plan: item.price.metadata?.plan || product.plan,
 		meta: metaOf(item.price.metadata, item.quantity),
-		expires_at: capped(expires, product.key_days, now),
+		expires_at: capped(expires, product.max_key_days, now),
 		period: 0,
 		status: refunded ? 'refunded' : 'paid',
 		renews: false,
@@ -161,11 +161,11 @@ function metaOf(
 	return Object.keys(out).length > 0 ? out : null;
 }
 
-// The limit only moves every half of the key days, so a license gets the same
-// key for that long. A fresh key lives between half and all of the key days.
-function capped(expires: number, keyDays: number, now: number): number {
-	if (keyDays <= 0) return expires;
-	const step = Math.trunc((keyDays * day) / 2);
+// The limit only moves every half of the max key days, so a license gets the
+// same key for that long. A fresh key lives between half and all of them.
+function capped(expires: number, maxKeyDays: number, now: number): number {
+	if (maxKeyDays <= 0) return expires;
+	const step = Math.trunc((maxKeyDays * day) / 2);
 	const limit = (Math.trunc(now / step) + 2) * step;
 	return expires === 0 ? limit : Math.min(expires, limit);
 }

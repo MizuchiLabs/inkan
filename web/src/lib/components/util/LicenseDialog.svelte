@@ -95,7 +95,8 @@
 			<Dialog.Title>{license ? 'Edit license' : 'Issue a license'}</Dialog.Title>
 			<Dialog.Description>
 				{#if license}
-					The key is signed from these fields. Change one and the customer needs the new key.
+					The key is signed from these fields. Change one and the customer needs the new key. The
+					key they have keeps working until it expires, an earlier date here does not take it back.
 				{:else}
 					For trials, comps and anything else that does not come through Stripe.
 				{/if}

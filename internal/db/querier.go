@@ -20,10 +20,13 @@ type Querier interface {
 	GetLicense(ctx context.Context, arg *GetLicenseParams) (*License, error)
 	GetProduct(ctx context.Context, id int64) (*Product, error)
 	GetProductByPrefix(ctx context.Context, prefix string) (*Product, error)
-	ListLicenses(ctx context.Context) ([]*License, error)
+	// A limit of -1 lists all of them.
+	ListLicenses(ctx context.Context, arg *ListLicensesParams) ([]*License, error)
 	ListProducts(ctx context.Context) ([]*Product, error)
 	ListSnapshots(ctx context.Context, day string) ([]*Snapshot, error)
 	SetLicenseNote(ctx context.Context, arg *SetLicenseNoteParams) (*License, error)
+	// A rotation moves the public half of the old key into the list.
+	SetProductKeys(ctx context.Context, arg *SetProductKeysParams) (*Product, error)
 	SetProductSyncError(ctx context.Context, arg *SetProductSyncErrorParams) error
 	// The worker was read. sync_error is empty, or what is off with the worker.
 	SetProductSynced(ctx context.Context, arg *SetProductSyncedParams) error

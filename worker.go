@@ -57,10 +57,14 @@ func workerEnv(ctx context.Context, cmd *cli.Command) error {
 
 	fmt.Printf("INKAN_PREFIX=%s\n", p.Prefix)
 	fmt.Printf("INKAN_PRIVATE_KEY=%s\n", p.PrivateKey)
+	if p.OldPublicKeys != "" {
+		// From before a rotation. A refresh trades their keys for one of the new key.
+		fmt.Printf("INKAN_OLD_PUBLIC_KEYS=%s\n", p.OldPublicKeys)
+	}
 	fmt.Printf("INKAN_WORKER_TOKEN=%s\n", p.WorkerToken)
-	fmt.Printf("INKAN_PLAN=%s\n", p.Plan)
+	fmt.Printf("INKAN_PLAN=%s\n", envValue(p.Plan))
 	fmt.Printf("INKAN_GRACE_DAYS=%d\n", p.GraceDays)
-	fmt.Printf("INKAN_KEY_DAYS=%d\n", p.KeyDays)
+	fmt.Printf("INKAN_MAX_KEY_DAYS=%d\n", p.MaxKeyDays)
 
 	// Secrets of Stripe and the mail service are not stored in inkan. They and
 	// what the product does not have yet are printed as comments, so the file
@@ -94,5 +98,27 @@ func printSetting(name, value, hint string) {
 		fmt.Printf("# %s=%s\n", name, hint)
 		return
 	}
-	fmt.Printf("%s=%s\n", name, value)
+	fmt.Printf("%s=%s\n", name, envValue(value))
+}
+
+// envValue quotes a value that an env file would read differently bare. A #
+// starts a comment there, so even a color needs it. No parser unescapes a
+// quote inside its own kind, so the value gets one it does not hold. A value
+// with all three loses its single quotes.
+func envValue(value string) string {
+	value = strings.NewReplacer("\r\n", " ", "\n", " ", "\r", " ").Replace(value)
+	if !strings.ContainsFunc(value, func(r rune) bool { return !envBare(r) }) {
+		return value
+	}
+	for _, quote := range []string{"'", `"`, "`"} {
+		if !strings.Contains(value, quote) {
+			return quote + value + quote
+		}
+	}
+	return "'" + strings.ReplaceAll(value, "'", "") + "'"
+}
+
+func envBare(r rune) bool {
+	return r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' ||
+		strings.ContainsRune("_-.+/=:@,", r)
 }

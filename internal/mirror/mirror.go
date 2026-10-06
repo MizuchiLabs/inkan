@@ -4,6 +4,7 @@
 package mirror
 
 import (
+	"cmp"
 	"context"
 	"crypto/ed25519"
 	"encoding/hex"
@@ -25,8 +26,11 @@ import (
 )
 
 const (
-	syncEvery = 5 * time.Minute
-	pageSize  = 50
+	// A sync reads every subscription and purchase of the Stripe account, so
+	// it is not cheap. The dashboard has a button for when it has to be now.
+	syncEvery = time.Hour
+	// The most a worker hands out, fewer pages are fewer calls to Stripe.
+	pageSize = 100
 )
 
 var client = &http.Client{Timeout: 30 * time.Second}
@@ -41,12 +45,14 @@ type page struct {
 
 // settings is what the worker runs with.
 type settings struct {
-	Prefix        string `json:"prefix"`
-	PublicKey     string `json:"public_key"`
-	Plan          string `json:"plan"`
-	GraceDays     int64  `json:"grace_days"`
-	KeyDays       int64  `json:"key_days"`
-	StripeProduct string `json:"stripe_product"`
+	Provider      string   `json:"provider"`
+	Prefix        string   `json:"prefix"`
+	PublicKey     string   `json:"public_key"`
+	OldPublicKeys []string `json:"old_public_keys"`
+	Plan          string   `json:"plan"`
+	GraceDays     int64    `json:"grace_days"`
+	MaxKeyDays    int64    `json:"max_key_days"`
+	StripeProduct string   `json:"stripe_product"`
 }
 
 type listed struct {
@@ -63,8 +69,8 @@ type listed struct {
 	Key          string            `json:"key"`
 }
 
-// Run syncs every product that has a worker on start and then every few
-// minutes, until ctx is done.
+// Run syncs every product that has a worker on start and then every hour,
+// until ctx is done.
 func Run(ctx context.Context, q *db.Queries) {
 	for {
 		products, err := q.ListProducts(ctx)
@@ -122,6 +128,7 @@ func pull(ctx context.Context, q *db.Queries, p *db.Product) (n int, notice stri
 		return 0, "", err
 	}
 	pub, _ := priv.Public().(ed25519.PublicKey)
+	current := hex.EncodeToString(pub)
 
 	// Rows a full round did not see are gone at the provider.
 	round := time.Now().Unix()
@@ -136,14 +143,16 @@ func pull(ctx context.Context, q *db.Queries, p *db.Product) (n int, notice stri
 			return 0, "", err
 		}
 		runs = pg.Product
-		if runs.Prefix != p.Prefix || runs.PublicKey != hex.EncodeToString(pub) {
+		// A worker that was not deployed since a rotation still signs with the old key.
+		ours := runs.PublicKey == current || slices.Contains(p.OldKeys(), runs.PublicKey)
+		if runs.Prefix != p.Prefix || !ours {
 			return 0, "", errors.New("this worker signs for another product, check the worker url")
 		}
 		if slices.Contains(pg.Skipped, "purchases") {
 			purchases = false
 		}
 		for _, l := range pg.Licenses {
-			if err := store(ctx, q, p, l, round); err != nil {
+			if err := store(ctx, q, p, cmp.Or(runs.Provider, "stripe"), l, round); err != nil {
 				return 0, "", err
 			}
 			n++
@@ -157,7 +166,7 @@ func pull(ctx context.Context, q *db.Queries, p *db.Product) (n int, notice stri
 		}
 	}
 
-	notice = drift(p, runs)
+	notice = drift(p, runs, current)
 	// A worker on another Stripe product lists other licenses. Until that is
 	// settled nothing is dropped, the notes on the rows would go with them.
 	if runs.StripeProduct != p.ProviderProduct {
@@ -210,7 +219,13 @@ func fetch(ctx context.Context, p *db.Product, cursor string) (*page, error) {
 
 // drift names the settings the worker runs with that the product does not
 // show. They only reach the worker when its env is exported and deployed.
-func drift(p *db.Product, s settings) string {
+func drift(p *db.Product, s settings, current string) string {
+	if s.PublicKey != current {
+		return "The worker still signs with the key from before the rotation. Export worker env again and deploy it."
+	}
+	if !slices.Equal(s.OldPublicKeys, p.OldKeys()) {
+		return "The worker takes other old keys than the product has. Export worker env again and deploy it."
+	}
 	var off []string
 	if s.Plan != p.Plan {
 		off = append(off, fmt.Sprintf("plan %q", s.Plan))
@@ -218,8 +233,8 @@ func drift(p *db.Product, s settings) string {
 	if s.GraceDays != p.GraceDays {
 		off = append(off, fmt.Sprintf("%d grace days", s.GraceDays))
 	}
-	if s.KeyDays != p.KeyDays {
-		off = append(off, fmt.Sprintf("%d key days", s.KeyDays))
+	if s.MaxKeyDays != p.MaxKeyDays {
+		off = append(off, fmt.Sprintf("%d max key days", s.MaxKeyDays))
 	}
 	if s.StripeProduct != p.ProviderProduct {
 		off = append(off, "Stripe product "+s.StripeProduct)
@@ -231,7 +246,7 @@ func drift(p *db.Product, s settings) string {
 		". Export worker env again and deploy it, or set the same here."
 }
 
-func store(ctx context.Context, q *db.Queries, p *db.Product, l listed, round int64) error {
+func store(ctx context.Context, q *db.Queries, p *db.Product, provider string, l listed, round int64) error {
 	meta := "{}"
 	if len(l.Meta) > 0 {
 		b, err := json.Marshal(l.Meta, json.Deterministic(true))
@@ -243,7 +258,7 @@ func store(ctx context.Context, q *db.Queries, p *db.Product, l listed, round in
 	if err := q.UpsertProviderLicense(ctx, &db.UpsertProviderLicenseParams{
 		ID:           l.ID,
 		ProductID:    p.ID,
-		Source:       "stripe",
+		Source:       provider,
 		Email:        l.Email,
 		Customer:     l.Customer,
 		CustomerGone: l.CustomerGone,

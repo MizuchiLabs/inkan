@@ -135,11 +135,13 @@
 
 					<dt class="text-muted-foreground">Source</dt>
 					<dd class="col-span-2">
-						{#if license.source === 'stripe'}
+						{#if license.source === 'manual'}
+							Issued by hand
+						{:else if license.source === 'stripe'}
 							{license.id.startsWith('cs_') ? 'Stripe purchase' : 'Stripe subscription'},
 							{license.status.replaceAll('_', ' ')}
 						{:else}
-							Issued by hand
+							{license.source}, {license.status.replaceAll('_', ' ')}
 						{/if}
 					</dd>
 

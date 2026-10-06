@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"crypto/ed25519"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"net/http"
 	"strings"
@@ -80,14 +82,21 @@ func (h *checkHandlers) check(ctx context.Context, in *CheckInput) (*CheckOutput
 	if err != nil {
 		return nil, huma.Error500InternalServerError("the product has a broken signing key")
 	}
-	claims, err := license.VerifyWith(key, p.Prefix, publicKey(priv))
+	// A key from before a rotation is still a key of the product.
+	pubs := []ed25519.PublicKey{publicKey(priv)}
+	for _, old := range p.OldKeys() {
+		if pub, err := hex.DecodeString(old); err == nil {
+			pubs = append(pubs, pub)
+		}
+	}
+	claims, err := license.VerifyWith(key, p.Prefix, pubs...)
 	switch {
 	case err == nil:
 		res.State = stateValid
 	case errors.Is(err, license.ErrExpired):
 		res.State = stateExpired
 	case errors.Is(err, license.ErrInvalidSig):
-		res.Reason = "The signature does not match the product's signing key."
+		res.Reason = "The signature matches no signing key of the product."
 		return out, nil
 	default:
 		res.Reason = "This is not a well formed license key."

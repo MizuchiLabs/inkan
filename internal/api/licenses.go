@@ -28,7 +28,7 @@ const (
 type License struct {
 	ID           string            `json:"id"            doc:"Subscription or checkout session id at the provider, or lic_... for a manual license"`
 	ProductID    int64             `json:"product_id"`
-	Source       string            `json:"source"                                                                                                                        enum:"manual,stripe"`
+	Source       string            `json:"source"        doc:"manual, or the payment provider the worker reads, like stripe"`
 	Email        string            `json:"email"`
 	Customer     string            `json:"customer"      doc:"Display name, not part of the key"`
 	CustomerGone bool              `json:"customer_gone" doc:"The customer was deleted at the provider, email and customer are the last known ones"`
@@ -40,6 +40,11 @@ type License struct {
 	Renews       bool              `json:"renews"        doc:"Whether the provider will bill another period"`
 	Key          string            `json:"key"           doc:"The signed license key. A paid license has the one its worker hands out"`
 	CreatedAt    time.Time         `json:"created_at"`
+}
+
+type ListLicensesInput struct {
+	Limit  int64 `query:"limit"  minimum:"0" maximum:"1000" default:"0" doc:"Most licenses to return, 0 returns all of them"`
+	Offset int64 `query:"offset" minimum:"0"                default:"0" doc:"How many licenses to skip"`
 }
 
 type LicensesOutput struct {
@@ -92,7 +97,7 @@ func registerLicenses(api huma.API, q *db.Queries) {
 		Method:      http.MethodGet,
 		Path:        "/api/licenses",
 		Summary:     "List licenses",
-		Description: "Every license with its key, newest first.",
+		Description: "Every license with its key, newest first. Page through a long ledger with limit and offset, a page shorter than the limit is the last one.",
 		Tags:        []string{"Licenses"},
 	}, h.list)
 	huma.Register(api, huma.Operation{
@@ -122,7 +127,7 @@ func registerLicenses(api huma.API, q *db.Queries) {
 	}, h.delete)
 }
 
-func (h *licenseHandlers) list(ctx context.Context, _ *struct{}) (*LicensesOutput, error) {
+func (h *licenseHandlers) list(ctx context.Context, in *ListLicensesInput) (*LicensesOutput, error) {
 	products, err := h.q.ListProducts(ctx)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to list products")
@@ -132,7 +137,11 @@ func (h *licenseHandlers) list(ctx context.Context, _ *struct{}) (*LicensesOutpu
 		byID[p.ID] = p
 	}
 
-	rows, err := h.q.ListLicenses(ctx)
+	limit := in.Limit
+	if limit == 0 {
+		limit = -1
+	}
+	rows, err := h.q.ListLicenses(ctx, &db.ListLicensesParams{Limit: limit, Offset: in.Offset})
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to list licenses")
 	}
@@ -224,12 +233,16 @@ func (h *licenseHandlers) delete(ctx context.Context, in *LicensePath) (*struct{
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to delete license")
 	}
-	if n == 0 {
-		return nil, huma.Error409Conflict(
-			"only manual licenses can be deleted, paid ones come back with the next sync",
-		)
+	if n == 1 {
+		return nil, nil
 	}
-	return nil, nil
+	_, err = h.q.GetLicense(ctx, &db.GetLicenseParams{ProductID: in.ProductID, ID: in.ID})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, huma.Error404NotFound("license not found")
+	}
+	return nil, huma.Error409Conflict(
+		"only manual licenses can be deleted, paid ones come back with the next sync",
+	)
 }
 
 func (h *licenseHandlers) output(p *db.Product, l *db.License) (*LicenseOutput, error) {

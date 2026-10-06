@@ -20,16 +20,14 @@ tasks:
     desc: Run the worker of a product with the Stripe CLI forwarding test webhooks to it, task worker -- MYAPP. Takes INKAN_STRIPE_KEY and the mail service from the environment
     cmds:
       - |
-        while IFS= read -r line; do
-          case "$line" in ""|"#"*) ;; *) export "$line" ;; esac
-        done <<EOF
-        $(go run . worker env {{.CLI_ARGS}})
-        EOF
+        env="$(mktemp)"
+        trap 'rm -f "$env"' EXIT
+        go run . worker env {{.CLI_ARGS}} > "$env"
         export INKAN_STRIPE_WEBHOOK_SECRET="$(stripe listen --print-secret)"
         stripe listen --forward-to localhost:4242/webhook \
           --events invoice.paid,checkout.session.completed,checkout.session.async_payment_succeeded &
-        trap 'kill $!' EXIT
-        PORT=4242 node worker/src/node.ts
+        trap 'kill $!; rm -f "$env"' EXIT
+        PORT=4242 node --env-file="$env" worker/src/node.ts
 
   seed:
     desc: Fill data/demo with made up products, licenses and 90 days of history
@@ -83,11 +81,6 @@ tasks:
     desc: Rewrite the test vectors after a deliberate change of the key format
     cmds:
       - cd license && go test -run TestVectors -update .
-
-  mails:
-    desc: Rewrite the mail cases after a deliberate change of the built in key mail
-    cmds:
-      - go test -run TestMailCases ./worker -update
 
   build:
     desc: Build binary

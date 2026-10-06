@@ -42,9 +42,6 @@
 	let createdId = $state<number>();
 	let deleting = $state<Product>();
 
-	const buildFlag = (p: Product) =>
-		`-X github.com/mizuchilabs/inkan/license.pubkey=${p.public_key}`;
-
 	function syncNow(p: Product) {
 		sync.mutate(
 			{ path: { id: p.id } },
@@ -146,10 +143,17 @@
 
 					<Card.Content>
 						<div class="flex flex-col gap-4">
-							<CopyBlock title="Public key" text={product.public_key} what="public key" />
-							<CopyBlock title="Build flag" text={buildFlag(product)} what="build flag">
-								Add it to the ldflags of the release build. The app then verifies
+							<CopyBlock
+								title={product.old_public_keys.length ? 'Public keys' : 'Public key'}
+								text={[product.public_key, ...product.old_public_keys].join(',')}
+								what="public key"
+							>
+								Give it to the verifier in your app. The app then verifies
 								{product.prefix}- keys offline.
+								{#if product.old_public_keys.length}
+									The key was rotated, so this is the new one and the old ones behind it. Drop the
+									old ones under Edit once no key from before is in use.
+								{/if}
 							</CopyBlock>
 
 							{#if product.sync_error}

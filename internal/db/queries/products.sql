@@ -24,7 +24,7 @@ WHERE
 
 -- name: CreateProduct :one
 INSERT INTO
-  products (name, prefix, plan, grace_days, key_days, private_key, worker_token)
+  products (name, prefix, plan, grace_days, max_key_days, private_key, worker_token)
 VALUES
   (?, ?, ?, ?, ?, ?, ?) RETURNING *;
 
@@ -34,7 +34,7 @@ SET
   name = ?,
   plan = ?,
   grace_days = ?,
-  key_days = ?,
+  max_key_days = ?,
   provider_product = ?,
   worker_url = ?,
   mail_from = ?,
@@ -49,6 +49,15 @@ WHERE
 DELETE FROM products
 WHERE
   id = ?;
+
+-- A rotation moves the public half of the old key into the list.
+-- name: SetProductKeys :one
+UPDATE products
+SET
+  private_key = ?,
+  old_public_keys = ?
+WHERE
+  id = ? RETURNING *;
 
 -- name: SetProductWorkerToken :exec
 UPDATE products

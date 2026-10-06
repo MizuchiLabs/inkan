@@ -6,12 +6,14 @@ import {
 	createProductMutation,
 	deleteLicenseMutation,
 	deleteProductMutation,
+	dropOldProductKeysMutation,
 	getSessionOptions,
 	listLicensesOptions,
 	listLicensesQueryKey,
 	listProductsOptions,
 	listProductsQueryKey,
 	listStatsOptions,
+	rotateProductKeyMutation,
 	signInMutation,
 	signOutMutation,
 	syncProductMutation,
@@ -90,6 +92,15 @@ export function useUpdateProduct() {
 
 export function useDeleteProduct() {
 	return createMutation(() => ({ ...deleteProductMutation(), onSuccess: refreshAll }));
+}
+
+// A new signing key gives every manual license a new key, so both lists reload.
+export function useRotateProductKey() {
+	return createMutation(() => ({ ...rotateProductKeyMutation(), onSuccess: refreshAll }));
+}
+
+export function useDropOldProductKeys() {
+	return createMutation(() => ({ ...dropOldProductKeysMutation(), onSuccess: refreshAll }));
 }
 
 // A failed sync is stored on the product, so the lists reload either way.

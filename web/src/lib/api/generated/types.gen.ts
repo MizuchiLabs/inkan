@@ -60,7 +60,7 @@ export type CreateLicenseInputBody = {
 
 export type CreateProductInputBody = {
     grace_days?: number;
-    key_days?: number;
+    max_key_days?: number;
     name: string;
     plan: string;
     /**
@@ -151,7 +151,10 @@ export type License = {
      * Whether the provider will bill another period
      */
     renews: boolean;
-    source: 'manual' | 'stripe';
+    /**
+     * manual, or the payment provider the worker reads, like stripe
+     */
+    source: string;
     /**
      * Subscription status at the provider, paid or refunded for a one time purchase, empty for a manual license
      */
@@ -186,10 +189,6 @@ export type Product = {
     grace_days: number;
     id: number;
     /**
-     * Worker setting. Longest life of a paid key in days, 0 has no limit. Apps refresh for the next one
-     */
-    key_days: number;
-    /**
      * Worker setting. Color of the key mail, #rrggbb
      */
     mail_accent: string;
@@ -209,7 +208,15 @@ export type Product = {
      * Worker setting. https url of a logo for the dark header of the key mail
      */
     mail_logo: string;
+    /**
+     * Worker setting. Longest life of a paid key in days, 0 has no limit. Apps refresh for the next one
+     */
+    max_key_days: number;
     name: string;
+    /**
+     * Public keys from before a rotation, newest first. The product carries them next to public_key until their keys have run out
+     */
+    old_public_keys: Array<string>;
     /**
      * Default for manual licenses. The worker gives it to prices without plan metadata
      */
@@ -281,7 +288,6 @@ export type SyncOutputBody = {
 
 export type UpdateProductInputBody = {
     grace_days: number;
-    key_days?: number;
     /**
      * Color of the key mail, like #2f3e8f
      */
@@ -302,6 +308,7 @@ export type UpdateProductInputBody = {
      * https url of a logo for the dark header of the key mail
      */
     mail_logo?: string;
+    max_key_days?: number;
     name: string;
     plan: string;
     /**
@@ -342,7 +349,16 @@ export type CheckKeyResponse = CheckKeyResponses[keyof CheckKeyResponses];
 export type ListLicensesData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Most licenses to return, 0 returns all of them
+         */
+        limit?: number;
+        /**
+         * How many licenses to skip
+         */
+        offset?: number;
+    };
     url: '/api/licenses';
 };
 
@@ -492,6 +508,60 @@ export type UpdateProductResponses = {
 };
 
 export type UpdateProductResponse = UpdateProductResponses[keyof UpdateProductResponses];
+
+export type DropOldProductKeysData = {
+    body?: never;
+    path: {
+        id: number;
+    };
+    query?: never;
+    url: '/api/products/{id}/old-keys';
+};
+
+export type DropOldProductKeysErrors = {
+    /**
+     * Error
+     */
+    default: ErrorModel;
+};
+
+export type DropOldProductKeysError = DropOldProductKeysErrors[keyof DropOldProductKeysErrors];
+
+export type DropOldProductKeysResponses = {
+    /**
+     * OK
+     */
+    200: Product;
+};
+
+export type DropOldProductKeysResponse = DropOldProductKeysResponses[keyof DropOldProductKeysResponses];
+
+export type RotateProductKeyData = {
+    body?: never;
+    path: {
+        id: number;
+    };
+    query?: never;
+    url: '/api/products/{id}/rotate-key';
+};
+
+export type RotateProductKeyErrors = {
+    /**
+     * Error
+     */
+    default: ErrorModel;
+};
+
+export type RotateProductKeyError = RotateProductKeyErrors[keyof RotateProductKeyErrors];
+
+export type RotateProductKeyResponses = {
+    /**
+     * OK
+     */
+    200: Product;
+};
+
+export type RotateProductKeyResponse = RotateProductKeyResponses[keyof RotateProductKeyResponses];
 
 export type SyncProductData = {
     body?: never;

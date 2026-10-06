@@ -80,7 +80,7 @@
 						"minimum": 0,
 						"type": "integer"
 					},
-					"key_days": { "format": "int64", "maximum": 3650, "minimum": 0, "type": "integer" },
+					"max_key_days": { "format": "int64", "maximum": 3650, "minimum": 0, "type": "integer" },
 					"name": { "maxLength": 64, "minLength": 1, "type": "string" },
 					"plan": { "maxLength": 32, "minLength": 1, "type": "string" },
 					"prefix": {
@@ -184,7 +184,10 @@
 						"description": "Whether the provider will bill another period",
 						"type": "boolean"
 					},
-					"source": { "enum": ["manual", "stripe"], "type": "string" },
+					"source": {
+						"description": "manual, or the payment provider the worker reads, like stripe",
+						"type": "string"
+					},
 					"status": {
 						"description": "Subscription status at the provider, paid or refunded for a one time purchase, empty for a manual license",
 						"type": "string"
@@ -243,11 +246,6 @@
 						"type": "integer"
 					},
 					"id": { "format": "int64", "type": "integer" },
-					"key_days": {
-						"description": "Worker setting. Longest life of a paid key in days, 0 has no limit. Apps refresh for the next one",
-						"format": "int64",
-						"type": "integer"
-					},
 					"mail_accent": {
 						"description": "Worker setting. Color of the key mail, #rrggbb",
 						"type": "string"
@@ -268,7 +266,17 @@
 						"description": "Worker setting. https url of a logo for the dark header of the key mail",
 						"type": "string"
 					},
+					"max_key_days": {
+						"description": "Worker setting. Longest life of a paid key in days, 0 has no limit. Apps refresh for the next one",
+						"format": "int64",
+						"type": "integer"
+					},
 					"name": { "type": "string" },
+					"old_public_keys": {
+						"description": "Public keys from before a rotation, newest first. The product carries them next to public_key until their keys have run out",
+						"items": { "type": "string" },
+						"type": "array"
+					},
 					"plan": {
 						"description": "Default for manual licenses. The worker gives it to prices without plan metadata",
 						"type": "string"
@@ -309,10 +317,11 @@
 					"prefix",
 					"plan",
 					"public_key",
+					"old_public_keys",
 					"worker_url",
 					"worker_connected",
 					"grace_days",
-					"key_days",
+					"max_key_days",
 					"provider_product",
 					"mail_from",
 					"mail_logo",
@@ -374,7 +383,6 @@
 				"additionalProperties": false,
 				"properties": {
 					"grace_days": { "format": "int64", "maximum": 365, "minimum": 0, "type": "integer" },
-					"key_days": { "format": "int64", "maximum": 3650, "minimum": 0, "type": "integer" },
 					"mail_accent": {
 						"description": "Color of the key mail, like #2f3e8f",
 						"pattern": "^(#[0-9a-fA-F]{6})?$",
@@ -401,6 +409,7 @@
 						"pattern": "^(https://.+)?$",
 						"type": "string"
 					},
+					"max_key_days": { "format": "int64", "maximum": 3650, "minimum": 0, "type": "integer" },
 					"name": { "maxLength": 64, "minLength": 1, "type": "string" },
 					"plan": { "maxLength": 32, "minLength": 1, "type": "string" },
 					"provider_product": {
@@ -455,8 +464,37 @@
 		},
 		"/api/licenses": {
 			"get": {
-				"description": "Every license with its key, newest first.",
+				"description": "Every license with its key, newest first. Page through a long ledger with limit and offset, a page shorter than the limit is the last one.",
 				"operationId": "list-licenses",
+				"parameters": [
+					{
+						"description": "Most licenses to return, 0 returns all of them",
+						"explode": false,
+						"in": "query",
+						"name": "limit",
+						"schema": {
+							"default": 0,
+							"description": "Most licenses to return, 0 returns all of them",
+							"format": "int64",
+							"maximum": 1000,
+							"minimum": 0,
+							"type": "integer"
+						}
+					},
+					{
+						"description": "How many licenses to skip",
+						"explode": false,
+						"in": "query",
+						"name": "offset",
+						"schema": {
+							"default": 0,
+							"description": "How many licenses to skip",
+							"format": "int64",
+							"minimum": 0,
+							"type": "integer"
+						}
+					}
+				],
 				"responses": {
 					"200": {
 						"content": {
@@ -631,6 +669,70 @@
 					}
 				},
 				"summary": "Update a product",
+				"tags": ["Products"]
+			}
+		},
+		"/api/products/{id}/old-keys": {
+			"delete": {
+				"description": "For when no key signed before the rotation is still in use. The worker turns such keys down once its env is exported and deployed.",
+				"operationId": "drop-old-product-keys",
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": { "format": "int64", "type": "integer" }
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": { "schema": { "$ref": "#/components/schemas/Product" } }
+						},
+						"description": "OK"
+					},
+					"default": {
+						"content": {
+							"application/problem+json": {
+								"schema": { "$ref": "#/components/schemas/ErrorModel" }
+							}
+						},
+						"description": "Error"
+					}
+				},
+				"summary": "Drop the old public keys of a product",
+				"tags": ["Products"]
+			}
+		},
+		"/api/products/{id}/rotate-key": {
+			"post": {
+				"description": "Makes a fresh keypair and destroys the old private key. Its public half moves to old_public_keys, so keys that are out still verify in a product that carries both. Manual licenses get new keys, the worker signs with the new key once its env is exported and deployed.",
+				"operationId": "rotate-product-key",
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": { "format": "int64", "type": "integer" }
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": { "schema": { "$ref": "#/components/schemas/Product" } }
+						},
+						"description": "OK"
+					},
+					"default": {
+						"content": {
+							"application/problem+json": {
+								"schema": { "$ref": "#/components/schemas/ErrorModel" }
+							}
+						},
+						"description": "Error"
+					}
+				},
+				"summary": "Rotate the signing key of a product",
 				"tags": ["Products"]
 			}
 		},

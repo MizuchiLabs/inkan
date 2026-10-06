@@ -161,11 +161,22 @@ FROM
   licenses
 ORDER BY
   created_at DESC,
+  product_id,
   id
+LIMIT
+  ?2
+OFFSET
+  ?1
 `
 
-func (q *Queries) ListLicenses(ctx context.Context) ([]*License, error) {
-	rows, err := q.db.QueryContext(ctx, listLicenses)
+type ListLicensesParams struct {
+	Offset int64 `json:"offset"`
+	Limit  int64 `json:"limit"`
+}
+
+// A limit of -1 lists all of them.
+func (q *Queries) ListLicenses(ctx context.Context, arg *ListLicensesParams) ([]*License, error) {
+	rows, err := q.db.QueryContext(ctx, listLicenses, arg.Offset, arg.Limit)
 	if err != nil {
 		return nil, err
 	}

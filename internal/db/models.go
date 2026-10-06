@@ -28,10 +28,11 @@ type Product struct {
 	Prefix          string `json:"prefix"`
 	Plan            string `json:"plan"`
 	PrivateKey      string `json:"privateKey"`
+	OldPublicKeys   string `json:"oldPublicKeys"`
 	WorkerUrl       string `json:"workerUrl"`
 	WorkerToken     string `json:"workerToken"`
 	GraceDays       int64  `json:"graceDays"`
-	KeyDays         int64  `json:"keyDays"`
+	MaxKeyDays      int64  `json:"maxKeyDays"`
 	ProviderProduct string `json:"providerProduct"`
 	MailFrom        string `json:"mailFrom"`
 	MailLogo        string `json:"mailLogo"`

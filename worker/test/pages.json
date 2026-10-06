@@ -1,11 +1,13 @@
 [
 	{
 		"product": {
+			"provider": "stripe",
 			"prefix": "MYAPP",
 			"public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+			"old_public_keys": [],
 			"plan": "pro",
 			"grace_days": 14,
-			"key_days": 0,
+			"max_key_days": 0,
 			"stripe_product": "prod_app"
 		},
 		"licenses": [
@@ -28,11 +30,13 @@
 	},
 	{
 		"product": {
+			"provider": "stripe",
 			"prefix": "MYAPP",
 			"public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+			"old_public_keys": [],
 			"plan": "pro",
 			"grace_days": 14,
-			"key_days": 0,
+			"max_key_days": 0,
 			"stripe_product": "prod_app"
 		},
 		"licenses": [
@@ -55,11 +59,13 @@
 	},
 	{
 		"product": {
+			"provider": "stripe",
 			"prefix": "MYAPP",
 			"public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+			"old_public_keys": [],
 			"plan": "pro",
 			"grace_days": 14,
-			"key_days": 0,
+			"max_key_days": 0,
 			"stripe_product": "prod_app"
 		},
 		"licenses": [
