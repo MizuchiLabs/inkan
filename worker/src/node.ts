@@ -35,11 +35,18 @@ const server = createServer(async (req, res) => {
 		if (value !== undefined) headers.set(name, Array.isArray(value) ? value.join(', ') : value);
 	}
 	const bodiless = req.method === 'GET' || req.method === 'HEAD';
-	const request = new Request(new URL(req.url ?? '/', 'http://' + (req.headers.host ?? 'worker')), {
-		method: req.method,
-		headers,
-		body: bodiless ? undefined : Buffer.concat(chunks)
-	});
+	// A path like // is no url. Left uncaught it takes the whole process down.
+	let request: Request;
+	try {
+		request = new Request(new URL(req.url ?? '/', 'http://' + (req.headers.host ?? 'worker')), {
+			method: req.method,
+			headers,
+			body: bodiless ? undefined : Buffer.concat(chunks)
+		});
+	} catch {
+		res.writeHead(400).end('the request cannot be read');
+		return;
+	}
 
 	const response = await handle(request, env);
 	res.writeHead(response.status, Object.fromEntries(response.headers));
