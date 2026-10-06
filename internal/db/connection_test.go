@@ -20,8 +20,9 @@ func TestBackup(t *testing.T) {
 	require.NoFileExists(t, filepath.Join(dir, "inkan.db"))
 
 	// The database stays open, a backup has to work while inkan runs.
-	q, err := Open(t.Context(), dir)
+	q, closeDB, err := Open(t.Context(), dir)
 	require.NoError(t, err)
+	t.Cleanup(closeDB)
 	_, err = q.CreateProduct(t.Context(), &CreateProductParams{
 		Name: "App", Prefix: "APP", Plan: "pro", PrivateKey: "the signing key",
 	})
@@ -62,9 +63,42 @@ func TestOpenMakesTheDatabaseOwnerOnly(t *testing.T) {
 	path := filepath.Join(dir, "inkan.db")
 	require.NoError(t, os.WriteFile(path, nil, 0o644))
 
-	_, err := Open(t.Context(), dir)
+	_, closeDB, err := Open(t.Context(), dir)
 	require.NoError(t, err)
+	t.Cleanup(closeDB)
 	info, err := os.Stat(path)
 	require.NoError(t, err)
 	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+}
+
+// A restore puts a copy in place of inkan.db. A journal left behind by the
+// last run would be played back over it.
+func TestCloseLeavesOneWholeFile(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	q, closeDB, err := Open(t.Context(), dir)
+	require.NoError(t, err)
+	_, err = q.CreateProduct(t.Context(), &CreateProductParams{
+		Name: "App", Prefix: "APP", Plan: "pro", PrivateKey: "the signing key",
+	})
+	require.NoError(t, err)
+	closeDB()
+
+	path := filepath.Join(dir, "inkan.db")
+	assert.NoFileExists(t, path+"-wal", "a stopped inkan must leave no journal")
+	// Immutable reads the one file and nothing next to it.
+	alone, err := sql.Open("sqlite", "file:"+filepath.ToSlash(path)+"?immutable=1")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = alone.Close() })
+	p, err := New(alone).GetProductByPrefix(t.Context(), "APP")
+	require.NoError(t, err, "what was written has to be in inkan.db itself")
+	assert.Equal(t, "the signing key", p.PrivateKey)
+}
+
+func TestOpenExistingMakesNoDatabase(t *testing.T) {
+	t.Parallel()
+	dir := filepath.Join(t.TempDir(), "typo")
+	_, _, err := OpenExisting(t.Context(), dir)
+	require.ErrorContains(t, err, "no database")
+	assert.NoDirExists(t, dir, "a wrong data directory must not get an empty database")
 }

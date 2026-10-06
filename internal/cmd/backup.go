@@ -30,10 +30,11 @@ func keysCommand() *cli.Command {
 		Name:  "keys",
 		Usage: "Print the prefix and the signing key of every product, to keep somewhere safe",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			q, err := db.Open(ctx, cmd.String("data-dir"))
+			q, closeDB, err := db.OpenExisting(ctx, cmd.String("data-dir"))
 			if err != nil {
 				return err
 			}
+			defer closeDB()
 			products, err := q.ListProducts(ctx)
 			if err != nil {
 				return err

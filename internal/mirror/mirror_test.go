@@ -113,8 +113,9 @@ func has(t *testing.T, q *db.Queries, p *db.Product, id string) bool {
 func TestSync(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	q, err := db.Open(ctx, t.TempDir())
+	q, closeDB, err := db.Open(ctx, t.TempDir())
 	require.NoError(t, err)
+	t.Cleanup(closeDB)
 	w, url := newWorker(t)
 	p := newProduct(t, q, url+"/")
 
@@ -172,8 +173,9 @@ func TestSync(t *testing.T) {
 func TestSyncDropsWhatTheWorkerNoLongerLists(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	q, err := db.Open(ctx, t.TempDir())
+	q, closeDB, err := db.Open(ctx, t.TempDir())
 	require.NoError(t, err)
+	t.Cleanup(closeDB)
 	w, url := newWorker(t)
 	p := newProduct(t, q, url)
 
@@ -205,8 +207,9 @@ func TestSyncDropsWhatTheWorkerNoLongerLists(t *testing.T) {
 func TestSyncDeletedCustomer(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	q, err := db.Open(ctx, t.TempDir())
+	q, closeDB, err := db.Open(ctx, t.TempDir())
 	require.NoError(t, err)
+	t.Cleanup(closeDB)
 	_, url := newWorker(t)
 	p := newProduct(t, q, url)
 	stale(t, q, p, "sub_deleted", "left@acme.io")
@@ -224,8 +227,9 @@ func TestSyncDeletedCustomer(t *testing.T) {
 func TestSyncFailures(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	q, err := db.Open(ctx, t.TempDir())
+	q, closeDB, err := db.Open(ctx, t.TempDir())
 	require.NoError(t, err)
+	t.Cleanup(closeDB)
 	w, url := newWorker(t)
 	p := newProduct(t, q, url)
 	stale(t, q, p, "sub_kept", "a@x.io")
@@ -265,8 +269,9 @@ func TestSyncFailures(t *testing.T) {
 func TestSyncNoticesOtherSettings(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	q, err := db.Open(ctx, t.TempDir())
+	q, closeDB, err := db.Open(ctx, t.TempDir())
 	require.NoError(t, err)
+	t.Cleanup(closeDB)
 	w, url := newWorker(t)
 	p := newProduct(t, q, url)
 	stale(t, q, p, "sub_stale", "a@x.io")
@@ -309,8 +314,9 @@ func TestSyncNoticesOtherSettings(t *testing.T) {
 func TestSyncAfterRotation(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	q, err := db.Open(ctx, t.TempDir())
+	q, closeDB, err := db.Open(ctx, t.TempDir())
 	require.NoError(t, err)
+	t.Cleanup(closeDB)
 	w, url := newWorker(t)
 	p := newProduct(t, q, url)
 	sync := func() string {

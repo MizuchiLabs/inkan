@@ -35,10 +35,11 @@ func workerEnv(ctx context.Context, cmd *cli.Command) error {
 	if prefix == "" {
 		return errors.New("which product? pass its key prefix")
 	}
-	q, err := db.Open(ctx, cmd.String("data-dir"))
+	q, closeDB, err := db.OpenExisting(ctx, cmd.String("data-dir"))
 	if err != nil {
 		return err
 	}
+	defer closeDB()
 	p, err := q.GetProductByPrefix(ctx, prefix)
 	if errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("no product has the prefix %s", prefix)

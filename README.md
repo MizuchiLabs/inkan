@@ -221,7 +221,9 @@ inkan backup /mnt/safe/inkan.db
   key as its existing private key.
 - **Database.** `inkan backup` also works while Inkan runs. The copy holds the
   signing keys, the hand issued licenses and the notes. To restore it, stop
-  Inkan and put the copy in place of `inkan.db`.
+  Inkan and put the copy in place of `inkan.db`. Delete `inkan.db-wal` and
+  `inkan.db-shm` if they are there. They are what a crash leaves of the old
+  database and would be played back over the copy.
 - **Upgrades.** Before Inkan changes the schema on an upgrade it writes a copy
   to `inkan.db.<date>.backup` in the data directory. They are never deleted,
   clear out old ones yourself.

@@ -30,8 +30,9 @@ func TestSpecBuilds(t *testing.T) {
 
 func newTestServer(t *testing.T) (*httptest.Server, *db.Queries) {
 	t.Helper()
-	q, err := db.Open(t.Context(), t.TempDir())
+	q, closeDB, err := db.Open(t.Context(), t.TempDir())
 	require.NoError(t, err)
+	t.Cleanup(closeDB)
 	api, err := New(q, "", "")
 	require.NoError(t, err)
 	srv := httptest.NewServer(api.Handler())

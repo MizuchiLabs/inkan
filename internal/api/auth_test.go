@@ -47,8 +47,9 @@ func signIn(t *testing.T, srv *Server, password string) *httptest.ResponseRecord
 
 func TestOpenWithoutPassword(t *testing.T) {
 	t.Parallel()
-	q, err := db.Open(t.Context(), t.TempDir())
+	q, closeDB, err := db.Open(t.Context(), t.TempDir())
 	require.NoError(t, err)
+	t.Cleanup(closeDB)
 	srv, err := New(q, "", "")
 	require.NoError(t, err)
 
@@ -60,8 +61,9 @@ func TestOpenWithoutPassword(t *testing.T) {
 
 func TestSignIn(t *testing.T) {
 	t.Parallel()
-	q, err := db.Open(t.Context(), t.TempDir())
+	q, closeDB, err := db.Open(t.Context(), t.TempDir())
 	require.NoError(t, err)
+	t.Cleanup(closeDB)
 	srv := protectedServer(t, q)
 
 	assert.Equal(t, http.StatusUnauthorized, do(t, srv, http.MethodGet, "/api/licenses", "", "").Code)
@@ -107,8 +109,9 @@ func TestSignIn(t *testing.T) {
 
 func TestForgedSessions(t *testing.T) {
 	t.Parallel()
-	q, err := db.Open(t.Context(), t.TempDir())
+	q, closeDB, err := db.Open(t.Context(), t.TempDir())
 	require.NoError(t, err)
+	t.Cleanup(closeDB)
 	srv := protectedServer(t, q)
 	other, err := newAuth("another password", "")
 	require.NoError(t, err)
@@ -198,8 +201,9 @@ func TestNoPasswordTakesOnlyLocalHosts(t *testing.T) {
 
 func TestAPIToken(t *testing.T) {
 	t.Parallel()
-	q, err := db.Open(t.Context(), t.TempDir())
+	q, closeDB, err := db.Open(t.Context(), t.TempDir())
 	require.NoError(t, err)
+	t.Cleanup(closeDB)
 	const token = "0123456789abcdef0123456789abcdef"
 	srv, err := New(q, testPassword, token)
 	require.NoError(t, err)

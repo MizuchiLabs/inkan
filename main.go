@@ -71,10 +71,11 @@ func main() {
 }
 
 func run(ctx context.Context, cmd *cli.Command) error {
-	q, err := db.Open(ctx, cmd.String("data-dir"))
+	q, closeDB, err := db.Open(ctx, cmd.String("data-dir"))
 	if err != nil {
 		return err
 	}
+	defer closeDB()
 	srv, err := api.New(q, cmd.String("password"), cmd.String("api-token"))
 	if err != nil {
 		return err

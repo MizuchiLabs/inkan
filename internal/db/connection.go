@@ -27,12 +27,13 @@ const pragmas = "_txlock=immediate" +
 	"&_pragma=foreign_keys(ON)" +
 	"&_pragma=temp_store(MEMORY)"
 
-// Open connects to inkan.db inside dataDir and applies the schema. The pool
-// is closed when ctx is cancelled.
-func Open(ctx context.Context, dataDir string) (*Queries, error) {
+// Open connects to inkan.db inside dataDir and applies the schema. Run the
+// returned func before the process ends. Until then the last writes sit in the
+// journal next to inkan.db, and a copy put in its place would meet them.
+func Open(ctx context.Context, dataDir string) (*Queries, func(), error) {
 	// Owner only, the database holds the signing keys.
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
-		return nil, fmt.Errorf("creating data directory: %w", err)
+		return nil, nil, fmt.Errorf("creating data directory: %w", err)
 	}
 
 	path := filepath.Join(dataDir, "inkan.db")
@@ -45,7 +46,7 @@ func Open(ctx context.Context, dataDir string) (*Queries, error) {
 	// file is owner only by itself then, and SQLite gives its journal the same.
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
-		return nil, fmt.Errorf("opening database: %w", err)
+		return nil, nil, fmt.Errorf("opening database: %w", err)
 	}
 	if err := errors.Join(f.Chmod(0o600), f.Close()); err != nil {
 		slog.Warn("The database could not be made owner only, it holds the signing keys", "path", path, "error", err)
@@ -53,21 +54,29 @@ func Open(ctx context.Context, dataDir string) (*Queries, error) {
 
 	sqliteDB, err := sql.Open("sqlite", "file:"+filepath.ToSlash(path)+"?"+pragmas)
 	if err != nil {
-		return nil, fmt.Errorf("opening database: %w", err)
+		return nil, nil, fmt.Errorf("opening database: %w", err)
 	}
 	sqliteDB.SetMaxOpenConns(1)
 
 	if err := migrate(ctx, sqliteDB, backup); err != nil {
 		_ = sqliteDB.Close()
-		return nil, fmt.Errorf("applying schema: %w", err)
+		return nil, nil, fmt.Errorf("applying schema: %w", err)
 	}
 
-	go func() {
-		<-ctx.Done()
-		_ = sqliteDB.Close()
-	}()
+	return New(sqliteDB), func() {
+		if err := sqliteDB.Close(); err != nil {
+			slog.Warn("The database could not be closed, its journal stays next to it", "path", path, "error", err)
+		}
+	}, nil
+}
 
-	return New(sqliteDB), nil
+// OpenExisting is Open for a command that reads what inkan stored. A wrong
+// data directory is an error there, not a new empty database.
+func OpenExisting(ctx context.Context, dataDir string) (*Queries, func(), error) {
+	if _, err := os.Stat(filepath.Join(dataDir, "inkan.db")); err != nil {
+		return nil, nil, fmt.Errorf("no database in %s: %w", dataDir, err)
+	}
+	return Open(ctx, dataDir)
 }
 
 // Backup writes a copy of inkan.db inside dataDir, also while inkan runs. The
