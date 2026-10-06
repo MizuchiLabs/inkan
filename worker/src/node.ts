@@ -4,7 +4,7 @@
 //
 // The settings come from the environment, PORT is where it listens.
 
-import { createServer } from 'node:http';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 
 import { handle, missing, type Env } from './handler.ts';
 
@@ -18,7 +18,16 @@ if (unset.length > 0) {
 	process.exit(1);
 }
 
-const server = createServer(async (req, res) => {
+const server = createServer((req, res) => {
+	// A client that hangs up in the middle of its body ends up here. Left
+	// uncaught it takes the whole process down.
+	answer(req, res).catch((err) => {
+		if (!req.destroyed) console.error('the worker failed', err);
+		res.destroy();
+	});
+});
+
+async function answer(req: IncomingMessage, res: ServerResponse): Promise<void> {
 	const chunks: Buffer[] = [];
 	let size = 0;
 	for await (const chunk of req) {
@@ -51,7 +60,7 @@ const server = createServer(async (req, res) => {
 	const response = await handle(request, env);
 	res.writeHead(response.status, Object.fromEntries(response.headers));
 	res.end(Buffer.from(await response.arrayBuffer()));
-});
+}
 
 const port = Number(process.env.PORT ?? 8080);
 server.listen(port, () => console.log(`worker for ${env.INKAN_PREFIX} listening on :${port}`));
