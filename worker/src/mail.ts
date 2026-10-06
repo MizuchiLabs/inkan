@@ -1,5 +1,5 @@
 // The key mail. The worker sends it and the dashboard previews it, so this
-// file has to run in a browser too. For a mail of your own, change render.
+// file has to run in a browser too. A mail of your own goes into template.ts.
 
 import type { Claims } from './sign.ts';
 
@@ -14,11 +14,17 @@ export type Brand = {
 const defaultAccent = '#2f3e8f';
 // An https link or an email address.
 const linkable = /https:\/\/[^ \t\n\f\r<>"]+|[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
+const placeholder = /\{\{\s*(\w+)\s*\}\}/g;
 
+/**
+ * The mail for a key. A template is html with {{key}}, {{name}}, {{plan}},
+ * {{email}} and {{expires}} in it, its title is the subject.
+ */
 export function render(
 	key: string,
 	claims: Claims,
-	brand: Brand
+	brand: Brand,
+	template = ''
 ): { subject: string; text: string; html: string } {
 	const name = brand.name || claims.app;
 	const footer = brand.footer ?? '';
@@ -43,6 +49,23 @@ export function render(
 	if (footer) text += `\n${footer}\n`;
 	text += `\n--\nYou are getting this mail because a license for ${name} was paid for with this address.\n`;
 	if (company) text += `${company}\n`;
+
+	// A mail without the key is worth nothing, so such a template is not used.
+	if (/\{\{\s*key\s*\}\}/.test(template)) {
+		const values = {
+			key,
+			name,
+			plan: claims.plan,
+			email: claims.email,
+			expires: expires || 'Never'
+		};
+		const title = template.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? '';
+		return {
+			subject: oneLine(fill(unescape(title), values) || `Your ${name} license key`),
+			text,
+			html: fill(template, values, escape)
+		};
+	}
 
 	const s = shades(accent);
 	const d = {
@@ -119,7 +142,22 @@ export function render(
 </body>
 </html>
 `;
-	return { subject: `Your ${name} license key`.split(/\s+/).filter(Boolean).join(' '), text, html };
+	return { subject: oneLine(`Your ${name} license key`), text, html };
+}
+
+// One pass, so a value that holds a placeholder is not filled in again.
+function fill(
+	template: string,
+	values: Record<string, string>,
+	safe = (value: string) => value
+): string {
+	return template.replace(placeholder, (all, name) =>
+		Object.hasOwn(values, name) ? safe(values[name]) : all
+	);
+}
+
+function oneLine(value: string): string {
+	return value.split(/\s+/).filter(Boolean).join(' ');
 }
 
 // The colors the mail works out from the accent, so a pale or a dark accent
@@ -174,4 +212,15 @@ function escape(value: string): string {
 		.replaceAll('>', '&gt;')
 		.replaceAll('"', '&#34;')
 		.replaceAll("'", '&#39;');
+}
+
+function unescape(value: string): string {
+	return value
+		.replace(/&#(x?)([0-9a-f]+);/gi, (_, hex, code) =>
+			String.fromCodePoint(parseInt(code, hex ? 16 : 10))
+		)
+		.replaceAll('&lt;', '<')
+		.replaceAll('&gt;', '>')
+		.replaceAll('&quot;', '"')
+		.replaceAll('&amp;', '&');
 }

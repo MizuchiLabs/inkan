@@ -235,6 +235,30 @@ test('the mail holds the key and nothing a setting smuggles in', () => {
 	assert.equal(forever.subject, 'Your MYAPP license key', 'without a name the prefix stands in');
 });
 
+test('a template of your own is filled in', () => {
+	const claims: Claims = {
+		app: 'MYAPP',
+		plan: '<b>pro</b>',
+		email: 'a@x.io',
+		exp: 0,
+		id: '',
+		meta: {}
+	};
+	const template =
+		'<html><head><title>Dein {{name}} Schl&#xFC;ssel &amp; mehr</title></head>' +
+		'<body>{{ key }} {{plan}} {{email}} {{expires}} {{other}}</body></html>';
+	const mail = render('MYAPP-KEY', claims, { name: 'My {{key}} App' }, template);
+	assert.equal(mail.subject, 'Dein My {{key}} App Schlüssel & mehr', 'the title is the subject');
+	assert.ok(
+		mail.html.includes('<body>MYAPP-KEY &lt;b&gt;pro&lt;/b&gt; a@x.io Never {{other}}</body>'),
+		'a value cannot bring markup'
+	);
+	assert.match(mail.text, /MYAPP-KEY/);
+
+	const keyless = render('MYAPP-KEY', claims, {}, '<p>{{name}}</p>');
+	assert.ok(keyless.html.includes('MYAPP-KEY'), 'a template without the key is not used');
+});
+
 for (const c of cases) {
 	test(`license: ${c.name}`, () => {
 		const decide = () =>

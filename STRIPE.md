@@ -76,28 +76,28 @@ deployed from a clone of this repository, it shares the verifier in `sdk/ts`.
 and any host that runs Node. Then enter where the worker runs under Edit on
 the Products page. Its licenses show up on the Licenses page.
 
-| Env Var                       | Default    | Description                                     |
-| ----------------------------- | ---------- | ----------------------------------------------- |
-| `INKAN_PREFIX`                | -          | Key prefix of the product                       |
-| `INKAN_PRIVATE_KEY`           | -          | Signing key of the product                      |
-| `INKAN_OLD_PUBLIC_KEYS`       | -          | Public keys from before a rotation, to refresh  |
-| `INKAN_STRIPE_KEY`            | -          | API key that reads subscriptions and customers  |
-| `INKAN_STRIPE_PRODUCT`        | -          | Its subscriptions and purchases are licenses    |
-| `INKAN_PLAN`                  | -          | Plan for prices that set none                   |
-| `INKAN_GRACE_DAYS`            | `14`       | Days a key outlives its paid period             |
-| `INKAN_MAX_KEY_DAYS`          | `0`        | Longest life of a key in days, 0 has no limit   |
-| `INKAN_WORKER_TOKEN`          | -          | Lets the dashboard read the licenses            |
-| `INKAN_STRIPE_WEBHOOK_SECRET` | -          | Signing secret of the webhook endpoint          |
-| `INKAN_MAIL_FROM`             | -          | Sender of the key mails                         |
-| `RESEND_API_KEY`              | -          | Sends the mails through Resend                  |
-| `SCW_SECRET_KEY`              | -          | Or through Scaleway Transactional Email         |
-| `SCW_PROJECT_ID`              | -          | Project of the Scaleway key                     |
-| `SCW_REGION`                  | `fr-par`   | Region of Scaleway Transactional Email          |
-| `INKAN_PRODUCT_NAME`          | the prefix | How the key mail calls the product              |
-| `INKAN_MAIL_LOGO`             | -          | https url of a logo for the dark header         |
-| `INKAN_MAIL_ACCENT`           | `#2f3e8f`  | Color of the key mail                           |
-| `INKAN_MAIL_FOOTER`           | -          | One line under the key, like where to get help  |
-| `INKAN_MAIL_COMPANY`          | -          | Last line of the mail, your company details     |
+| Env Var                       | Default    | Description                                    |
+| ----------------------------- | ---------- | ---------------------------------------------- |
+| `INKAN_PREFIX`                | -          | Key prefix of the product                      |
+| `INKAN_PRIVATE_KEY`           | -          | Signing key of the product                     |
+| `INKAN_OLD_PUBLIC_KEYS`       | -          | Public keys from before a rotation, to refresh |
+| `INKAN_STRIPE_KEY`            | -          | API key that reads subscriptions and customers |
+| `INKAN_STRIPE_PRODUCT`        | -          | Its subscriptions and purchases are licenses   |
+| `INKAN_PLAN`                  | -          | Plan for prices that set none                  |
+| `INKAN_GRACE_DAYS`            | `14`       | Days a key outlives its paid period            |
+| `INKAN_MAX_KEY_DAYS`          | `0`        | Longest life of a key in days, 0 has no limit  |
+| `INKAN_WORKER_TOKEN`          | -          | Lets the dashboard read the licenses           |
+| `INKAN_STRIPE_WEBHOOK_SECRET` | -          | Signing secret of the webhook endpoint         |
+| `INKAN_MAIL_FROM`             | -          | Sender of the key mails                        |
+| `RESEND_API_KEY`              | -          | Sends the mails through Resend                 |
+| `SCW_SECRET_KEY`              | -          | Or through Scaleway Transactional Email        |
+| `SCW_PROJECT_ID`              | -          | Project of the Scaleway key                    |
+| `SCW_REGION`                  | `fr-par`   | Region of Scaleway Transactional Email         |
+| `INKAN_PRODUCT_NAME`          | the prefix | How the key mail calls the product             |
+| `INKAN_MAIL_LOGO`             | -          | https url of a logo for the dark header        |
+| `INKAN_MAIL_ACCENT`           | `#2f3e8f`  | Color of the key mail                          |
+| `INKAN_MAIL_FOOTER`           | -          | One line under the key, like where to get help |
+| `INKAN_MAIL_COMPANY`          | -          | Last line of the mail, your company details    |
 
 `worker env` prints what the product has. The secrets of Stripe and the mail
 service are not kept in the dashboard, they come out as comments to fill in.
@@ -138,9 +138,8 @@ clicked.
 Edit on a product has a Mail tab with a preview that follows what you type. It
 runs the very code the worker sends the mail with.
 
-For a mail of your own, change `render` in
-[`worker/src/mail.ts`](worker/src/mail.ts). The worker is your code to deploy,
-so anything that returns a subject, a text and an html body works.
+For a mail of your own, design it in [`email`](email) and build it into the
+worker. The preview keeps showing the built-in mail.
 
 ### How it behaves
 

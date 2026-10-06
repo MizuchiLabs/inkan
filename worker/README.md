@@ -85,8 +85,16 @@ HTTP API. `src/send.ts` has one small function per service. Add yours there.
 
 ## A mail of your own
 
-Change `render` in `src/mail.ts`. Anything that returns a subject, a text and
-an html body works. The Mail tab of the dashboard previews this very function.
+Put it into `src/template.ts` as html with `{{key}}`, `{{name}}`, `{{plan}}`,
+`{{email}}` and `{{expires}}` in it. The worker fills them in, and the
+`<title>` is the subject. `{{expires}}` is a date like 16 October 2096, or
+Never. A template without `{{key}}` is not used.
+
+[`email`](../email) builds that file from a React Email component, start
+there. Any other html works too.
+
+The logo, accent, footer and company settings only shape the built-in mail,
+and the Mail tab of the dashboard previews only that one.
 
 ## Tests
 

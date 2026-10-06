@@ -1,6 +1,11 @@
 {
 	"$schema": "./web/node_modules/oxfmt/configuration_schema.json",
-	"ignorePatterns": ["worker/test/*.json", "**/testdata/**", "web/src/lib/api/generated/**"],
+	"ignorePatterns": [
+		"worker/test/*.json",
+		"worker/src/template.ts",
+		"**/testdata/**",
+		"web/src/lib/api/generated/**"
+	],
 	"useTabs": true,
 	"singleQuote": true,
 	"trailingComma": "none",

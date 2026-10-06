@@ -16,6 +16,7 @@ import {
 import { render } from './mail.ts';
 import { sender, type Send, type SendEnv } from './send.ts';
 import { importPrivateKey, issue, publicKeyHex, type Claims } from './sign.ts';
+import { template } from './template.ts';
 import {
 	list,
 	NotFound,
@@ -314,13 +315,14 @@ function product(env: Env): Product {
 }
 
 function mail(env: Env, key: string, claims: Claims) {
-	return render(key, claims, {
+	const brand = {
 		name: env.INKAN_PRODUCT_NAME,
 		logo: env.INKAN_MAIL_LOGO,
 		accent: env.INKAN_MAIL_ACCENT,
 		footer: env.INKAN_MAIL_FOOTER,
 		company: env.INKAN_MAIL_COMPANY
-	});
+	};
+	return render(key, claims, brand, template);
 }
 
 // signed checks a Stripe-Signature header, t=<unix>,v1=<hex>. The signature

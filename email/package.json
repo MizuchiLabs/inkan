@@ -1,0 +1,23 @@
+{
+	"name": "inkan-email",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "email dev",
+		"build": "tsx build.ts",
+		"check": "tsc"
+	},
+	"packageManager": "pnpm@12.8.2",
+	"dependencies": {
+		"react": "19.3.0",
+		"react-dom": "19.3.0",
+		"react-email": "6.11.0"
+	},
+	"devDependencies": {
+		"@react-email/ui": "6.11.0",
+		"@types/node": "26.6.4",
+		"@types/react": "19.3.0",
+		"tsx": "4.23.15",
+		"typescript": "7.0.2"
+	}
+}
