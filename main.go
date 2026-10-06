@@ -47,6 +47,8 @@ func main() {
 				Action: openapi,
 			},
 			workerCommand(),
+			backupCommand(),
+			keysCommand(),
 		},
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
