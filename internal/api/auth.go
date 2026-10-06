@@ -214,6 +214,11 @@ func loopback(addr string) bool {
 	if err != nil {
 		return false
 	}
+	return local(host)
+}
+
+// local reports whether host names this machine.
+func local(host string) bool {
 	ip := net.ParseIP(host)
 	return host == "localhost" || (ip != nil && ip.IsLoopback())
 }

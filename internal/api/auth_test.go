@@ -27,6 +27,8 @@ func protectedServer(t *testing.T, q *db.Queries) *Server {
 func do(t *testing.T, srv *Server, method, path, body, session string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequestWithContext(t.Context(), method, path, strings.NewReader(body))
+	// httptest asks for example.com, a server without a password only answers to this machine.
+	req.Host = "localhost:3000"
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -162,6 +164,36 @@ func TestNoPasswordStaysOnThisMachine(t *testing.T) {
 	open, err := New(nil, "", "")
 	require.NoError(t, err)
 	require.ErrorContains(t, open.Start(t.Context(), ":0"), "INKAN_PASSWORD")
+}
+
+// A site that points its own name at this machine is the same origin to the
+// browser, so the cross origin check lets it through.
+func TestNoPasswordTakesOnlyLocalHosts(t *testing.T) {
+	t.Parallel()
+	ask := func(password, host string) int {
+		srv, err := New(nil, password, "")
+		require.NoError(t, err)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", nil)
+		req.Host = host
+		rec := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(rec, req)
+		return rec.Code
+	}
+
+	for host, want := range map[string]int{
+		"localhost:3000":     http.StatusOK,
+		"127.0.0.1:3000":     http.StatusOK,
+		"[::1]:3000":         http.StatusOK,
+		"localhost":          http.StatusOK,
+		"evil.example:3000":  http.StatusForbidden,
+		"evil.example":       http.StatusForbidden,
+		"localhost.evil.com": http.StatusForbidden,
+		"192.168.1.5:3000":   http.StatusForbidden,
+		"":                   http.StatusForbidden,
+	} {
+		assert.Equal(t, want, ask("", host), host)
+	}
+	assert.Equal(t, http.StatusOK, ask(testPassword, "inkan.example.com"), "a password opens it to any name")
 }
 
 func TestAPIToken(t *testing.T) {

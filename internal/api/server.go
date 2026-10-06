@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -60,7 +61,23 @@ func Spec() *huma.OpenAPI {
 
 func (s *Server) Handler() http.Handler {
 	// Other sites must not write through the browser, signed in or not.
-	return http.NewCrossOriginProtection().Handler(s.mux)
+	guarded := http.NewCrossOriginProtection().Handler(s.mux)
+	if s.auth.key != nil {
+		return guarded
+	}
+	// A site can point its own name at this machine and is the same origin
+	// then. Without a password only a local name is let in.
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !local((&url.URL{Host: r.Host}).Hostname()) {
+			http.Error(
+				w,
+				"inkan has no password and only answers to localhost, set INKAN_PASSWORD",
+				http.StatusForbidden,
+			)
+			return
+		}
+		guarded.ServeHTTP(w, r)
+	})
 }
 
 // Start serves on addr until ctx is done. Without a password it only takes
