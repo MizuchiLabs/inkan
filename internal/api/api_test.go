@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json/v2"
 	"fmt"
@@ -99,6 +100,13 @@ func TestProductKeys(t *testing.T) {
 		map[string]any{"name": "Low", "prefix": "low", "plan": "pro"}, nil), "prefixes are uppercase")
 	assert.Equal(t, http.StatusUnprocessableEntity, call(t, srv, http.MethodPost, "/api/products",
 		map[string]any{"name": "Bad", "prefix": "BAD", "plan": "pro", "private_key": "nope"}, nil))
+
+	damaged, err := base64.StdEncoding.DecodeString(stored.PrivateKey)
+	require.NoError(t, err)
+	damaged[len(damaged)-1] ^= 1
+	assert.Equal(t, http.StatusUnprocessableEntity, call(t, srv, http.MethodPost, "/api/products", map[string]any{
+		"name": "Bent", "prefix": "BENT", "plan": "pro", "private_key": base64.StdEncoding.EncodeToString(damaged),
+	}, nil), "a key whose halves do not fit would show a public key that verifies nothing")
 }
 
 // A rotation must not strand the keys that are out. The product carries the
@@ -354,4 +362,18 @@ func TestCrossSiteWritesAreRefused(t *testing.T) {
 	require.NoError(t, err)
 	_ = resp.Body.Close()
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode, "there is no login, another site must not issue keys")
+}
+
+func TestNoFrames(t *testing.T) {
+	t.Parallel()
+	srv, _ := newTestServer(t)
+
+	for _, path := range []string{"/", "/api/products"} {
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+path, nil)
+		require.NoError(t, err)
+		resp, err := srv.Client().Do(req)
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		assert.Equal(t, "DENY", resp.Header.Get("X-Frame-Options"), "%s must not load in a frame of another site", path)
+	}
 }

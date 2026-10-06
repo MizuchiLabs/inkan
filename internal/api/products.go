@@ -172,8 +172,13 @@ func (h *productHandlers) create(ctx context.Context, in *CreateProductInput) (*
 		if privateKey, _, err = license.GenerateKey(); err != nil {
 			return nil, huma.Error500InternalServerError("failed to generate a keypair")
 		}
-	} else if _, err := license.ParsePrivateKey(privateKey); err != nil {
+	} else if priv, err := license.ParsePrivateKey(privateKey); err != nil {
 		return nil, huma.Error422UnprocessableEntity(err.Error())
+	} else if !priv.Equal(ed25519.NewKeyFromSeed(priv.Seed())) {
+		// The second half is the public key of the first. A key that does not fit signs what nothing verifies.
+		return nil, huma.Error422UnprocessableEntity(
+			"the halves of the private key do not fit, it was damaged on the way",
+		)
 	}
 
 	p, err := h.q.CreateProduct(ctx, &db.CreateProductParams{

@@ -60,8 +60,13 @@ func Spec() *huma.OpenAPI {
 }
 
 func (s *Server) Handler() http.Handler {
+	// Another site must not show inkan in a frame and steer the clicks.
+	unframed := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Frame-Options", "DENY")
+		s.mux.ServeHTTP(w, r)
+	})
 	// Other sites must not write through the browser, signed in or not.
-	guarded := http.NewCrossOriginProtection().Handler(s.mux)
+	guarded := http.NewCrossOriginProtection().Handler(unframed)
 	if s.auth.key != nil {
 		return guarded
 	}
