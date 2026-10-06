@@ -14,7 +14,7 @@
 	import { Spinner } from '#lib/components/ui/spinner/index.js';
 	import { Textarea } from '#lib/components/ui/textarea/index.js';
 	import * as ToggleGroup from '#lib/components/ui/toggle-group/index.js';
-	import { formatMeta, parseMeta } from '#lib/license.js';
+	import { formatMeta, localDay, parseMeta } from '#lib/license.js';
 	import { toast } from 'svelte-sonner';
 
 	type Props = {
@@ -47,7 +47,7 @@
 			customer: license?.customer ?? '',
 			plan: license?.plan ?? '',
 			term: license ? (license.expires_at ? 'date' : 'never') : '365',
-			date: license?.expires_at?.slice(0, 10) ?? '',
+			date: license?.expires_at ? localDay(license.expires_at) : '',
 			meta: formatMeta(license?.meta ?? {}),
 			note: license?.note ?? ''
 		};
@@ -58,8 +58,14 @@
 
 	function expiresAt(): string | undefined {
 		if (form.term === 'never') return undefined;
-		// A picked day counts in full, the key runs out when that day ends.
-		if (form.term === 'date') return new Date(`${form.date}T23:59:59`).toISOString();
+		if (form.term === 'date') {
+			// An expiry nobody touched goes back as it came, a new time would be a new key.
+			if (license?.expires_at && form.date === localDay(license.expires_at)) {
+				return license.expires_at;
+			}
+			// A picked day counts in full, the key runs out when that day ends.
+			return new Date(`${form.date}T23:59:59`).toISOString();
+		}
 		return new Date(Date.now() + Number(form.term) * 86_400_000).toISOString();
 	}
 

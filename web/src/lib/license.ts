@@ -48,6 +48,13 @@ export function formatDate(iso: string): string {
 	return dateFormat.format(new Date(iso));
 }
 
+// The day a time falls on here, the way a date input wants it.
+export function localDay(iso: string): string {
+	const at = new Date(iso);
+	const two = (n: number) => String(n).padStart(2, '0');
+	return `${at.getFullYear()}-${two(at.getMonth() + 1)}-${two(at.getDate())}`;
+}
+
 // "in 12 days", "3 months ago", in the coarsest unit that still says something.
 export function formatRelative(iso: string, now = Date.now()): string {
 	const days = Math.round((new Date(iso).getTime() - now) / DAY);
