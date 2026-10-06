@@ -1,5 +1,6 @@
 [project]
-name = "inkan"
+# inkan is taken on PyPI.
+name = "inkan-license"
 version = "0.1.0"
 description = "Verify inkan license keys offline"
 license = "Apache-2.0"

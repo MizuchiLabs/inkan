@@ -3,8 +3,11 @@
 Verifies [inkan](https://github.com/MizuchiLabs/inkan) license keys offline.
 One file, its only dependency is `cryptography`.
 
+It is not on PyPI yet, and `inkan` there is another project. Copy
+[`inkan.py`](inkan.py) into your app and install its one dependency.
+
 ```sh
-pip install inkan
+pip install cryptography
 ```
 
 ```python

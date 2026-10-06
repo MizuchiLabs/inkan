@@ -4,12 +4,11 @@ Verifies [inkan](https://github.com/MizuchiLabs/inkan) license keys offline.
 No dependencies, it uses WebCrypto. Works in Node 20+, Bun, Deno, Electron,
 Tauri and Cloudflare Workers.
 
-```sh
-pnpm add @mizuchilabs/inkan
-```
+It is not on npm yet. Copy [`src/index.ts`](src/index.ts) into your app as
+`inkan.ts`, it is one file.
 
 ```ts
-import { LicenseError, refresh, verify } from "@mizuchilabs/inkan";
+import { LicenseError, refresh, verify } from "./inkan.ts";
 
 // The hex key from the Products page of inkan.
 const publicKey = "03a107bf…";
