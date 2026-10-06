@@ -37,9 +37,8 @@ var (
 	ErrExpired        = errors.New("license has expired")
 	ErrAppMismatch    = errors.New("license issued for a different application")
 	ErrNoKey          = errors.New("no license key set")
+	ErrNoPublicKey    = errors.New("no license public key")
 )
-
-var pubkey string
 
 type Claims struct {
 	Version   int    `json:"v"`
@@ -120,35 +119,41 @@ func chunkKey(encoded string) string {
 	return b.String()
 }
 
-// Verify extracts and validates claims against a public key.
+// Verify extracts and validates claims against the public key of the app.
 //
 // app must match the signed Claims.App exactly (case-sensitive), and the
 // key must carry the matching uppercase prefix, e.g. a key issued with
-// Issue("myapp", ...) verifies with Verify(key, "myapp").
+// Issue("myapp", ...) verifies with Verify(key, "myapp", publicKeys).
 //
 // An expired key returns the parsed claims alongside ErrExpired, so
 // callers can show plan or email details in expiry messages.
 //
 // Whitespace anywhere in rawKey and quotes around it are ignored, see [Clean].
 //
-// The public key is injected at build time via ldflags:
+// publicKeys is the hex public key of the app. It is no secret and can live
+// in the code:
 //
-//	-X github.com/mizuchilabs/inkan/license.pubkey=<hex>
+//	const publicKey = "03a107bf..."
 //
-// or at runtime with SetPublicKey. Several comma-separated keys may be
-// given, a license signed by any of them verifies. That is how a signing
-// key is rotated: ship the new key next to the old one, then drop the old
-// one once its licenses have run out.
-func Verify(rawKey, app string) (*Claims, error) {
-	pubs, err := decodePubKeys(pubkey)
+// An app whose source is open can leave it out there, so that only its own
+// builds take keys, and set a variable at build time instead:
+//
+//	var publicKey string // go build -ldflags "-X main.publicKey=<hex>"
+//
+// Without a public key the error is [ErrNoPublicKey]. Several
+// comma-separated keys may be given, a license signed by any of them
+// verifies. That is how a signing key is rotated: ship the new key next to
+// the old one, then drop the old one once its licenses have run out.
+func Verify(rawKey, app, publicKeys string) (*Claims, error) {
+	pubs, err := decodePubKeys(publicKeys)
 	if err != nil {
 		return nil, err
 	}
 	return VerifyWith(rawKey, app, pubs...)
 }
 
-// VerifyWith is Verify against the given public keys instead of the
-// injected ones, for issuers that hold the keys of several apps.
+// VerifyWith is Verify against public keys that are already decoded, for
+// issuers that hold the keys of several apps.
 func VerifyWith(rawKey, app string, pubs ...ed25519.PublicKey) (*Claims, error) {
 	prefix := strings.ToUpper(app) + "-"
 
@@ -201,36 +206,12 @@ func Clean(rawKey string) string {
 	return strings.Trim(strings.Join(strings.Fields(rawKey), ""), `"'`)
 }
 
-// SetPublicKey sets the verification keys at runtime, for tests and
-// embedders that do not use ldflags. Keys are hex-encoded and
-// comma-separated, the same format the ldflags-injected pubkey var
-// expects. An empty string clears them.
-func SetPublicKey(pubHex string) error {
-	pubHex = strings.TrimSpace(pubHex)
-	if pubHex != "" {
-		if _, err := decodePubKeys(pubHex); err != nil {
-			return err
-		}
-	}
-	pubkey = pubHex
-	return nil
-}
-
-// HasPublicKey reports whether this build can verify keys at all. It is false
-// when no public key came in through ldflags or SetPublicKey, as in a build
-// someone compiled from source. No key verifies there, an app can use this to
-// show such a build for what it is.
-func HasPublicKey() bool {
-	_, err := decodePubKeys(pubkey)
-	return err == nil
-}
-
 // One malformed entry rejects the whole list, a typo must not silently
 // drop a key.
 func decodePubKeys(pubHex string) ([]ed25519.PublicKey, error) {
 	pubHex = strings.TrimSpace(pubHex)
 	if pubHex == "" {
-		return nil, errors.New("no license public key injected")
+		return nil, ErrNoPublicKey
 	}
 	var pubs []ed25519.PublicKey
 	for part := range strings.SplitSeq(pubHex, ",") {

@@ -28,12 +28,12 @@ func issueFor(t *testing.T, priv ed25519.PrivateKey, plan string, valid time.Dur
 }
 
 func TestKeeperSet(t *testing.T) {
-	_, priv := testKeypair(t)
+	pub, priv := testKeypair(t)
 	pro := issueFor(t, priv, "pro", time.Hour)
 	team := issueFor(t, priv, "team", time.Hour)
 	expired := issueFor(t, priv, "pro", -time.Hour)
 
-	k := NewKeeper("myapp")
+	k := NewKeeper("myapp", pub)
 	if c, err := k.Claims(); c != nil || !errors.Is(err, ErrNoKey) || k.Key() != "" || k.Valid() {
 		t.Fatalf("an empty keeper must say so: %+v, %v, %q", c, err, k.Key())
 	}
@@ -62,13 +62,24 @@ func TestKeeperSet(t *testing.T) {
 	}
 }
 
-func TestKeeperClaimsAreACopy(t *testing.T) {
+func TestKeeperWithoutAPublicKey(t *testing.T) {
 	_, priv := testKeypair(t)
+	k := NewKeeper("myapp", "")
+	if _, err := k.Set(issueFor(t, priv, "pro", time.Hour)); !errors.Is(err, ErrNoPublicKey) {
+		t.Fatalf("got %v, want ErrNoPublicKey", err)
+	}
+	if k.Valid() || k.Key() != "" {
+		t.Fatal("a keeper that cannot verify must hold nothing")
+	}
+}
+
+func TestKeeperClaimsAreACopy(t *testing.T) {
+	pub, priv := testKeypair(t)
 	key, err := Issue("myapp", Claims{Plan: "pro", Meta: map[string]string{"seats": "5"}}, priv)
 	if err != nil {
 		t.Fatal(err)
 	}
-	k := NewKeeper("myapp")
+	k := NewKeeper("myapp", pub)
 	c, err := k.Set(key)
 	if err != nil {
 		t.Fatal(err)
@@ -82,8 +93,8 @@ func TestKeeperClaimsAreACopy(t *testing.T) {
 
 func TestKeeperNoticesExpiryWhileRunning(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		_, priv := testKeypair(t)
-		k := NewKeeper("myapp")
+		pub, priv := testKeypair(t)
+		k := NewKeeper("myapp", pub)
 		if _, err := k.Set(issueFor(t, priv, "pro", time.Hour)); err != nil {
 			t.Fatal(err)
 		}
@@ -104,7 +115,7 @@ func TestKeeperNoticesExpiryWhileRunning(t *testing.T) {
 
 func TestKeeperRenew(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		_, priv := testKeypair(t)
+		pub, priv := testKeypair(t)
 		old := issueFor(t, priv, "pro", -time.Hour)
 		renewed := issueFor(t, priv, "pro", 30*24*time.Hour)
 
@@ -123,17 +134,20 @@ func TestKeeperRenew(t *testing.T) {
 		})
 		t.Cleanup(func() { refreshClient.Transport = nil })
 
-		k := NewKeeper("myapp")
+		k := NewKeeper("myapp", pub)
 		if _, err := k.Set(old); !errors.Is(err, ErrExpired) {
 			t.Fatalf("the old key: got %v", err)
 		}
 
-		var saved []string
+		var saved, failed []string
 		ctx, cancel := context.WithCancel(t.Context())
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
-			k.Renew(ctx, "https://keys.example.com/refresh", func(key string) { saved = append(saved, key) })
+			k.Renew(ctx, "https://keys.example.com/refresh",
+				func(key string) { saved = append(saved, key) },
+				func(err error) { failed = append(failed, err.Error()) },
+			)
 		}()
 		time.Sleep(25 * time.Hour)
 		cancel()
@@ -148,8 +162,53 @@ func TestKeeperRenew(t *testing.T) {
 		if !slices.Equal(saved, []string{renewed}) {
 			t.Fatalf("saved %q, want the new key once", saved)
 		}
+		if len(failed) != 1 || !strings.Contains(failed[0], "no route to host") {
+			t.Fatalf("failed got %q, want the one try that did not get through", failed)
+		}
 		if c, err := k.Claims(); err != nil || k.Key() != renewed {
 			t.Fatalf("the new key must be held: %+v, %v", c, err)
+		}
+	})
+}
+
+// The waits after a failed try grow. A try that works has to bring them back
+// down, or one bad night makes every later hiccup cost hours.
+func TestKeeperRenewStartsOverAfterASuccess(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		pub, priv := testKeypair(t)
+		held := issueFor(t, priv, "pro", 30*24*time.Hour)
+
+		// Down for two tries, back for one, down for one more.
+		down := map[int]bool{1: true, 2: true, 4: true}
+		start := time.Now()
+		var asked []time.Duration
+		refreshClient.Transport = roundTrip(func(*http.Request) (*http.Response, error) {
+			asked = append(asked, time.Since(start))
+			if down[len(asked)] {
+				return nil, errors.New("no route to host")
+			}
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(held))}, nil
+		})
+		t.Cleanup(func() { refreshClient.Transport = nil })
+
+		k := NewKeeper("myapp", pub)
+		if _, err := k.Set(held); err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			k.Renew(ctx, "https://keys.example.com/refresh", nil, nil)
+		}()
+		time.Sleep(25 * time.Hour)
+		cancel()
+		<-done
+
+		day := 24 * time.Hour
+		want := []time.Duration{0, time.Minute, 3 * time.Minute, day + 3*time.Minute, day + 4*time.Minute}
+		if !slices.Equal(asked, want) {
+			t.Fatalf("asked at %v, want %v", asked, want)
 		}
 	})
 }
@@ -166,7 +225,7 @@ func TestKeeperRenewWithoutAKey(t *testing.T) {
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
-			NewKeeper("myapp").Renew(ctx, "https://keys.example.com/refresh", nil)
+			NewKeeper("myapp", "").Renew(ctx, "https://keys.example.com/refresh", nil, nil)
 		}()
 		time.Sleep(49 * time.Hour)
 		cancel()

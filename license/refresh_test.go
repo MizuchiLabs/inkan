@@ -12,7 +12,7 @@ import (
 )
 
 func TestRefresh(t *testing.T) {
-	_, priv := testKeypair(t)
+	pub, priv := testKeypair(t)
 	_, stranger, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatal(err)
@@ -58,7 +58,7 @@ func TestRefresh(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			got, err := Refresh(t.Context(), srv.URL, " "+old+"\n", "myapp")
+			got, err := Refresh(t.Context(), srv.URL, " "+old+"\n", "myapp", pub)
 			if got != tt.want {
 				t.Fatalf("got key %q, want %q", got, tt.want)
 			}
@@ -73,7 +73,7 @@ func TestRefresh(t *testing.T) {
 
 	srv := httptest.NewServer(http.NotFoundHandler())
 	srv.Close()
-	if got, err := Refresh(t.Context(), srv.URL, old, "myapp"); err == nil || got != "" {
+	if got, err := Refresh(t.Context(), srv.URL, old, "myapp", pub); err == nil || got != "" {
 		t.Fatalf("an unreachable worker must be an error, got %q, %v", got, err)
 	}
 }

@@ -13,7 +13,8 @@ import (
 var refreshClient = &http.Client{Timeout: 15 * time.Second}
 
 // Refresh asks a worker for the key a license is owed now. endpoint is the
-// refresh URL of the worker, e.g. https://keys.example.com/refresh.
+// refresh URL of the worker, e.g. https://keys.example.com/refresh. app and
+// publicKeys are the ones [Verify] takes.
 //
 // After a renewal the result is a new key with a later expiry. If nothing new
 // was paid it is the same key again, and a hand issued key always comes back
@@ -23,7 +24,7 @@ var refreshClient = &http.Client{Timeout: 15 * time.Second}
 //
 // On an error the app keeps the key it has. That key works offline until it
 // expires, a failed refresh takes nothing away.
-func Refresh(ctx context.Context, endpoint, rawKey, app string) (string, error) {
+func Refresh(ctx context.Context, endpoint, rawKey, app, publicKeys string) (string, error) {
 	body := strings.NewReader(Clean(rawKey))
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, body)
 	if err != nil {
@@ -45,7 +46,7 @@ func Refresh(ctx context.Context, endpoint, rawKey, app string) (string, error) 
 		return "", fmt.Errorf("refreshing license: %s: %s", resp.Status, answer[:min(len(answer), 200)])
 	}
 
-	if _, err := Verify(answer, app); err != nil && !errors.Is(err, ErrExpired) {
+	if _, err := Verify(answer, app, publicKeys); err != nil && !errors.Is(err, ErrExpired) {
 		return "", fmt.Errorf("refreshing license: the answer is not a key of this app: %w", err)
 	}
 	return Clean(answer), nil

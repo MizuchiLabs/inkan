@@ -11,9 +11,7 @@ import (
 //
 // privateB64 is the base64 64-byte private key (seed + public key), the
 // format the issuing side stores. pubHex is the hex-encoded 32-byte public
-// key, the format injected into verifiers via ldflags:
-//
-//	-X github.com/mizuchilabs/inkan/license.pubkey=<hex>
+// key, the format [Verify] takes.
 func GenerateKey() (privateB64, pubHex string, err error) {
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {

@@ -12,19 +12,18 @@ import (
 	"time"
 )
 
-func testKeypair(t *testing.T) (ed25519.PublicKey, ed25519.PrivateKey) {
+// testKeypair returns the public key the way an app carries it, as hex.
+func testKeypair(t *testing.T) (string, ed25519.PrivateKey) {
 	t.Helper()
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	pubkey = hex.EncodeToString(pub)
-	t.Cleanup(func() { pubkey = "" })
-	return pub, priv
+	return hex.EncodeToString(pub), priv
 }
 
 func TestIssueVerifyRoundtrip(t *testing.T) {
-	_, priv := testKeypair(t)
+	pub, priv := testKeypair(t)
 
 	key, err := Issue("myapp", Claims{Plan: "pro", Email: "a@b.c"}, priv)
 	if err != nil {
@@ -34,7 +33,7 @@ func TestIssueVerifyRoundtrip(t *testing.T) {
 		t.Fatalf("prefix missing: %s", key)
 	}
 
-	c, err := Verify(key, "myapp")
+	c, err := Verify(key, "myapp", pub)
 	if err != nil {
 		t.Fatalf("verify: %v", err)
 	}
@@ -44,14 +43,14 @@ func TestIssueVerifyRoundtrip(t *testing.T) {
 }
 
 func TestIssueIDAndMeta(t *testing.T) {
-	_, priv := testKeypair(t)
+	pub, priv := testKeypair(t)
 
 	claims := Claims{Plan: "pro", ID: "sub_123", Meta: map[string]string{"seats": "25", "org": "Acme"}}
 	key, err := Issue("myapp", claims, priv)
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, err := Verify(key, "myapp")
+	c, err := Verify(key, "myapp", pub)
 	if err != nil {
 		t.Fatalf("verify: %v", err)
 	}
@@ -83,29 +82,17 @@ func TestClaimsWithoutOptionalsKeepLegacyBytes(t *testing.T) {
 }
 
 func TestVerifyKeyList(t *testing.T) {
-	oldPub, oldPriv, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	newPub, newPriv, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, otherPriv, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { pubkey = "" })
+	oldPub, oldPriv := testKeypair(t)
+	newPub, newPriv := testKeypair(t)
+	_, otherPriv := testKeypair(t)
+	list := newPub + ", " + oldPub
 
-	if err := SetPublicKey(hex.EncodeToString(newPub) + ", " + hex.EncodeToString(oldPub)); err != nil {
-		t.Fatalf("key list rejected: %v", err)
-	}
 	for name, priv := range map[string]ed25519.PrivateKey{"old": oldPriv, "new": newPriv} {
 		key, err := Issue("myapp", Claims{Plan: "pro"}, priv)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := Verify(key, "myapp"); err != nil {
+		if _, err := Verify(key, "myapp", list); err != nil {
 			t.Fatalf("%s key must verify against the list: %v", name, err)
 		}
 	}
@@ -114,12 +101,33 @@ func TestVerifyKeyList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Verify(key, "myapp"); !errors.Is(err, ErrInvalidSig) {
+	if _, err := Verify(key, "myapp", list); !errors.Is(err, ErrInvalidSig) {
 		t.Fatalf("key outside the list: got %v", err)
 	}
+}
 
-	if err := SetPublicKey(hex.EncodeToString(newPub) + ",zzzz"); err == nil {
-		t.Fatal("one malformed entry should reject the whole list")
+// A build without a public key, or with a broken one, takes no key at all.
+func TestVerifyWithoutAPublicKey(t *testing.T) {
+	pub, priv := testKeypair(t)
+	key, err := Issue("myapp", Claims{Plan: "pro"}, priv)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, none := range []string{"", "  "} {
+		if _, err := Verify(key, "myapp", none); !errors.Is(err, ErrNoPublicKey) {
+			t.Fatalf("public key %q: got %v, want ErrNoPublicKey", none, err)
+		}
+	}
+	for name, broken := range map[string]string{
+		"not hex":            "zzzz",
+		"too short":          "ab12",
+		"one bad in a list":  pub + ",zzzz",
+		"an empty list part": pub + ",",
+	} {
+		if _, err := Verify(key, "myapp", broken); err == nil || errors.Is(err, ErrNoPublicKey) {
+			t.Fatalf("%s: got %v, want an error about the public key", name, err)
+		}
 	}
 }
 
@@ -137,7 +145,6 @@ func TestVerifyWith(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// No injected key is set, the given one alone decides.
 	if _, err := VerifyWith(key, "myapp", pub); err != nil {
 		t.Fatalf("given key must verify: %v", err)
 	}
@@ -150,14 +157,14 @@ func TestVerifyWith(t *testing.T) {
 }
 
 func TestIssueStampsAppAndVersion(t *testing.T) {
-	_, priv := testKeypair(t)
+	pub, priv := testKeypair(t)
 
 	key, err := Issue("myapp", Claims{App: "otherapp", Plan: "pro"}, priv)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Issue must overwrite caller-supplied App so the key verifies.
-	if _, err := Verify(key, "myapp"); err != nil {
+	if _, err := Verify(key, "myapp", pub); err != nil {
 		t.Fatalf("stamped App ignored: %v", err)
 	}
 }
@@ -170,30 +177,30 @@ func TestIssueEmptyApp(t *testing.T) {
 }
 
 func TestVerifyAppBinding(t *testing.T) {
-	_, priv := testKeypair(t)
+	pub, priv := testKeypair(t)
 
 	key, err := Issue("myapp", Claims{Plan: "pro"}, priv)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := Verify(key, "otherapp"); !errors.Is(err, ErrInvalidFormat) {
+	if _, err := Verify(key, "otherapp", pub); !errors.Is(err, ErrInvalidFormat) {
 		t.Fatalf("different app prefix: got %v", err)
 	}
-	if _, err := Verify(key, "MYAPP"); !errors.Is(err, ErrAppMismatch) {
+	if _, err := Verify(key, "MYAPP", pub); !errors.Is(err, ErrAppMismatch) {
 		t.Fatalf("casing must matter: got %v", err)
 	}
 }
 
 func TestVerifyExpiry(t *testing.T) {
-	_, priv := testKeypair(t)
+	pub, priv := testKeypair(t)
 
 	past := time.Now().UTC().Add(-time.Hour).Unix()
 	key, err := Issue("myapp", Claims{Plan: "pro", ExpiresAt: past}, priv)
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, err := Verify(key, "myapp")
+	c, err := Verify(key, "myapp", pub)
 	if !errors.Is(err, ErrExpired) {
 		t.Fatalf("expired key: got %v", err)
 	}
@@ -206,14 +213,14 @@ func TestVerifyExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Verify(key, "myapp"); err != nil {
+	if _, err := Verify(key, "myapp", pub); err != nil {
 		t.Fatalf("unexpired key: %v", err)
 	}
 }
 
 // Keys travel by mail and through env files, and come out wrapped or quoted.
 func TestVerifyMangledKey(t *testing.T) {
-	_, priv := testKeypair(t)
+	pub, priv := testKeypair(t)
 	key, err := Issue("myapp", Claims{Plan: "pro", Email: "ops@acme.io", ID: "sub_123"}, priv)
 	if err != nil {
 		t.Fatal(err)
@@ -225,7 +232,7 @@ func TestVerifyMangledKey(t *testing.T) {
 		"single quoted":            " '" + key + "'\n",
 		"tabs and no-break spaces": "\t" + key[:20] + "\u00a0" + key[20:],
 	} {
-		if _, err := Verify(mangled, "myapp"); err != nil {
+		if _, err := Verify(mangled, "myapp", pub); err != nil {
 			t.Errorf("%s: %v", name, err)
 		}
 		if got := Clean(mangled); got != key {
@@ -233,7 +240,7 @@ func TestVerifyMangledKey(t *testing.T) {
 		}
 	}
 
-	if _, err := Verify(key[:40]+"x"+key[40:], "myapp"); err == nil {
+	if _, err := Verify(key[:40]+"x"+key[40:], "myapp", pub); err == nil {
 		t.Fatal("an extra character inside the key must not verify")
 	}
 }
@@ -247,14 +254,13 @@ func TestParsePrivateKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	pubkey = hex.EncodeToString([]byte(priv.Public().(ed25519.PublicKey)))
-	defer func() { pubkey = "" }()
+	pub := hex.EncodeToString([]byte(priv.Public().(ed25519.PublicKey)))
 
 	key, err := Issue("myapp", Claims{Plan: "pro"}, priv)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Verify(key, "myapp"); err != nil {
+	if _, err := Verify(key, "myapp", pub); err != nil {
 		t.Fatalf("parsed key must sign valid keys: %v", err)
 	}
 
@@ -266,39 +272,8 @@ func TestParsePrivateKey(t *testing.T) {
 	}
 }
 
-func TestSetPublicKey(t *testing.T) {
-	pub, priv, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	old := pubkey
-	defer func() { pubkey = old }()
-
-	pubkey = ""
-	if err := SetPublicKey("zzzz"); err == nil {
-		t.Fatal("malformed hex should error")
-	}
-	if err := SetPublicKey(""); err != nil {
-		t.Fatalf("empty string clears the key: %v", err)
-	}
-	if HasPublicKey() {
-		t.Fatal("key should be cleared")
-	}
-	if err := SetPublicKey(hex.EncodeToString(pub)); err != nil {
-		t.Fatalf("valid key rejected: %v", err)
-	}
-
-	key, err := Issue("myapp", Claims{Plan: "pro"}, priv)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := Verify(key, "myapp"); err != nil {
-		t.Fatalf("runtime-set key must verify: %v", err)
-	}
-}
-
 func TestVerifyTampered(t *testing.T) {
-	_, priv := testKeypair(t)
+	pub, priv := testKeypair(t)
 
 	key, err := Issue("myapp", Claims{Plan: "pro"}, priv)
 	if err != nil {
@@ -313,48 +288,13 @@ func TestVerifyTampered(t *testing.T) {
 	raw[len(raw)-1] ^= 0x01
 
 	tampered := "MYAPP-" + chunkKey(base64.RawStdEncoding.EncodeToString(raw))
-	if _, err := Verify(tampered, "myapp"); !errors.Is(err, ErrInvalidSig) {
+	if _, err := Verify(tampered, "myapp", pub); !errors.Is(err, ErrInvalidSig) {
 		t.Fatalf("tampered key: got %v", err)
 	}
 }
 
-func TestHasPublicKey(t *testing.T) {
-	old := pubkey
-	defer func() { pubkey = old }()
-
-	pubkey = ""
-	if HasPublicKey() {
-		t.Fatal("empty key should report false")
-	}
-	pubkey = "ab12"
-	if HasPublicKey() {
-		t.Fatal("malformed key should report false")
-	}
-	pubkey = strings.Repeat("ab", ed25519.PublicKeySize)
-	if !HasPublicKey() {
-		t.Fatal("valid key should report true")
-	}
-}
-
-func TestVerifyNoPubKeyInjected(t *testing.T) {
-	_, priv, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pubkey = ""
-	defer func() { pubkey = "" }()
-
-	key, err := Issue("myapp", Claims{Plan: "pro"}, priv)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := Verify(key, "myapp"); err == nil {
-		t.Fatal("missing public key should error, not panic")
-	}
-}
-
 func TestVerifyWrongWireVersion(t *testing.T) {
-	_, priv := testKeypair(t)
+	pub, priv := testKeypair(t)
 
 	key, err := Issue("myapp", Claims{Plan: "pro"}, priv)
 	if err != nil {
@@ -369,7 +309,7 @@ func TestVerifyWrongWireVersion(t *testing.T) {
 	raw[0] = wireVersion + 1
 
 	bumped := "MYAPP-" + chunkKey(base64.RawStdEncoding.EncodeToString(raw))
-	if _, err := Verify(bumped, "myapp"); !errors.Is(err, ErrInvalidFormat) {
+	if _, err := Verify(bumped, "myapp", pub); !errors.Is(err, ErrInvalidFormat) {
 		t.Fatalf("wrong wire version: got %v", err)
 	}
 }
