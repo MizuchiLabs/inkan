@@ -84,7 +84,9 @@ func (k *Keeper) Key() string {
 }
 
 // Renew keeps the held key current until ctx is done. It asks the worker at
-// endpoint with [Refresh], right away and then once a day. A failed try is
+// endpoint with [Refresh], right away and then once a day. A key that runs
+// out sooner is asked about again at half of the time it has left, so a
+// worker that hands out short keys is asked before they end. A failed try is
 // repeated after a minute, then after two, and so on up to a day.
 //
 // save gets every new key, so the app can store it and start with it next
@@ -94,14 +96,13 @@ func (k *Keeper) Key() string {
 // failed gets the error of every try that did not work, for the app to log.
 // It may be nil. The held key stays as it is either way.
 func (k *Keeper) Renew(ctx context.Context, endpoint string, save func(key string), failed func(err error)) {
-	wait, retry := time.Duration(0), time.Minute
+	wait, failures := time.Duration(0), 0
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-time.After(wait):
 		}
-		wait = refreshEvery
 
 		old := k.Key()
 		if old == "" {
@@ -114,14 +115,15 @@ func (k *Keeper) Renew(ctx context.Context, endpoint string, save func(key strin
 			return
 		}
 		if err != nil {
+			failures++
 			if failed != nil {
 				failed(err)
 			}
-			wait, retry = retry, min(2*retry, refreshEvery)
+			wait = renewWait(0, time.Now(), failures)
 			continue
 		}
 		// The next outage starts with short waits again.
-		retry = time.Minute
+		failures = 0
 		if key != old {
 			// Refresh has verified the key, Set cannot turn it down.
 			_, _ = k.Set(key)
@@ -129,5 +131,25 @@ func (k *Keeper) Renew(ctx context.Context, endpoint string, save func(key strin
 				save(key)
 			}
 		}
+		wait = renewWait(k.held.Load().claims.ExpiresAt, time.Now(), 0)
 	}
+}
+
+// renewWait is how long Renew waits before its next try. exp is the expiry of
+// the held key, failures counts the tries in a row that did not work. The
+// rule is in FORMAT.md and pinned by the test vectors, the keepers of the
+// other languages follow the same one.
+func renewWait(exp int64, now time.Time, failures int) time.Duration {
+	if failures > 0 {
+		// A minute, then two, then four. Past eleven doublings it is a day anyway.
+		return min(time.Minute<<min(failures-1, 11), refreshEvery)
+	}
+	left := time.Unix(exp, 0).Sub(now)
+	if exp == 0 || left <= 0 {
+		return refreshEvery
+	}
+	// A worker that cuts keys short has the next one ready for the second half
+	// of a key's life. Never under a minute, or the end of a key that nobody
+	// renews is asked about in a tight loop.
+	return min(refreshEvery, max(left/2, time.Minute))
 }

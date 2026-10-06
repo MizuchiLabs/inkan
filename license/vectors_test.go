@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 var update = flag.Bool("update", false, "rewrite testdata/vectors.json")
@@ -24,6 +25,7 @@ type vectors struct {
 	Now       int64          `json:"now"`
 	Verify    []verifyVector `json:"verify"`
 	Sign      []signVector   `json:"sign"`
+	Renew     []renewVector  `json:"renew"`
 }
 
 type verifyVector struct {
@@ -40,6 +42,14 @@ type signVector struct {
 	Claims  Claims `json:"claims"`
 	Payload string `json:"payload"`
 	Key     string `json:"key"`
+}
+
+// renewVector is one case of when a keeper refreshes next, in seconds.
+type renewVector struct {
+	Name     string `json:"name"`
+	Exp      int64  `json:"exp"`
+	Failures int    `json:"failures"`
+	Wait     int64  `json:"wait"`
 }
 
 const (
@@ -151,6 +161,29 @@ func buildVectors(t *testing.T) vectors {
 		payload := string(data[1 : len(data)-ed25519.SignatureSize])
 		v.Sign = append(v.Sign, signVector{c.name, c.app, claims, payload, key})
 	}
+
+	const hour, day = 3600, 86400
+	for _, c := range []struct {
+		name     string
+		exp      int64
+		failures int
+	}{
+		{"a long key is asked about once a day", vectorsNow + 30*day, 0},
+		{"a key that never expires too", 0, 0},
+		{"two days left are still a day", vectorsNow + 2*day, 0},
+		{"a short key at half of what it has left", vectorsNow + 16*hour, 0},
+		{"two minutes left are one", vectorsNow + 120, 0},
+		{"never under a minute", vectorsNow + 30, 0},
+		{"an expired key once a day again", vectorsNow - hour, 0},
+		{"a minute after the first failed try", vectorsNow + 30*day, 1},
+		{"twice as long after every further one", vectorsNow + 30*day, 4},
+		{"a failed try does not look at the key", vectorsNow + 30, 2},
+		{"up to a day", vectorsNow + 30*day, 12},
+		{"and no longer", vectorsNow + 30*day, 500},
+	} {
+		wait := renewWait(c.exp, time.Unix(vectorsNow, 0), c.failures)
+		v.Renew = append(v.Renew, renewVector{c.name, c.exp, c.failures, int64(wait / time.Second)})
+	}
 	return v
 }
 
@@ -201,6 +234,12 @@ func TestVectors(t *testing.T) {
 	for _, want := range []string{"valid", "expired", "signature", "app", "version", "format"} {
 		if !results[want] {
 			t.Errorf("no vector ends as %s", want)
+		}
+	}
+	for _, c := range v.Renew {
+		got := renewWait(c.Exp, time.Unix(v.Now, 0), c.Failures)
+		if got != time.Duration(c.Wait)*time.Second {
+			t.Errorf("renew, %s: got %s, want %d seconds", c.Name, got, c.Wait)
 		}
 	}
 }

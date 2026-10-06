@@ -297,5 +297,79 @@
       "payload": "{\"v\":1,\"app\":\"myapp\",\"plan\":\"pro\",\"email\":\"ops@acme.io\",\"exp\":4102444800,\"id\":\"sub_123\"}",
       "key": "MYAPP-AXsid-iI6MS-wiYXB-wIjoi-bXlhc-HAiLC-JwbGF-uIjoi-cHJvI-iwiZW-1haWw-iOiJv-cHNAY-WNtZS-5pbyI-sImV4-cCI6N-DEwMj-Q0NDg-wMCwi-aWQiO-iJzdW-JfMTI-zIn32-ogdjV-fa/RM-h4c9m-NzK5V-AcJWG-mJXlE-M+ak3-40v8E-C6ZmO-/sLrG-qN+zt-1PyJ3-KDImt-2Icgg-GtVaO-ECn0V-B/MM"
     }
+  ],
+  "renew": [
+    {
+      "name": "a long key is asked about once a day",
+      "exp": 1792592000,
+      "failures": 0,
+      "wait": 86400
+    },
+    {
+      "name": "a key that never expires too",
+      "exp": 0,
+      "failures": 0,
+      "wait": 86400
+    },
+    {
+      "name": "two days left are still a day",
+      "exp": 1790172800,
+      "failures": 0,
+      "wait": 86400
+    },
+    {
+      "name": "a short key at half of what it has left",
+      "exp": 1790057600,
+      "failures": 0,
+      "wait": 28800
+    },
+    {
+      "name": "two minutes left are one",
+      "exp": 1790000120,
+      "failures": 0,
+      "wait": 60
+    },
+    {
+      "name": "never under a minute",
+      "exp": 1790000030,
+      "failures": 0,
+      "wait": 60
+    },
+    {
+      "name": "an expired key once a day again",
+      "exp": 1789996400,
+      "failures": 0,
+      "wait": 86400
+    },
+    {
+      "name": "a minute after the first failed try",
+      "exp": 1792592000,
+      "failures": 1,
+      "wait": 60
+    },
+    {
+      "name": "twice as long after every further one",
+      "exp": 1792592000,
+      "failures": 4,
+      "wait": 480
+    },
+    {
+      "name": "a failed try does not look at the key",
+      "exp": 1790000030,
+      "failures": 2,
+      "wait": 120
+    },
+    {
+      "name": "up to a day",
+      "exp": 1792592000,
+      "failures": 12,
+      "wait": 86400
+    },
+    {
+      "name": "and no longer",
+      "exp": 1792592000,
+      "failures": 500,
+      "wait": 86400
+    }
   ]
 }

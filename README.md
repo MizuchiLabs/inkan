@@ -155,11 +155,11 @@ go lic.Renew(ctx, "https://<worker>/refresh", save, nil)
 
 This needs the [worker](STRIPE.md#the-worker) of the product.
 
-The `Keeper` asks right away and then once a day. Every new key goes to
-`save`, so the app can store it for its next start. The last argument gets
-the error of a try that did not work, for an app that wants to log it. The
-package itself logs nothing. Airgapped installs skip this and paste the key
-from the mail.
+The `Keeper` asks right away and then once a day, or sooner for a key that
+runs out before that. Every new key goes to `save`, so the app can store it
+for its next start. The last argument gets the error of a try that did not
+work, for an app that wants to log it. The package itself logs nothing.
+Airgapped installs skip this and paste the key from the mail.
 
 It is a plain POST with the key as the body, so any language can do it:
 

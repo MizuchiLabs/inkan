@@ -213,6 +213,85 @@ func TestKeeperRenewStartsOverAfterASuccess(t *testing.T) {
 	})
 }
 
+// A worker with max key days hands out keys that end before the next daily
+// try. The next key is there for the second half of their life.
+func TestKeeperRenewAsksSoonerForAShortKey(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		pub, priv := testKeypair(t)
+		short := issueFor(t, priv, "pro", 16*time.Hour)
+		next := issueFor(t, priv, "pro", 40*time.Hour)
+
+		start := time.Now()
+		var asked []time.Duration
+		refreshClient.Transport = roundTrip(func(*http.Request) (*http.Response, error) {
+			asked = append(asked, time.Since(start))
+			key := next
+			if len(asked) == 1 {
+				key = short
+			}
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(key))}, nil
+		})
+		t.Cleanup(func() { refreshClient.Transport = nil })
+
+		k := NewKeeper("myapp", pub)
+		if _, err := k.Set(short); err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			k.Renew(ctx, "https://keys.example.com/refresh", nil, nil)
+		}()
+		time.Sleep(25 * time.Hour)
+		cancel()
+		<-done
+
+		if want := []time.Duration{0, 8 * time.Hour, 24 * time.Hour}; !slices.Equal(asked, want) {
+			t.Fatalf("asked at %v, want %v", asked, want)
+		}
+		if !k.Valid() || k.Key() != next {
+			t.Fatal("the short key ran out at 16 hours, the next one must be held by now")
+		}
+	})
+}
+
+// Half of what is left gets small at the end of a key that nobody renews.
+func TestKeeperRenewDoesNotHammerAtTheEndOfAKey(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		pub, priv := testKeypair(t)
+		ending := issueFor(t, priv, "pro", 3*time.Minute)
+
+		start := time.Now()
+		var asked []time.Duration
+		refreshClient.Transport = roundTrip(func(*http.Request) (*http.Response, error) {
+			asked = append(asked, time.Since(start))
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(ending))}, nil
+		})
+		t.Cleanup(func() { refreshClient.Transport = nil })
+
+		k := NewKeeper("myapp", pub)
+		if _, err := k.Set(ending); err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			k.Renew(ctx, "https://keys.example.com/refresh", nil, nil)
+		}()
+		time.Sleep(time.Hour)
+		cancel()
+		<-done
+
+		// Never closer than a minute, and back to once a day when the key is over.
+		want := []time.Duration{0, 90 * time.Second, 150 * time.Second, 210 * time.Second}
+		if !slices.Equal(asked, want) {
+			t.Fatalf("asked at %v, want %v", asked, want)
+		}
+	})
+}
+
 func TestKeeperRenewWithoutAKey(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		refreshClient.Transport = roundTrip(func(*http.Request) (*http.Response, error) {
