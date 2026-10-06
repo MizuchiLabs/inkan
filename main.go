@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 
 	_ "modernc.org/sqlite"
@@ -15,12 +14,13 @@ import (
 	"github.com/mizuchilabs/kata/sigx"
 
 	"github.com/mizuchilabs/inkan/internal/api"
+	"github.com/mizuchilabs/inkan/internal/cmd"
 	"github.com/mizuchilabs/inkan/internal/db"
 	"github.com/mizuchilabs/inkan/internal/mirror"
 )
 
 func main() {
-	cmd := &cli.Command{
+	app := &cli.Command{
 		EnableShellCompletion: true,
 		Suggest:               true,
 		Name:                  "inkan",
@@ -30,26 +30,8 @@ func main() {
 			logx.Init(cmd.Bool("debug"))
 			return ctx, nil
 		},
-		Action: run,
-		Commands: []*cli.Command{
-			{
-				Name:    "openapi",
-				Aliases: []string{"o"},
-				Usage:   "Generate the OpenAPI spec without starting the server",
-				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:    "output",
-						Aliases: []string{"o"},
-						Usage:   "Output file path",
-						Value:   "web/openapi.json",
-					},
-				},
-				Action: openapi,
-			},
-			workerCommand(),
-			backupCommand(),
-			keysCommand(),
-		},
+		Action:   run,
+		Commands: cmd.Commands,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:    "debug",
@@ -82,8 +64,8 @@ func main() {
 		},
 	}
 
-	if err := cmd.Run(sigx.NotifyContext(), os.Args); err != nil {
-		fmt.Fprintf(os.Stderr, "%s: %v\n", cmd.Name, err)
+	if err := app.Run(sigx.NotifyContext(), os.Args); err != nil {
+		fmt.Fprintf(os.Stderr, "%s: %v\n", app.Name, err)
 		os.Exit(1)
 	}
 }
@@ -99,17 +81,4 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 	go mirror.Run(ctx, q)
 	return srv.Start(ctx, cmd.String("addr"))
-}
-
-func openapi(_ context.Context, cmd *cli.Command) error {
-	b, err := api.Spec().MarshalJSON()
-	if err != nil {
-		return err
-	}
-	out := cmd.String("output")
-	if err := os.WriteFile(out, b, 0o600); err != nil {
-		return fmt.Errorf("writing spec: %w", err)
-	}
-	slog.Info("OpenAPI spec written", "path", out)
-	return nil
 }
