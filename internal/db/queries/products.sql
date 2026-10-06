@@ -24,9 +24,9 @@ WHERE
 
 -- name: CreateProduct :one
 INSERT INTO
-  products (name, prefix, plan, grace_days, key_days, private_key)
+  products (name, prefix, plan, grace_days, key_days, private_key, worker_token)
 VALUES
-  (?, ?, ?, ?, ?, ?) RETURNING *;
+  (?, ?, ?, ?, ?, ?, ?) RETURNING *;
 
 -- name: UpdateProduct :one
 UPDATE products
@@ -35,12 +35,8 @@ SET
   plan = ?,
   grace_days = ?,
   key_days = ?,
-  provider_key = ?,
   provider_product = ?,
-  webhook_secret = ?,
-  smtp_addr = ?,
-  smtp_user = ?,
-  smtp_pass = ?,
+  worker_url = ?,
   mail_from = ?,
   mail_logo = ?,
   mail_accent = ?,
@@ -54,11 +50,19 @@ DELETE FROM products
 WHERE
   id = ?;
 
+-- name: SetProductWorkerToken :exec
+UPDATE products
+SET
+  worker_token = ?
+WHERE
+  id = ?;
+
+-- The worker was read. sync_error is empty, or what is off with the worker.
 -- name: SetProductSynced :exec
 UPDATE products
 SET
   synced_at = unixepoch(),
-  sync_error = ''
+  sync_error = ?
 WHERE
   id = ?;
 

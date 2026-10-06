@@ -1,9 +1,9 @@
 package api
 
 import (
-	"cmp"
 	"context"
 	"crypto/ed25519"
+	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
 	"errors"
@@ -17,32 +17,28 @@ import (
 
 	"github.com/mizuchilabs/inkan/internal/db"
 	"github.com/mizuchilabs/inkan/internal/mirror"
-	"github.com/mizuchilabs/inkan/worker"
 )
 
 // Product is one app that keys are issued for. Secrets never leave the server.
 type Product struct {
-	ID                int64      `json:"id"`
-	Name              string     `json:"name"`
-	Prefix            string     `json:"prefix"             doc:"Visible key prefix and the app name the product verifies against"`
-	Plan              string     `json:"plan"               doc:"Plan claim for provider prices without plan metadata and the default for manual licenses"`
-	GraceDays         int64      `json:"grace_days"         doc:"Days a provider license stays valid past its paid period"`
-	KeyDays           int64      `json:"key_days"           doc:"Longest life of a provider key in days, 0 has no limit. Apps refresh for the next one"`
-	PublicKey         string     `json:"public_key"         doc:"Hex Ed25519 public key to build into the product"`
-	ProviderProduct   string     `json:"provider_product"   doc:"Payment provider product id. Its subscriptions are licenses"`
-	ProviderConnected bool       `json:"provider_connected" doc:"Whether an API key and a provider product are stored"`
-	SMTPAddr          string     `json:"smtp_addr"          doc:"Mail server a worker sends keys through, host:port with STARTTLS"`
-	SMTPUser          string     `json:"smtp_user"`
-	MailFrom          string     `json:"mail_from"          doc:"Sender of the key mails"`
-	MailLogo          string     `json:"mail_logo"          doc:"https url of a logo for the dark header of the key mail"`
-	MailAccent        string     `json:"mail_accent"        doc:"Color of the key mail, #rrggbb"`
-	MailFooter        string     `json:"mail_footer"        doc:"One line under the key in the mail"`
-	MailCompany       string     `json:"mail_company"       doc:"Last line of the key mail: legal name, address, register number"`
-	WebhookSecretSet  bool       `json:"webhook_secret_set" doc:"Whether a webhook signing secret is stored"`
-	SMTPPassSet       bool       `json:"smtp_pass_set"      doc:"Whether a mail server password is stored"`
-	SyncedAt          *time.Time `json:"synced_at"          doc:"Last successful provider sync"`
-	SyncError         string     `json:"sync_error"         doc:"Why the last provider sync failed, empty when it worked"`
-	CreatedAt         time.Time  `json:"created_at"`
+	ID              int64      `json:"id"`
+	Name            string     `json:"name"`
+	Prefix          string     `json:"prefix"           doc:"Visible key prefix and the app name the product verifies against"`
+	Plan            string     `json:"plan"             doc:"Default for manual licenses. The worker gives it to prices without plan metadata"`
+	PublicKey       string     `json:"public_key"       doc:"Hex Ed25519 public key to build into the product"`
+	WorkerURL       string     `json:"worker_url"       doc:"Where the worker of the product runs. Its paid licenses are mirrored from there"`
+	WorkerConnected bool       `json:"worker_connected" doc:"Whether a worker url is stored"`
+	GraceDays       int64      `json:"grace_days"       doc:"Worker setting. Days a paid license stays valid past its paid period"`
+	KeyDays         int64      `json:"key_days"         doc:"Worker setting. Longest life of a paid key in days, 0 has no limit. Apps refresh for the next one"`
+	ProviderProduct string     `json:"provider_product" doc:"Worker setting. Stripe product id, its subscriptions and purchases are licenses"`
+	MailFrom        string     `json:"mail_from"        doc:"Worker setting. Sender of the key mails"`
+	MailLogo        string     `json:"mail_logo"        doc:"Worker setting. https url of a logo for the dark header of the key mail"`
+	MailAccent      string     `json:"mail_accent"      doc:"Worker setting. Color of the key mail, #rrggbb"`
+	MailFooter      string     `json:"mail_footer"      doc:"Worker setting. One line under the key in the mail"`
+	MailCompany     string     `json:"mail_company"     doc:"Worker setting. Last line of the key mail: legal name, address, register number"`
+	SyncedAt        *time.Time `json:"synced_at"        doc:"Last time the worker was read"`
+	SyncError       string     `json:"sync_error"       doc:"Why the worker could not be read, or what is off with it. Empty when all is well"`
+	CreatedAt       time.Time  `json:"created_at"`
 }
 
 type ProductsOutput struct {
@@ -72,46 +68,23 @@ type UpdateProductInput struct {
 	ProductPath
 
 	Body struct {
-		Name            string `json:"name"                   minLength:"1" maxLength:"64"`
-		Plan            string `json:"plan"                   minLength:"1" maxLength:"32"`
-		GraceDays       int64  `json:"grace_days"             minimum:"0"   maximum:"365"`
-		KeyDays         int64  `json:"key_days,omitempty"     minimum:"0"   maximum:"3650"`
-		ProviderProduct string `json:"provider_product,omitempty"                            doc:"Empty disconnects the provider"`
-		ProviderKey     string `json:"provider_key,omitempty"                                doc:"Empty keeps the stored key"`
-		WebhookSecret   string `json:"webhook_secret,omitempty" maxLength:"256" doc:"Signing secret of the webhook endpoint of the worker. Empty keeps the stored one"`
-		SMTPAddr        string `json:"smtp_addr,omitempty" maxLength:"256" doc:"Mail server of the worker, host:port with STARTTLS. Empty forgets the mail server"`
-		SMTPUser        string `json:"smtp_user,omitempty" maxLength:"256"`
-		SMTPPass        string `json:"smtp_pass,omitempty" maxLength:"256" doc:"Empty keeps the stored password"`
-		MailLogo        string `json:"mail_logo,omitempty" maxLength:"512" pattern:"^(https://.+)?$" doc:"https url of a logo for the dark header of the key mail"`
-		MailAccent      string `json:"mail_accent,omitempty" pattern:"^(#[0-9a-fA-F]{6})?$" doc:"Color of the key mail, like #2f3e8f"`
-		MailFooter      string `json:"mail_footer,omitempty" maxLength:"256" doc:"One line under the key in the mail, like where to get help"`
-		MailCompany     string `json:"mail_company,omitempty" maxLength:"512" doc:"Last line of the key mail, for what a business has to state: legal name, address, register number"`
-		MailFrom        string `json:"mail_from,omitempty" maxLength:"256" doc:"An address or \"Name <address>\""`
-	}
-}
-
-type MailPreviewInput struct {
-	ProductPath
-
-	Body struct {
-		Name        string `json:"name,omitempty"        maxLength:"64"`
-		MailLogo    string `json:"mail_logo,omitempty"   maxLength:"512"`
-		MailAccent  string `json:"mail_accent,omitempty" maxLength:"32"`
-		MailFooter  string `json:"mail_footer,omitempty" maxLength:"256"`
-		MailCompany string `json:"mail_company,omitempty" maxLength:"512"`
-	}
-}
-
-type MailPreviewOutput struct {
-	Body struct {
-		Subject string `json:"subject"`
-		HTML    string `json:"html"`
+		Name            string `json:"name"                       minLength:"1"                    maxLength:"64"`
+		Plan            string `json:"plan"                       minLength:"1"                    maxLength:"32"`
+		WorkerURL       string `json:"worker_url,omitempty"       pattern:"^(https?://.+)?$"       maxLength:"512" doc:"Where the worker runs. Empty disconnects it"`
+		GraceDays       int64  `json:"grace_days"                 minimum:"0"                      maximum:"365"`
+		KeyDays         int64  `json:"key_days,omitempty"         minimum:"0"                      maximum:"3650"`
+		ProviderProduct string `json:"provider_product,omitempty"                                  maxLength:"128" doc:"Stripe product id for the worker"`
+		MailFrom        string `json:"mail_from,omitempty"                                         maxLength:"256" doc:"An address or \"Name <address>\""`
+		MailLogo        string `json:"mail_logo,omitempty"        pattern:"^(https://.+)?$"        maxLength:"512" doc:"https url of a logo for the dark header of the key mail"`
+		MailAccent      string `json:"mail_accent,omitempty"      pattern:"^(#[0-9a-fA-F]{6})?$"                   doc:"Color of the key mail, like #2f3e8f"`
+		MailFooter      string `json:"mail_footer,omitempty"                                       maxLength:"256" doc:"One line under the key in the mail, like where to get help"`
+		MailCompany     string `json:"mail_company,omitempty"                                      maxLength:"512" doc:"Last line of the key mail, for what a business has to state: legal name, address, register number"`
 	}
 }
 
 type SyncOutput struct {
 	Body struct {
-		Licenses int `json:"licenses" doc:"Subscriptions and one time purchases found at the provider"`
+		Licenses int `json:"licenses" doc:"Paid licenses the worker hands out"`
 	}
 }
 
@@ -142,7 +115,7 @@ func registerProducts(api huma.API, q *db.Queries) {
 		Method:      http.MethodPut,
 		Path:        "/api/products/{id}",
 		Summary:     "Update a product",
-		Description: "A connected product is synced with its provider right away, the outcome is on the returned product.",
+		Description: "A product with a worker is synced with it right away, the outcome is on the returned product. The worker settings only reach the worker once its env is exported and deployed.",
 		Tags:        []string{"Products"},
 	}, h.update)
 	huma.Register(api, huma.Operation{
@@ -158,17 +131,9 @@ func registerProducts(api huma.API, q *db.Queries) {
 		OperationID: "sync-product",
 		Method:      http.MethodPost,
 		Path:        "/api/products/{id}/sync",
-		Summary:     "Sync a product with its provider",
+		Summary:     "Sync a product with its worker",
 		Tags:        []string{"Products"},
 	}, h.sync)
-	huma.Register(api, huma.Operation{
-		OperationID: "preview-mail",
-		Method:      http.MethodPost,
-		Path:        "/api/products/{id}/mail-preview",
-		Summary:     "Preview the key mail of a product",
-		Description: "Renders the built in mail with a made up key. The look comes from the request, so it can be tried before it is saved.",
-		Tags:        []string{"Products"},
-	}, h.previewMail)
 }
 
 func (h *productHandlers) list(ctx context.Context, _ *struct{}) (*ProductsOutput, error) {
@@ -201,6 +166,8 @@ func (h *productHandlers) create(ctx context.Context, in *CreateProductInput) (*
 		GraceDays:  in.Body.GraceDays,
 		KeyDays:    in.Body.KeyDays,
 		PrivateKey: privateKey,
+		// Two of them, a worker wants at least 32 characters.
+		WorkerToken: rand.Text() + rand.Text(),
 	})
 	if isUnique(err) {
 		return nil, huma.Error409Conflict("a product with this name or prefix already exists")
@@ -212,44 +179,23 @@ func (h *productHandlers) create(ctx context.Context, in *CreateProductInput) (*
 }
 
 func (h *productHandlers) update(ctx context.Context, in *UpdateProductInput) (*ProductOutput, error) {
-	current, err := h.get(ctx, in.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	providerKey := strings.TrimSpace(in.Body.ProviderKey)
-	if providerKey == "" {
-		providerKey = current.ProviderKey
-	}
-	// These only travel on to worker env, inkan sends no mail itself.
-	mail := db.UpdateProductParams{
-		WebhookSecret: cmp.Or(strings.TrimSpace(in.Body.WebhookSecret), current.WebhookSecret),
-		SmtpAddr:      strings.TrimSpace(in.Body.SMTPAddr),
-		SmtpUser:      strings.TrimSpace(in.Body.SMTPUser),
-		SmtpPass:      cmp.Or(in.Body.SMTPPass, current.SmtpPass),
-		MailFrom:      strings.TrimSpace(in.Body.MailFrom),
-	}
-	if mail.SmtpAddr == "" {
-		mail = db.UpdateProductParams{WebhookSecret: mail.WebhookSecret}
-	}
 	p, err := h.q.UpdateProduct(ctx, &db.UpdateProductParams{
 		Name:            in.Body.Name,
 		Plan:            in.Body.Plan,
 		GraceDays:       in.Body.GraceDays,
 		KeyDays:         in.Body.KeyDays,
-		ProviderKey:     providerKey,
 		ProviderProduct: strings.TrimSpace(in.Body.ProviderProduct),
-		WebhookSecret:   mail.WebhookSecret,
-		SmtpAddr:        mail.SmtpAddr,
-		SmtpUser:        mail.SmtpUser,
-		SmtpPass:        mail.SmtpPass,
-		MailFrom:        mail.MailFrom,
+		WorkerUrl:       strings.TrimSpace(in.Body.WorkerURL),
+		MailFrom:        strings.TrimSpace(in.Body.MailFrom),
 		MailLogo:        strings.TrimSpace(in.Body.MailLogo),
 		MailAccent:      in.Body.MailAccent,
 		MailFooter:      strings.TrimSpace(in.Body.MailFooter),
 		MailCompany:     strings.TrimSpace(in.Body.MailCompany),
 		ID:              in.ID,
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, huma.Error404NotFound("product not found")
+	}
 	if isUnique(err) {
 		return nil, huma.Error409Conflict("a product with this name already exists")
 	}
@@ -257,7 +203,6 @@ func (h *productHandlers) update(ctx context.Context, in *UpdateProductInput) (*
 		return nil, huma.Error500InternalServerError("failed to update product")
 	}
 
-	// Plan and grace shape the provider licenses, so they are rebuilt at once.
 	// A failed sync is not a failed update, it shows up as sync_error.
 	if mirror.Connected(p) {
 		_, _ = mirror.Sync(ctx, h.q, p)
@@ -281,7 +226,7 @@ func (h *productHandlers) sync(ctx context.Context, in *ProductPath) (*SyncOutpu
 		return nil, err
 	}
 	if !mirror.Connected(p) {
-		return nil, huma.Error409Conflict("the product is not connected to a payment provider")
+		return nil, huma.Error409Conflict("the product has no worker")
 	}
 	n, err := mirror.Sync(ctx, h.q, p)
 	if err != nil {
@@ -289,30 +234,6 @@ func (h *productHandlers) sync(ctx context.Context, in *ProductPath) (*SyncOutpu
 	}
 	out := &SyncOutput{}
 	out.Body.Licenses = n
-	return out, nil
-}
-
-func (h *productHandlers) previewMail(ctx context.Context, in *MailPreviewInput) (*MailPreviewOutput, error) {
-	p, err := h.get(ctx, in.ID)
-	if err != nil {
-		return nil, err
-	}
-	key, claims, err := worker.Sample(p.Prefix, "customer@example.com", p.Plan)
-	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to make a sample key")
-	}
-	var templates *worker.Templates
-	out := &MailPreviewOutput{}
-	out.Body.Subject, _, out.Body.HTML, err = templates.Render(key, claims, worker.Brand{
-		Name:    cmp.Or(strings.TrimSpace(in.Body.Name), p.Name),
-		Logo:    strings.TrimSpace(in.Body.MailLogo),
-		Accent:  in.Body.MailAccent,
-		Footer:  strings.TrimSpace(in.Body.MailFooter),
-		Company: strings.TrimSpace(in.Body.MailCompany),
-	})
-	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to render the mail")
-	}
 	return out, nil
 }
 
@@ -329,25 +250,22 @@ func (h *productHandlers) get(ctx context.Context, id int64) (*db.Product, error
 
 func toProduct(p *db.Product) Product {
 	out := Product{
-		ID:                p.ID,
-		Name:              p.Name,
-		Prefix:            p.Prefix,
-		Plan:              p.Plan,
-		GraceDays:         p.GraceDays,
-		KeyDays:           p.KeyDays,
-		ProviderProduct:   p.ProviderProduct,
-		ProviderConnected: mirror.Connected(p),
-		SMTPAddr:          p.SmtpAddr,
-		SMTPUser:          p.SmtpUser,
-		MailFrom:          p.MailFrom,
-		MailLogo:          p.MailLogo,
-		MailAccent:        p.MailAccent,
-		MailFooter:        p.MailFooter,
-		MailCompany:       p.MailCompany,
-		WebhookSecretSet:  p.WebhookSecret != "",
-		SMTPPassSet:       p.SmtpPass != "",
-		SyncError:         p.SyncError,
-		CreatedAt:         time.Unix(p.CreatedAt, 0),
+		ID:              p.ID,
+		Name:            p.Name,
+		Prefix:          p.Prefix,
+		Plan:            p.Plan,
+		WorkerURL:       p.WorkerUrl,
+		WorkerConnected: mirror.Connected(p),
+		GraceDays:       p.GraceDays,
+		KeyDays:         p.KeyDays,
+		ProviderProduct: p.ProviderProduct,
+		MailFrom:        p.MailFrom,
+		MailLogo:        p.MailLogo,
+		MailAccent:      p.MailAccent,
+		MailFooter:      p.MailFooter,
+		MailCompany:     p.MailCompany,
+		SyncError:       p.SyncError,
+		CreatedAt:       time.Unix(p.CreatedAt, 0),
 	}
 	if priv, err := license.ParsePrivateKey(p.PrivateKey); err == nil {
 		out.PublicKey = hex.EncodeToString(publicKey(priv))

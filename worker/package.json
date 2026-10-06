@@ -1,0 +1,20 @@
+{
+	"name": "inkan-worker",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"start": "node src/node.ts",
+		"dev": "wrangler dev",
+		"deploy": "wrangler deploy",
+		"build": "esbuild src/node.ts src/scaleway.ts --bundle --platform=node --format=esm --outdir=dist && echo '{\"type\":\"module\"}' > dist/package.json",
+		"check": "tsc",
+		"test": "node --test"
+	},
+	"devDependencies": {
+		"@types/node": "^24.0.0",
+		"esbuild": "^0.28.0",
+		"typescript": "^6.0.3",
+		"wrangler": "^4.0.0"
+	},
+	"packageManager": "pnpm@12.8.2"
+}

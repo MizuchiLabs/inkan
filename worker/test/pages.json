@@ -1,0 +1,85 @@
+[
+	{
+		"product": {
+			"prefix": "MYAPP",
+			"public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+			"plan": "pro",
+			"grace_days": 14,
+			"key_days": 0,
+			"stripe_product": "prod_app"
+		},
+		"licenses": [
+			{
+				"id": "sub_ok_1",
+				"email": "ops@acme.io",
+				"customer": "Acme",
+				"customer_gone": false,
+				"plan": "team",
+				"meta": {},
+				"expires_at": 4001209600,
+				"status": "active",
+				"renews": true,
+				"created_at": 1700000000,
+				"key": "MYAPP-AXsid-iI6MS-wiYXB-wIjoi-TVlBU-FAiLC-JwbGF-uIjoi-dGVhb-SIsIm-VtYWl-sIjoi-b3BzQ-GFjbW-UuaW8-iLCJl-eHAiO-jQwMD-EyMDk-2MDAs-ImlkI-joic3-ViX29-rXzEi-fSVyc-8/tMJ-7O6Lx-cH+q7-YFRCh-sO06w-xbXCc-8j8np-9DCQS-kPpmS-br7HD-n2Aou-h4md7-hC3Oo-qjDL9-iaMLi-vgd3H-AA"
+			}
+		],
+		"skipped": [],
+		"next": "s:sub_unpaid"
+	},
+	{
+		"product": {
+			"prefix": "MYAPP",
+			"public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+			"plan": "pro",
+			"grace_days": 14,
+			"key_days": 0,
+			"stripe_product": "prod_app"
+		},
+		"licenses": [
+			{
+				"id": "sub_deleted",
+				"email": "",
+				"customer": "",
+				"customer_gone": true,
+				"plan": "team",
+				"meta": {},
+				"expires_at": 4000209600,
+				"status": "canceled",
+				"renews": false,
+				"created_at": 1700000000,
+				"key": "MYAPP-AXsid-iI6MS-wiYXB-wIjoi-TVlBU-FAiLC-JwbGF-uIjoi-dGVhb-SIsIm-VtYWl-sIjoi-IiwiZ-XhwIj-o0MDA-wMjA5-NjAwL-CJpZC-I6InN-1Yl9k-ZWxld-GVkIn-245vn-kNcVc-0YV9B-IHm7b-+mxst-e7/Dc-Dj0HD-3WzvN-xuNy6-AZBG6-l0vpI-rOnw4-p7Kb8-362Ib-A2DiE-7opOJ-uHXHQ-F"
+			}
+		],
+		"skipped": [],
+		"next": "p:"
+	},
+	{
+		"product": {
+			"prefix": "MYAPP",
+			"public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+			"plan": "pro",
+			"grace_days": 14,
+			"key_days": 0,
+			"stripe_product": "prod_app"
+		},
+		"licenses": [
+			{
+				"id": "cs_1",
+				"email": "buyer@acme.io",
+				"customer": "Buyer",
+				"customer_gone": false,
+				"plan": "lifetime",
+				"meta": {
+					"seats": "3"
+				},
+				"expires_at": 0,
+				"status": "paid",
+				"renews": false,
+				"created_at": 1780000000,
+				"key": "MYAPP-AXsid-iI6MS-wiYXB-wIjoi-TVlBU-FAiLC-JwbGF-uIjoi-bGlmZ-XRpbW-UiLCJ-lbWFp-bCI6I-mJ1eW-VyQGF-jbWUu-aW8iL-CJleH-AiOjA-sImlk-IjoiY-3NfMS-IsIm1-ldGEi-Onsic-2VhdH-MiOiI-zIn19-GW9ih-03UAq-EuC0K-3sB7w-tBmYq-5AA03-kYHMe-JaBY8-YKtF5-Zp90M-aAYKe-KJ2Fa-GpDQ7-8+Ww1-LoBXE-7OK7J-rgYbD-A"
+			}
+		],
+		"skipped": [],
+		"next": null
+	}
+]

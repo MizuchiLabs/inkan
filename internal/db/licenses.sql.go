@@ -13,7 +13,7 @@ const createLicense = `-- name: CreateLicense :one
 INSERT INTO
   licenses (id, product_id, source, email, customer, plan, expires_at, meta, note)
 VALUES
-  (?, ?, 'manual', ?, ?, ?, ?, ?, ?) RETURNING id, product_id, source, email, customer, customer_gone, "plan", expires_at, meta, note, status, renews, created_at
+  (?, ?, 'manual', ?, ?, ?, ?, ?, ?) RETURNING id, product_id, source, email, customer, customer_gone, "plan", expires_at, meta, note, status, renews, "key", seen_at, created_at
 `
 
 type CreateLicenseParams struct {
@@ -52,6 +52,8 @@ func (q *Queries) CreateLicense(ctx context.Context, arg *CreateLicenseParams) (
 		&i.Note,
 		&i.Status,
 		&i.Renews,
+		&i.Key,
+		&i.SeenAt,
 		&i.CreatedAt,
 	)
 	return &i, err
@@ -89,9 +91,34 @@ func (q *Queries) DeleteSnapshots(ctx context.Context, day string) error {
 	return err
 }
 
+const deleteUnseenProviderLicenses = `-- name: DeleteUnseenProviderLicenses :exec
+DELETE FROM licenses
+WHERE
+  product_id = ?1
+  AND source != 'manual'
+  AND seen_at < ?2
+  AND (
+    CAST(?3 AS BOOLEAN)
+    OR id NOT LIKE 'cs\_%' ESCAPE '\'
+  )
+`
+
+type DeleteUnseenProviderLicensesParams struct {
+	ProductID int64 `json:"productId"`
+	SeenAt    int64 `json:"seenAt"`
+	Purchases bool  `json:"purchases"`
+}
+
+// What the worker no longer lists is gone at the provider. A worker that may
+// not read one time purchases says nothing about them, so they stay.
+func (q *Queries) DeleteUnseenProviderLicenses(ctx context.Context, arg *DeleteUnseenProviderLicensesParams) error {
+	_, err := q.db.ExecContext(ctx, deleteUnseenProviderLicenses, arg.ProductID, arg.SeenAt, arg.Purchases)
+	return err
+}
+
 const getLicense = `-- name: GetLicense :one
 SELECT
-  id, product_id, source, email, customer, customer_gone, "plan", expires_at, meta, note, status, renews, created_at
+  id, product_id, source, email, customer, customer_gone, "plan", expires_at, meta, note, status, renews, "key", seen_at, created_at
 FROM
   licenses
 WHERE
@@ -120,6 +147,8 @@ func (q *Queries) GetLicense(ctx context.Context, arg *GetLicenseParams) (*Licen
 		&i.Note,
 		&i.Status,
 		&i.Renews,
+		&i.Key,
+		&i.SeenAt,
 		&i.CreatedAt,
 	)
 	return &i, err
@@ -127,7 +156,7 @@ func (q *Queries) GetLicense(ctx context.Context, arg *GetLicenseParams) (*Licen
 
 const listLicenses = `-- name: ListLicenses :many
 SELECT
-  id, product_id, source, email, customer, customer_gone, "plan", expires_at, meta, note, status, renews, created_at
+  id, product_id, source, email, customer, customer_gone, "plan", expires_at, meta, note, status, renews, "key", seen_at, created_at
 FROM
   licenses
 ORDER BY
@@ -157,6 +186,8 @@ func (q *Queries) ListLicenses(ctx context.Context) ([]*License, error) {
 			&i.Note,
 			&i.Status,
 			&i.Renews,
+			&i.Key,
+			&i.SeenAt,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -219,7 +250,7 @@ SET
   note = ?
 WHERE
   product_id = ?
-  AND id = ? RETURNING id, product_id, source, email, customer, customer_gone, "plan", expires_at, meta, note, status, renews, created_at
+  AND id = ? RETURNING id, product_id, source, email, customer, customer_gone, "plan", expires_at, meta, note, status, renews, "key", seen_at, created_at
 `
 
 type SetLicenseNoteParams struct {
@@ -244,6 +275,8 @@ func (q *Queries) SetLicenseNote(ctx context.Context, arg *SetLicenseNoteParams)
 		&i.Note,
 		&i.Status,
 		&i.Renews,
+		&i.Key,
+		&i.SeenAt,
 		&i.CreatedAt,
 	)
 	return &i, err
@@ -285,7 +318,7 @@ SET
 WHERE
   product_id = ?
   AND id = ?
-  AND source = 'manual' RETURNING id, product_id, source, email, customer, customer_gone, "plan", expires_at, meta, note, status, renews, created_at
+  AND source = 'manual' RETURNING id, product_id, source, email, customer, customer_gone, "plan", expires_at, meta, note, status, renews, "key", seen_at, created_at
 `
 
 type UpdateLicenseParams struct {
@@ -324,6 +357,8 @@ func (q *Queries) UpdateLicense(ctx context.Context, arg *UpdateLicenseParams) (
 		&i.Note,
 		&i.Status,
 		&i.Renews,
+		&i.Key,
+		&i.SeenAt,
 		&i.CreatedAt,
 	)
 	return &i, err
@@ -331,9 +366,9 @@ func (q *Queries) UpdateLicense(ctx context.Context, arg *UpdateLicenseParams) (
 
 const upsertProviderLicense = `-- name: UpsertProviderLicense :exec
 INSERT INTO
-  licenses (id, product_id, source, email, customer, customer_gone, plan, expires_at, meta, status, renews, created_at)
+  licenses (id, product_id, source, email, customer, customer_gone, plan, expires_at, meta, status, renews, key, seen_at, created_at)
 VALUES
-  (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (product_id, id) DO UPDATE
 SET
   -- A deleted customer comes back empty, the row keeps who it was.
@@ -344,7 +379,10 @@ SET
   expires_at = excluded.expires_at,
   meta = excluded.meta,
   status = excluded.status,
-  renews = excluded.renews
+  renews = excluded.renews,
+  key = excluded.key,
+  -- Two syncs can overlap, the later one must not lose what it saw.
+  seen_at = max(licenses.seen_at, excluded.seen_at)
 `
 
 type UpsertProviderLicenseParams struct {
@@ -359,6 +397,8 @@ type UpsertProviderLicenseParams struct {
 	Meta         string `json:"meta"`
 	Status       string `json:"status"`
 	Renews       bool   `json:"renews"`
+	Key          string `json:"key"`
+	SeenAt       int64  `json:"seenAt"`
 	CreatedAt    int64  `json:"createdAt"`
 }
 
@@ -376,6 +416,8 @@ func (q *Queries) UpsertProviderLicense(ctx context.Context, arg *UpsertProvider
 		arg.Meta,
 		arg.Status,
 		arg.Renews,
+		arg.Key,
+		arg.SeenAt,
 		arg.CreatedAt,
 	)
 	return err

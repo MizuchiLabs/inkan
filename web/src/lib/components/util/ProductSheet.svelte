@@ -1,10 +1,5 @@
 <script lang="ts">
-	import {
-		useCreateProduct,
-		useMailPreview,
-		useUpdateProduct,
-		type Product
-	} from '#lib/api/queries.js';
+	import { useCreateProduct, useUpdateProduct, type Product } from '#lib/api/queries.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Field from '#lib/components/ui/field/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
@@ -12,9 +7,11 @@
 	import { Spinner } from '#lib/components/ui/spinner/index.js';
 	import * as Tabs from '#lib/components/ui/tabs/index.js';
 	import { Textarea } from '#lib/components/ui/textarea/index.js';
+	import { render } from '#lib/mail.js';
 	import { Debounced } from 'runed';
 	import { tick } from 'svelte';
 	import { toast } from 'svelte-sonner';
+	import CopyBlock from './CopyBlock.svelte';
 	import Seal from './Seal.svelte';
 
 	type Props = {
@@ -37,15 +34,11 @@
 			name: product?.name ?? '',
 			prefix: product?.prefix ?? '',
 			plan: product?.plan ?? '',
+			privateKey: '',
+			workerUrl: product?.worker_url ?? '',
+			providerProduct: product?.provider_product ?? '',
 			graceDays: product?.grace_days ?? 14,
 			keyDays: product?.key_days ?? 0,
-			privateKey: '',
-			providerProduct: product?.provider_product ?? '',
-			providerKey: '',
-			webhookSecret: '',
-			smtpAddr: product?.smtp_addr ?? '',
-			smtpUser: product?.smtp_user ?? '',
-			smtpPass: '',
 			mailFrom: product?.mail_from ?? '',
 			mailLogo: product?.mail_logo ?? '',
 			mailAccent: product?.mail_accent ?? '',
@@ -55,23 +48,40 @@
 	}
 	const form = $state(initial());
 
+	// Made up, it only has to look like a key.
+	const sampleKey = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(165))))
+		.match(/.{1,5}/g)!
+		.join('-');
+	const sampleExpiry = Math.floor(Date.now() / 1000) + 365 * 86400;
+
+	// The preview is a whole page in a frame, it should not reload on every key.
 	const look = new Debounced(
 		() => ({
 			name: form.name,
-			mail_logo: form.mailLogo,
-			mail_accent: form.mailAccent,
-			mail_footer: form.mailFooter,
-			mail_company: form.mailCompany
+			logo: form.mailLogo,
+			accent: form.mailAccent,
+			footer: form.mailFooter,
+			company: form.mailCompany
 		}),
 		300
 	);
-	const preview = useMailPreview(
-		() => product?.id,
-		() => (tab === 'mail' ? look.current : undefined)
+	const preview = $derived(
+		render(
+			`${form.prefix}-${sampleKey}`,
+			{
+				app: form.prefix,
+				plan: form.plan,
+				email: 'customer@example.com',
+				exp: sampleExpiry,
+				id: '',
+				meta: {}
+			},
+			look.current
+		)
 	);
 	// A link would load its page inside the preview. The sandbox allows no
 	// new windows, so sending them there leaves a click without effect.
-	const inert = $derived(preview.data?.html.replace('<head>', '<head><base target="_blank">'));
+	const inert = $derived(preview.html.replace('<head>', '<head><base target="_blank">'));
 
 	// A hidden tab cannot show what is wrong with its fields, so the form
 	// checks itself and opens the tab of the first one first.
@@ -92,14 +102,10 @@
 					body: {
 						name: form.name,
 						plan: form.plan,
+						worker_url: form.workerUrl,
+						provider_product: form.providerProduct,
 						grace_days: form.graceDays,
 						key_days: form.keyDays,
-						provider_product: form.providerProduct,
-						provider_key: form.providerKey,
-						webhook_secret: form.webhookSecret,
-						smtp_addr: form.smtpAddr,
-						smtp_user: form.smtpUser,
-						smtp_pass: form.smtpPass,
 						mail_from: form.mailFrom,
 						mail_logo: form.mailLogo,
 						mail_accent: form.mailAccent,
@@ -110,7 +116,7 @@
 				{
 					onSuccess: (saved) => {
 						onclose();
-						if (saved.sync_error) toast.error(`Saved, but Stripe said: ${saved.sync_error}`);
+						if (saved.sync_error) toast.warning(`Saved. ${saved.sync_error}`);
 						else toast.success('Saved the product');
 					}
 				}
@@ -123,8 +129,6 @@
 					name: form.name,
 					prefix: form.prefix,
 					plan: form.plan,
-					grace_days: form.graceDays,
-					key_days: form.keyDays,
 					private_key: form.privateKey
 				}
 			},
@@ -165,44 +169,11 @@
 		</Field.Description>
 	{/if}
 
-	<div class="grid gap-4 sm:grid-cols-2">
-		<Field.Field>
-			<Field.Label for="product-plan">Plan</Field.Label>
-			<Input id="product-plan" bind:value={form.plan} required placeholder="pro" />
-		</Field.Field>
-		<Field.Field>
-			<Field.Label for="product-grace">Grace days</Field.Label>
-			<Input
-				id="product-grace"
-				type="number"
-				min={0}
-				max={365}
-				bind:value={form.graceDays}
-				required
-			/>
-		</Field.Field>
-	</div>
-	<Field.Description>
-		A Stripe license stays valid this many days past its paid period, so the renewed key arrives
-		before the old one runs out. The plan goes to manual licenses and to Stripe prices that set
-		none.
-	</Field.Description>
-
 	<Field.Field>
-		<Field.Label for="product-key-days">Key days</Field.Label>
-		<Input
-			id="product-key-days"
-			type="number"
-			min={0}
-			max={3650}
-			bind:value={form.keyDays}
-			required
-		/>
+		<Field.Label for="product-plan">Plan</Field.Label>
+		<Input id="product-plan" bind:value={form.plan} required placeholder="pro" />
 		<Field.Description>
-			Cuts every Stripe key short, so the app has to refresh and a refund, a cancellation or a plan
-			change takes effect. A key lasts between half and all of these days. 30 suits yearly plans and
-			one time purchases in an app that is online. Leave it at 0 for apps that run offline or have
-			monthly plans only.
+			Goes to manual licenses, and the worker gives it to Stripe prices that set none.
 		</Field.Description>
 	</Field.Field>
 {/snippet}
@@ -219,7 +190,7 @@
 					<Sheet.Title>{product ? `Edit ${product.name}` : 'Add a product'}</Sheet.Title>
 					<Sheet.Description>
 						{#if product}
-							Grace period and plan shape every Stripe license of this product.
+							Its worker hands out the paid licenses. What it runs with is set here.
 						{:else}
 							Each product has its own signing key. Its public half goes into your build.
 						{/if}
@@ -233,7 +204,6 @@
 				<Tabs.Root bind:value={tab} class="min-h-0 flex-1">
 					<Tabs.List class="mx-6 w-auto">
 						<Tabs.Trigger value="general">General</Tabs.Trigger>
-						<Tabs.Trigger value="stripe">Stripe</Tabs.Trigger>
 						<Tabs.Trigger value="worker">Worker</Tabs.Trigger>
 						<Tabs.Trigger value="mail">Mail</Tabs.Trigger>
 					</Tabs.List>
@@ -246,9 +216,38 @@
 						</div>
 					</Tabs.Content>
 
-					<Tabs.Content value="stripe" class="overflow-y-auto">
+					<Tabs.Content value="worker" class="overflow-y-auto">
 						<div class="px-6 pt-2 pb-6">
 							<Field.Group>
+								<Field.Description>
+									The worker is the public side of the product. It reads Stripe, mails the keys and
+									refreshes them. Inkan only shows what it hands out.
+								</Field.Description>
+								<CopyBlock
+									title="Its settings"
+									text={`inkan worker env ${product.prefix} > worker.env`}
+									what="command"
+								>
+									Prints what is set here, with the signing key. Add the Stripe key and deploy the
+									worker with it. A change here only reaches the worker that way.
+								</CopyBlock>
+
+								<Field.Field>
+									<Field.Label for="product-worker-url">Worker url</Field.Label>
+									<Input
+										id="product-worker-url"
+										type="url"
+										bind:value={form.workerUrl}
+										pattern="https?://.+"
+										placeholder="https://keys.example.com"
+										autocomplete="off"
+									/>
+									<Field.Description>
+										Where the worker runs. Its licenses show up here once it is set, empty
+										disconnects it.
+									</Field.Description>
+								</Field.Field>
+
 								<Field.Field>
 									<Field.Label for="product-stripe-product">Stripe product id</Field.Label>
 									<Input
@@ -259,91 +258,41 @@
 									/>
 									<Field.Description>
 										Every subscription and one time purchase of this product becomes a license. Give
-										a price the metadata <code class="font-mono">plan</code> to set its plan. Empty disconnects
-										Stripe.
+										a price the metadata <code class="font-mono">plan</code> to set its plan.
 									</Field.Description>
 								</Field.Field>
-								<Field.Field>
-									<Field.Label for="product-stripe-key">Stripe API key</Field.Label>
-									<Input
-										id="product-stripe-key"
-										type="password"
-										bind:value={form.providerKey}
-										placeholder={product.provider_connected
-											? 'Stored. Leave empty to keep it'
-											: 'rk_live_...'}
-										autocomplete="off"
-									/>
-									<Field.Description>
-										A restricted key that can read subscriptions and customers is enough. One time
-										purchases also need Checkout sessions, payment intents and charges.
-									</Field.Description>
-								</Field.Field>
-							</Field.Group>
-						</div>
-					</Tabs.Content>
 
-					<Tabs.Content value="worker" class="overflow-y-auto">
-						<div class="px-6 pt-2 pb-6">
-							<Field.Group>
-								<Field.Description>
-									Only for a worker that mails keys. Inkan sends no mail itself, it keeps these so
-									<code class="font-mono">inkan worker env</code> prints a complete file.
-								</Field.Description>
-								<Field.Field>
-									<Field.Label for="product-webhook-secret">Webhook signing secret</Field.Label>
-									<Input
-										id="product-webhook-secret"
-										type="password"
-										bind:value={form.webhookSecret}
-										placeholder={product.webhook_secret_set
-											? 'Stored. Leave empty to keep it'
-											: 'whsec_...'}
-										autocomplete="off"
-									/>
-									<Field.Description>
-										Of the Stripe webhook endpoint that points at
-										<code class="font-mono">/webhook</code> of the worker.
-									</Field.Description>
-								</Field.Field>
 								<div class="grid gap-4 sm:grid-cols-2">
 									<Field.Field>
-										<Field.Label for="product-smtp-addr">Mail server</Field.Label>
+										<Field.Label for="product-grace">Grace days</Field.Label>
 										<Input
-											id="product-smtp-addr"
-											bind:value={form.smtpAddr}
-											placeholder="smtp.example.com:587"
-											autocomplete="off"
+											id="product-grace"
+											type="number"
+											min={0}
+											max={365}
+											bind:value={form.graceDays}
+											required
 										/>
 									</Field.Field>
 									<Field.Field>
-										<Field.Label for="product-mail-from">Sender</Field.Label>
+										<Field.Label for="product-key-days">Key days</Field.Label>
 										<Input
-											id="product-mail-from"
-											bind:value={form.mailFrom}
-											required={!!form.smtpAddr}
-											placeholder="licenses@example.com"
-											autocomplete="off"
-										/>
-									</Field.Field>
-									<Field.Field>
-										<Field.Label for="product-smtp-user">Mail login</Field.Label>
-										<Input id="product-smtp-user" bind:value={form.smtpUser} autocomplete="off" />
-									</Field.Field>
-									<Field.Field>
-										<Field.Label for="product-smtp-pass">Mail password</Field.Label>
-										<Input
-											id="product-smtp-pass"
-											type="password"
-											bind:value={form.smtpPass}
-											placeholder={product.smtp_pass_set ? 'Stored. Leave empty to keep it' : ''}
-											autocomplete="new-password"
+											id="product-key-days"
+											type="number"
+											min={0}
+											max={3650}
+											bind:value={form.keyDays}
+											required
 										/>
 									</Field.Field>
 								</div>
 								<Field.Description>
-									The server has to speak STARTTLS, usually on port 587. An empty mail server
-									forgets the login and the sender.
+									A paid license stays valid the grace days past its paid period, so the renewed key
+									arrives before the old one runs out. Key days cut every paid key short, so the app
+									has to refresh and a refund, a cancellation or a plan change takes effect. A key
+									lasts between half and all of them. 30 suits yearly plans and one time purchases
+									in an app that is online. Leave it at 0 for apps that run offline or have monthly
+									plans only.
 								</Field.Description>
 							</Field.Group>
 						</div>
@@ -353,9 +302,19 @@
 						<div class="px-6 pt-2 pb-6">
 							<Field.Group>
 								<Field.Description>
-									How the key mail looks. All of it is optional, the mail calls the product by its
-									name.
+									The mail the worker sends a key in. All of it is optional but the sender, the mail
+									calls the product by its name.
 								</Field.Description>
+								<Field.Field>
+									<Field.Label for="product-mail-from">Sender</Field.Label>
+									<Input
+										id="product-mail-from"
+										bind:value={form.mailFrom}
+										maxlength={256}
+										placeholder="My App <licenses@example.com>"
+										autocomplete="off"
+									/>
+								</Field.Field>
 								<div class="grid gap-4 sm:grid-cols-2">
 									<Field.Field>
 										<Field.Label for="product-mail-logo">Logo</Field.Label>
@@ -407,27 +366,20 @@
 								</Field.Field>
 
 								<Field.Separator />
-								{#if preview.data}
-									<p class="text-sm text-muted-foreground">
-										Subject: <span class="text-foreground">{preview.data.subject}</span>
-									</p>
-									<!-- An empty sandbox runs nothing, the mail is markup only. -->
-									<iframe
-										title="Preview of the key mail"
-										srcdoc={inert}
-										sandbox=""
-										class="h-176 w-full rounded-lg border"
-									></iframe>
-									<p class="text-xs text-muted-foreground">
-										The key is made up and the links do nothing here. A worker with templates of its
-										own sends those instead. <code class="font-mono">inkan worker mail</code> sends a
-										sample to a real inbox.
-									</p>
-								{:else if preview.isError}
-									<p class="text-sm text-destructive">The preview could not be loaded.</p>
-								{:else}
-									<Spinner />
-								{/if}
+								<p class="text-sm text-muted-foreground">
+									Subject: <span class="text-foreground">{preview.subject}</span>
+								</p>
+								<!-- An empty sandbox runs nothing, the mail is markup only. -->
+								<iframe
+									title="Preview of the key mail"
+									srcdoc={inert}
+									sandbox=""
+									class="h-176 w-full rounded-lg border"
+								></iframe>
+								<p class="text-xs text-muted-foreground">
+									The key is made up and the links do nothing here. A worker with a mail of its own
+									sends that instead.
+								</p>
 							</Field.Group>
 						</div>
 					</Tabs.Content>

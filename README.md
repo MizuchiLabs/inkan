@@ -9,8 +9,8 @@
 # Inkan
 
 A small ledger for offline license keys. It holds the signing key of each
-product you sell, issues keys by hand, mirrors paid subscriptions from Stripe,
-and tells you what a pasted key really is.
+product you sell, issues keys by hand, shows the paid licenses of your Stripe
+subscriptions, and tells you what a pasted key really is.
 
 A key is a signed string that your app verifies offline with a public key
 built into it. An inkan is the personal seal that makes a document valid in
@@ -21,14 +21,14 @@ Japan.
 - License keys that work offline, a plain string to paste or set as an env
 - Issue keys by hand, or let Stripe subscriptions and one time purchases
   become licenses
-- Keys are never stored, a license gives the same key every time
-- An optional worker mails keys to customers and renews them for apps that
-  are online
+- A license gives the same key every time, until something it says changes
+- A small worker reads Stripe, mails keys to customers and renews them for
+  apps that are online. It runs on Cloudflare Workers, Scaleway Functions or
+  anywhere Node runs
 - A Go package to verify, hold and renew keys, small verifiers for TypeScript
   and Python, a documented format for every other language
-- The worker also runs on Cloudflare Workers
 - Paste any key to see what is inside
-- One binary with SQLite and a web UI, Docker-ready
+- The dashboard is one binary with SQLite and a web UI, Docker-ready
 
 ## Quick Start
 
@@ -99,22 +99,31 @@ curl -H "Authorization: Bearer $INKAN_API_TOKEN" http://127.0.0.1:3000/api/licen
 
 ## How it works
 
+There are two parts. The dashboard is this binary. It holds the signing keys,
+issues keys by hand and shows every license. It stays private. The
+[worker](#the-worker) is the public side of one product. It reads Stripe,
+signs the keys of the paid licenses, mails them and refreshes them. The
+dashboard reads the paid licenses from the worker, it never talks to Stripe.
+
+Keys you issue by hand need no worker.
+
 - **Products.** A product is a name, a key prefix, a plan and a keypair. Add a
   new one and you get a fresh keypair, or paste the private key of a product
   that already ships. The Products page shows the public key and the build
   flag for it.
 - **Licenses.** A license is a row: who, which plan, until when, plus optional
-  extra claims. The key is signed from the row on demand. Change a signed
-  field and the key changes with it.
-- **Stripe.** Give a product a Stripe API key and a Stripe product id. Every
-  few minutes Inkan reads the subscriptions and one time purchases of that
-  product and mirrors them as licenses. Stripe stays the source of truth,
-  Inkan only reads. It needs no webhook and no public endpoint.
+  extra claims. A manual key is signed from the row on demand. Change a signed
+  field and the key changes with it. A paid license shows the key its worker
+  hands out.
+- **Stripe.** Give the worker a Stripe API key and a Stripe product id. Every
+  subscription and one time purchase of that product is a license. Stripe
+  stays the source of truth, the worker only reads. Every few minutes the
+  dashboard reads the list from the worker.
 - **One time purchases.** A paid Checkout session in payment mode is a license
   that never expires. Give the price the metadata `days=365` and it lasts a
-  year. A refunded purchase gets a key that ran out on the day it was bought.
-  The Stripe key needs read access to Checkout sessions, payment intents and
-  charges for this, without it only subscriptions are mirrored.
+  year. A refunded purchase gets a key that ran out when it was bought. The
+  Stripe key needs read access to Checkout sessions, payment intents and
+  charges for this, without it only subscriptions are licenses.
 - **Expiry.** A paid key is valid until the paid period ends, plus the grace
   days of the product. A subscription that falls behind on a payment keeps its
   last key and gets no new one.
@@ -126,7 +135,7 @@ curl -H "Authorization: Bearer $INKAN_API_TOKEN" http://127.0.0.1:3000/api/licen
   `quantity=seats` puts the bought quantity into the claim `seats`.
 - **Key days.** A signed key cannot be taken back. Without key days it runs
   to the end of the paid period plus the grace days, whatever happens in
-  between. Key days cut every Stripe key short, so the app has to refresh and
+  between. Key days cut every paid key short, so the app has to refresh and
   the next key says what Stripe says now. A key lasts between half and all of
   the key days. That is what ends a license after a refund, a chargeback or
   an immediate cancellation, and what stops an old key from keeping a plan or
@@ -195,19 +204,17 @@ the server, a check in the browser is a hint and not a lock.
 
 ## The worker
 
-Inkan stays private. The worker is the small public part of one product. It is
-the same binary, keeps no state and never talks to Inkan. Stripe says what is
-paid and the private key signs it, so it hands out the very keys the ledger
-shows.
+The worker is the small public part of one product, written in TypeScript. It
+keeps no state. Stripe says what is paid and the private key signs it.
 
 | Endpoint        |                                                             |
 | --------------- | ----------------------------------------------------------- |
-| `POST /webhook` | Stripe reports a payment, the key is mailed to the customer |
 | `POST /refresh` | An app sends its key and gets the current one back          |
+| `POST /webhook` | Stripe reports a payment, the key is mailed to the customer |
+| `GET /licenses` | The dashboard reads what the worker hands out               |
 
-Print the settings of a product into a file and run the worker with it,
-wherever a container can run. The file holds the private key, treat it like
-one.
+Print the settings of a product into a file. It holds the private key, treat
+it like one.
 
 ```sh
 inkan worker env MYAPP > worker.env
@@ -215,53 +222,48 @@ inkan worker env MYAPP > worker.env
 docker exec inkan inkan worker env MYAPP > worker.env
 ```
 
-```yaml
-services:
-  worker:
-    image: ghcr.io/mizuchilabs/inkan:latest
-    command: worker
-    ports:
-      - "8080:8080"
-    env_file: worker.env
-    environment:
-      - INKAN_ADDR=:8080
-    restart: unless-stopped
-```
+Add the Stripe key to the file and deploy the worker with it.
+[`worker`](worker) has the steps for Cloudflare Workers, Scaleway Functions
+and any host that runs Node. Then enter where the worker runs under Edit on
+the Products page. Its licenses show up on the Licenses page.
 
-| Env Var                       | Default          | Description                                    |
-| ----------------------------- | ---------------- | ---------------------------------------------- |
-| `INKAN_PREFIX`                | -                | Key prefix of the product                      |
-| `INKAN_PRIVATE_KEY`           | -                | Signing key of the product                     |
-| `INKAN_STRIPE_KEY`            | -                | API key that reads subscriptions and customers |
-| `INKAN_STRIPE_PRODUCT`        | -                | Its subscriptions are licenses                 |
-| `INKAN_PLAN`                  | -                | Plan for prices that set none                  |
-| `INKAN_GRACE_DAYS`            | `14`             | Days a key outlives its paid period            |
-| `INKAN_KEY_DAYS`              | `0`              | Longest life of a key in days, 0 has no limit  |
-| `INKAN_ADDR`                  | `127.0.0.1:3000` | Address to listen on                           |
-| `INKAN_STRIPE_WEBHOOK_SECRET` | -                | Signing secret of the webhook endpoint         |
-| `INKAN_SMTP_ADDR`             | -                | Mail server, host:port with STARTTLS           |
-| `INKAN_SMTP_USER`             | -                | Mail server login                              |
-| `INKAN_SMTP_PASS`             | -                | Mail server password                           |
-| `INKAN_MAIL_FROM`             | -                | Sender of the key mails                        |
-| `INKAN_PRODUCT_NAME`          | the prefix       | How the key mail calls the product             |
-| `INKAN_MAIL_LOGO`             | -                | https url of a logo for the dark header        |
-| `INKAN_MAIL_ACCENT`           | `#2f3e8f`        | Color of the key mail                          |
-| `INKAN_MAIL_FOOTER`           | -                | One line under the key, like where to get help |
-| `INKAN_MAIL_COMPANY`          | -                | Last line of the mail, your company details    |
-| `INKAN_MAIL_TEMPLATES`        | -                | Directory with a key mail of your own          |
+| Env Var                       | Default    | Description                                     |
+| ----------------------------- | ---------- | ----------------------------------------------- |
+| `INKAN_PREFIX`                | -          | Key prefix of the product                       |
+| `INKAN_PRIVATE_KEY`           | -          | Signing key of the product                      |
+| `INKAN_STRIPE_KEY`            | -          | API key that reads subscriptions and customers  |
+| `INKAN_STRIPE_PRODUCT`        | -          | Its subscriptions and purchases are licenses    |
+| `INKAN_PLAN`                  | -          | Plan for prices that set none                   |
+| `INKAN_GRACE_DAYS`            | `14`       | Days a key outlives its paid period             |
+| `INKAN_KEY_DAYS`              | `0`        | Longest life of a key in days, 0 has no limit   |
+| `INKAN_WORKER_TOKEN`          | -          | Lets the dashboard read the licenses            |
+| `INKAN_STRIPE_WEBHOOK_SECRET` | -          | Signing secret of the webhook endpoint          |
+| `INKAN_MAIL_FROM`             | -          | Sender of the key mails                         |
+| `RESEND_API_KEY`              | -          | Sends the mails through Resend                  |
+| `SCW_SECRET_KEY`              | -          | Or through Scaleway Transactional Email         |
+| `SCW_PROJECT_ID`              | -          | Project of the Scaleway key                     |
+| `SCW_REGION`                  | `fr-par`   | Region of Scaleway Transactional Email          |
+| `INKAN_PRODUCT_NAME`          | the prefix | How the key mail calls the product              |
+| `INKAN_MAIL_LOGO`             | -          | https url of a logo for the dark header         |
+| `INKAN_MAIL_ACCENT`           | `#2f3e8f`  | Color of the key mail                           |
+| `INKAN_MAIL_FOOTER`           | -          | One line under the key, like where to get help  |
+| `INKAN_MAIL_COMPANY`          | -          | Last line of the mail, your company details     |
 
-`worker env` prints the first seven. For the mails, add a webhook endpoint in
-Stripe for `https://<worker>/webhook` that sends `invoice.paid`, plus
-`checkout.session.completed` and `checkout.session.async_payment_succeeded` if
-you sell one time purchases. Leave out the webhook secret and the mail
-settings to serve refresh only.
+`worker env` prints what the product has. The secrets of Stripe and the mail
+service are not kept in the dashboard, they come out as comments to fill in.
 
-The webhook secret and the mail settings can be stored on the product, under
-Edit on the Products page. `worker env` then prints them too. What is not
-stored is printed as a comment, so the file shows what is left to fill in.
+The settings of the worker live on the product, under Edit on the Products
+page. A change only reaches the worker when you export the file again and
+deploy it. The Products page says so when the worker runs with other settings.
+
+For the mails, add a webhook endpoint in Stripe for `https://<worker>/webhook`
+that sends `invoice.paid`, plus `checkout.session.completed` and
+`checkout.session.async_payment_succeeded` if you sell one time purchases.
+Leave out the webhook secret or the mail service to serve no webhook.
 
 To try it against Stripe test mode, `task worker -- MYAPP` runs the worker on
-port 4242 with the Stripe CLI forwarding the three events to it.
+port 4242 with the Stripe CLI forwarding the three events to it. It takes the
+Stripe key and the mail service from your environment.
 
 ### The key mail
 
@@ -283,44 +285,12 @@ env` prints them.
 Links and email addresses in the footer and the company details can be
 clicked.
 
-Edit on a product has a Mail tab with a preview that follows what you type.
-To see it in a real mail client, send yourself a sample. The key in it is made
-up and works nowhere.
+Edit on a product has a Mail tab with a preview that follows what you type. It
+runs the very code the worker sends the mail with.
 
-```sh
-inkan worker mail you@example.com
-# or only look at it, this also shows templates of your own
-inkan worker mail --html > mail.html
-```
-
-For a mail of your own, point `INKAN_MAIL_TEMPLATES` at a directory with any
-of `subject.txt`, `body.txt` and `body.html`. A missing file is the built in
-one, a `body.txt` without a `body.html` goes out as plain text. They are Go
-templates, `text/template` and `html/template`, over these fields:
-
-| Field        |                                                        |
-| ------------ | ------------------------------------------------------ |
-| `.Key`       | The license key                                        |
-| `.Name`      | Name of the product, its prefix when none is set       |
-| `.App`       | Key prefix of the product                              |
-| `.Plan`      | Plan of the key                                        |
-| `.Email`     | Who the key is for                                     |
-| `.Expires`   | Like `15 January 2027`, empty for a key without an end |
-| `.ExpiresAt` | The same as a `time.Time`, to format it yourself       |
-| `.Meta`      | Extra claims, `{{.Meta.seats}}`                        |
-| `.Logo`      | What the product sets, each may be empty               |
-| `.Accent`    |                                                        |
-| `.Footer`    |                                                        |
-| `.Company`   |                                                        |
-| `.Shades`    | Colors worked out from the accent, see below           |
-
-`.Shades` holds what the built in mail makes of the accent: `Text` and
-`TextDark` for the accent as text on a light and a dark mail, and `Tint`,
-`TintBorder`, `TintDark` and `TintBorderDark` for the box of the key. In `body.html`, `{{linked .Footer .Shades.Text}}` turns the
-links and email addresses of a text into links of that color.
-
-Any tool that writes HTML works. With React Email, put the fields into the
-component as plain strings like `{'{{.Key}}'}` and export it to `body.html`.
+For a mail of your own, change `render` in
+[`worker/src/mail.ts`](worker/src/mail.ts). The worker is your code to deploy,
+so anything that returns a subject, a text and an html body works.
 
 ### How it behaves
 
@@ -333,13 +303,14 @@ component as plain strings like `{'{{.Key}}'}` and export it to `body.html`.
 - **Hand issued keys.** A key with a `lic_…` id, or none, always comes back as
   it is.
 - **Deleted customers.** Stripe cancels their subscriptions and forgets who
-  they were. The ledger keeps the last name and email it saw and marks the
+  they were. The dashboard keeps the last name and email it saw and marks the
   row, and a refresh keeps the email of the key it was sent.
 - **Refunds.** Cancel a refunded subscription right away and its next key ends
   with the cancellation. A refunded purchase gets an expired key. An app that
   refreshes picks that up, see key days above.
-- **Stripe is asked at most every five minutes per license.** A key that leaks
-  cannot be used to spend your Stripe rate limit.
+- **Stripe is asked at most every five minutes per license** for keys that
+  come in one after the other. A key that leaks is no easy way to spend your
+  Stripe rate limit.
 - **Errors.** An app only accepts an answer that verifies as one of its keys.
   When a refresh fails the app keeps the key it has.
 
@@ -359,18 +330,11 @@ It is a plain POST with the key as the body, so any language can do it:
 curl -X POST https://<worker>/refresh --data "$MYAPP_LICENSE_KEY"
 ```
 
-### In your own service
+### A worker of your own
 
-The worker is also a plain `http.Handler`, for an existing Go backend or a
-serverless platform that runs Go or containers, like Scaleway Functions, AWS
-Lambda, Cloud Run or Fly. `worker.New` takes a `worker.Config` with the same
-settings. Its `Send` is yours to write if mail is not how your keys travel.
-
-### On Cloudflare
-
-Cloudflare Workers do not run Go, so [`workers/cloudflare`](workers/cloudflare)
-holds the same worker in TypeScript. It takes the same settings and signs the
-same keys.
+[WORKER.md](WORKER.md) describes the endpoints. Anything that speaks them is a
+worker, in another language or for another payment provider. The dashboard
+does not care who answers.
 
 ## What it does not do
 
@@ -381,6 +345,7 @@ same keys.
 - It does not bind a key to a machine or count seats.
 - It has one password, no user accounts.
 - One worker serves one product.
+- A hand issued key cannot be renewed by a worker. It comes back as it is.
 
 ## Security
 

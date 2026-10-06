@@ -1,4 +1,4 @@
-import { createMutation, createQuery, keepPreviousData } from '@tanstack/svelte-query';
+import { createMutation, createQuery } from '@tanstack/svelte-query';
 import { queryClient } from './client';
 import {
 	checkKeyMutation,
@@ -18,12 +18,10 @@ import {
 	updateLicenseMutation,
 	updateProductMutation
 } from './generated/@tanstack/svelte-query.gen';
-import { previewMail } from './generated/sdk.gen';
-import type { MailPreviewInputBody } from './generated/types.gen';
 
 export type { CheckResult, License, LicenseFields, Product } from './generated/types.gen';
 
-// The provider syncs in the background, so both lists keep themselves fresh.
+// The workers are read in the background, so both lists keep themselves fresh.
 export function useProducts() {
 	return createQuery(() => ({ ...listProductsOptions(), refetchInterval: 60_000 }));
 }
@@ -35,25 +33,6 @@ export function useLicenses() {
 // One count a day, so there is nothing to poll for.
 export function useStats() {
 	return createQuery(() => ({ ...listStatsOptions(), staleTime: 60 * 60_000 }));
-}
-
-// The key mail of a product with a look that may not be saved yet. Nothing
-// is asked for while either gives undefined.
-export function useMailPreview(
-	productId: () => number | undefined,
-	look: () => MailPreviewInputBody | undefined
-) {
-	return createQuery(() => {
-		const id = productId();
-		const body = look();
-		return {
-			queryKey: ['mail-preview', id, body],
-			queryFn: async () =>
-				(await previewMail({ path: { id: id! }, body: body!, throwOnError: true })).data,
-			enabled: id !== undefined && !!body,
-			placeholderData: keepPreviousData
-		};
-	});
 }
 
 function refreshLicenses() {

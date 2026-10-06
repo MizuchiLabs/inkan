@@ -14,6 +14,9 @@ type Querier interface {
 	DeleteLicense(ctx context.Context, arg *DeleteLicenseParams) (int64, error)
 	DeleteProduct(ctx context.Context, id int64) error
 	DeleteSnapshots(ctx context.Context, day string) error
+	// What the worker no longer lists is gone at the provider. A worker that may
+	// not read one time purchases says nothing about them, so they stay.
+	DeleteUnseenProviderLicenses(ctx context.Context, arg *DeleteUnseenProviderLicensesParams) error
 	GetLicense(ctx context.Context, arg *GetLicenseParams) (*License, error)
 	GetProduct(ctx context.Context, id int64) (*Product, error)
 	GetProductByPrefix(ctx context.Context, prefix string) (*Product, error)
@@ -22,7 +25,9 @@ type Querier interface {
 	ListSnapshots(ctx context.Context, day string) ([]*Snapshot, error)
 	SetLicenseNote(ctx context.Context, arg *SetLicenseNoteParams) (*License, error)
 	SetProductSyncError(ctx context.Context, arg *SetProductSyncErrorParams) error
-	SetProductSynced(ctx context.Context, id int64) error
+	// The worker was read. sync_error is empty, or what is off with the worker.
+	SetProductSynced(ctx context.Context, arg *SetProductSyncedParams) error
+	SetProductWorkerToken(ctx context.Context, arg *SetProductWorkerTokenParams) error
 	// Licenses that have not run out, counted per product and plan.
 	TakeSnapshot(ctx context.Context, day string) error
 	UpdateLicense(ctx context.Context, arg *UpdateLicenseParams) (*License, error)

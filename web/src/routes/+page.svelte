@@ -161,8 +161,7 @@
 							</Empty.Title>
 							<Empty.Description>
 								{#if licenses.length === 0}
-									Issue one by hand, or connect a product to Stripe and its paid subscriptions show
-									up here.
+									Issue one by hand, or give a product a worker and its paid licenses show up here.
 								{:else}
 									No license fits this search and filter.
 								{/if}

@@ -3,8 +3,8 @@
 import { type MutationOptions, queryOptions } from '@tanstack/svelte-query';
 
 import { client } from '../client.gen';
-import { checkKey, createLicense, createProduct, deleteLicense, deleteProduct, getSession, listLicenses, listProducts, listStats, type Options, previewMail, signIn, signOut, syncProduct, updateLicense, updateProduct } from '../sdk.gen';
-import type { CheckKeyData, CheckKeyError, CheckKeyResponse, CreateLicenseData, CreateLicenseError, CreateLicenseResponse, CreateProductData, CreateProductError, CreateProductResponse, DeleteLicenseData, DeleteLicenseError, DeleteLicenseResponse, DeleteProductData, DeleteProductError, DeleteProductResponse, GetSessionData, GetSessionError, GetSessionResponse, ListLicensesData, ListLicensesError, ListLicensesResponse, ListProductsData, ListProductsError, ListProductsResponse, ListStatsData, ListStatsError, ListStatsResponse, PreviewMailData, PreviewMailError, PreviewMailResponse, SignInData, SignInError, SignInResponse, SignOutData, SignOutError, SignOutResponse, SyncProductData, SyncProductError, SyncProductResponse, UpdateLicenseData, UpdateLicenseError, UpdateLicenseResponse, UpdateProductData, UpdateProductError, UpdateProductResponse } from '../types.gen';
+import { checkKey, createLicense, createProduct, deleteLicense, deleteProduct, getSession, listLicenses, listProducts, listStats, type Options, signIn, signOut, syncProduct, updateLicense, updateProduct } from '../sdk.gen';
+import type { CheckKeyData, CheckKeyError, CheckKeyResponse, CreateLicenseData, CreateLicenseError, CreateLicenseResponse, CreateProductData, CreateProductError, CreateProductResponse, DeleteLicenseData, DeleteLicenseError, DeleteLicenseResponse, DeleteProductData, DeleteProductError, DeleteProductResponse, GetSessionData, GetSessionError, GetSessionResponse, ListLicensesData, ListLicensesError, ListLicensesResponse, ListProductsData, ListProductsError, ListProductsResponse, ListStatsData, ListStatsError, ListStatsResponse, SignInData, SignInError, SignInResponse, SignOutData, SignOutError, SignOutResponse, SyncProductData, SyncProductError, SyncProductResponse, UpdateLicenseData, UpdateLicenseError, UpdateLicenseResponse, UpdateProductData, UpdateProductError, UpdateProductResponse } from '../types.gen';
 
 /**
  * Check a license key
@@ -154,7 +154,7 @@ export const deleteProductMutation = (options?: Partial<Options<DeleteProductDat
 /**
  * Update a product
  *
- * A connected product is synced with its provider right away, the outcome is on the returned product.
+ * A product with a worker is synced with it right away, the outcome is on the returned product. The worker settings only reach the worker once its env is exported and deployed.
  */
 export const updateProductMutation = (options?: Partial<Options<UpdateProductData>>): MutationOptions<UpdateProductResponse, UpdateProductError, Options<UpdateProductData>> => {
     const mutationOptions: MutationOptions<UpdateProductResponse, UpdateProductError, Options<UpdateProductData>> = {
@@ -171,26 +171,7 @@ export const updateProductMutation = (options?: Partial<Options<UpdateProductDat
 };
 
 /**
- * Preview the key mail of a product
- *
- * Renders the built in mail with a made up key. The look comes from the request, so it can be tried before it is saved.
- */
-export const previewMailMutation = (options?: Partial<Options<PreviewMailData>>): MutationOptions<PreviewMailResponse, PreviewMailError, Options<PreviewMailData>> => {
-    const mutationOptions: MutationOptions<PreviewMailResponse, PreviewMailError, Options<PreviewMailData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await previewMail({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Sync a product with its provider
+ * Sync a product with its worker
  */
 export const syncProductMutation = (options?: Partial<Options<SyncProductData>>): MutationOptions<SyncProductResponse, SyncProductError, Options<SyncProductData>> => {
     const mutationOptions: MutationOptions<SyncProductResponse, SyncProductError, Options<SyncProductData>> = {
@@ -228,7 +209,7 @@ export const deleteLicenseMutation = (options?: Partial<Options<DeleteLicenseDat
 /**
  * Update a license
  *
- * Changing a signed field of a manual license changes its key. The provider owns its licenses, only their note is taken.
+ * Changing a signed field of a manual license changes its key. The worker owns the paid licenses, only their note is taken.
  */
 export const updateLicenseMutation = (options?: Partial<Options<UpdateLicenseData>>): MutationOptions<UpdateLicenseResponse, UpdateLicenseError, Options<UpdateLicenseData>> => {
     const mutationOptions: MutationOptions<UpdateLicenseResponse, UpdateLicenseError, Options<UpdateLicenseData>> = {

@@ -54,9 +54,9 @@ WHERE
 -- The provider owns everything but the note.
 -- name: UpsertProviderLicense :exec
 INSERT INTO
-  licenses (id, product_id, source, email, customer, customer_gone, plan, expires_at, meta, status, renews, created_at)
+  licenses (id, product_id, source, email, customer, customer_gone, plan, expires_at, meta, status, renews, key, seen_at, created_at)
 VALUES
-  (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (product_id, id) DO UPDATE
 SET
   -- A deleted customer comes back empty, the row keeps who it was.
@@ -67,7 +67,23 @@ SET
   expires_at = excluded.expires_at,
   meta = excluded.meta,
   status = excluded.status,
-  renews = excluded.renews;
+  renews = excluded.renews,
+  key = excluded.key,
+  -- Two syncs can overlap, the later one must not lose what it saw.
+  seen_at = max(licenses.seen_at, excluded.seen_at);
+
+-- What the worker no longer lists is gone at the provider. A worker that may
+-- not read one time purchases says nothing about them, so they stay.
+-- name: DeleteUnseenProviderLicenses :exec
+DELETE FROM licenses
+WHERE
+  product_id = sqlc.arg (product_id)
+  AND source != 'manual'
+  AND seen_at < sqlc.arg (seen_at)
+  AND (
+    CAST(sqlc.arg (purchases) AS BOOLEAN)
+    OR id NOT LIKE 'cs\_%' ESCAPE '\'
+  );
 
 -- name: DeleteSnapshots :exec
 DELETE FROM snapshots

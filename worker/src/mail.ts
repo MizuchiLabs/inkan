@@ -1,6 +1,5 @@
-// The built in key mail. It is the one of `inkan worker`, down to the byte:
-// worker/templates in the repository holds the original, and both are tested
-// against worker/testdata/mails.json. Change them together.
+// The key mail. The worker sends it and the dashboard previews it, so this
+// file has to run in a browser too. For a mail of your own, change render.
 
 import type { Claims } from './sign.ts';
 
@@ -16,7 +15,11 @@ const defaultAccent = '#2f3e8f';
 // An https link or an email address.
 const linkable = /https:\/\/[^ \t\n\f\r<>"]+|[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
 
-export function render(key: string, claims: Claims, brand: Brand): { subject: string; text: string; html: string } {
+export function render(
+	key: string,
+	claims: Claims,
+	brand: Brand
+): { subject: string; text: string; html: string } {
 	const name = brand.name || claims.app;
 	const footer = brand.footer ?? '';
 	const company = brand.company ?? '';
@@ -47,7 +50,7 @@ export function render(key: string, claims: Claims, brand: Brand): { subject: st
 		name: escape(name),
 		plan: escape(claims.plan),
 		email: escape(claims.email),
-		logo: escape(logo),
+		logo: escape(logo)
 	};
 	const html = `<!doctype html>
 <html lang="en">
@@ -164,13 +167,11 @@ function linked(text: string, color: string): string {
 	return out + escape(text.slice(last));
 }
 
-// The characters html/template escapes in Go, written the way it writes them.
 function escape(value: string): string {
 	return value
 		.replaceAll('&', '&amp;')
 		.replaceAll('<', '&lt;')
 		.replaceAll('>', '&gt;')
 		.replaceAll('"', '&#34;')
-		.replaceAll("'", '&#39;')
-		.replaceAll('+', '&#43;');
+		.replaceAll("'", '&#39;');
 }

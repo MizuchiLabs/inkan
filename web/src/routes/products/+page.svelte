@@ -48,7 +48,7 @@
 	function syncNow(p: Product) {
 		sync.mutate(
 			{ path: { id: p.id } },
-			{ onSuccess: (res) => toast.success(`Synced ${res.licenses} licenses from Stripe`) }
+			{ onSuccess: (res) => toast.success(`Read ${res.licenses} licenses from the worker`) }
 		);
 	}
 
@@ -155,7 +155,7 @@
 							{#if product.sync_error}
 								<Alert.Root variant="destructive">
 									<CircleAlertIcon />
-									<Alert.Title>Stripe sync failed</Alert.Title>
+									<Alert.Title>The worker needs a look</Alert.Title>
 									<Alert.Description>{product.sync_error}</Alert.Description>
 								</Alert.Root>
 							{/if}
@@ -164,15 +164,15 @@
 
 					<Card.Footer class="justify-between">
 						<p class="text-sm text-muted-foreground">
-							{#if !product.provider_connected}
-								Not connected to Stripe.
+							{#if !product.worker_connected}
+								No worker, so no paid licenses.
 							{:else if product.synced_at}
-								Synced with Stripe {formatRelativeTime(product.synced_at)}.
+								Read from the worker {formatRelativeTime(product.synced_at)}.
 							{:else}
-								Connected to Stripe, not synced yet.
+								Has a worker, not read yet.
 							{/if}
 						</p>
-						{#if product.provider_connected}
+						{#if product.worker_connected}
 							<Button
 								variant="outline"
 								size="sm"
@@ -191,11 +191,11 @@
 								variant="outline"
 								size="sm"
 								onclick={() => {
-									dialogTab = 'stripe';
+									dialogTab = 'worker';
 									dialog = product;
 								}}
 							>
-								Connect Stripe
+								Connect a worker
 							</Button>
 						{/if}
 					</Card.Footer>

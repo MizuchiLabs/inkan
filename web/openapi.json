@@ -168,7 +168,10 @@
 						"description": "Subscription or checkout session id at the provider, or lic_... for a manual license",
 						"type": "string"
 					},
-					"key": { "description": "The signed license key", "type": "string" },
+					"key": {
+						"description": "The signed license key. A paid license has the one its worker hands out",
+						"type": "string"
+					},
 					"meta": {
 						"additionalProperties": { "type": "string" },
 						"description": "Extra claims signed into the key",
@@ -230,91 +233,74 @@
 				"required": ["email"],
 				"type": "object"
 			},
-			"MailPreviewInputBody": {
-				"additionalProperties": false,
-				"properties": {
-					"mail_accent": { "maxLength": 32, "type": "string" },
-					"mail_company": { "maxLength": 512, "type": "string" },
-					"mail_footer": { "maxLength": 256, "type": "string" },
-					"mail_logo": { "maxLength": 512, "type": "string" },
-					"name": { "maxLength": 64, "type": "string" }
-				},
-				"type": "object"
-			},
-			"MailPreviewOutputBody": {
-				"additionalProperties": false,
-				"properties": { "html": { "type": "string" }, "subject": { "type": "string" } },
-				"required": ["subject", "html"],
-				"type": "object"
-			},
 			"Product": {
 				"additionalProperties": false,
 				"properties": {
 					"created_at": { "format": "date-time", "type": "string" },
 					"grace_days": {
-						"description": "Days a provider license stays valid past its paid period",
+						"description": "Worker setting. Days a paid license stays valid past its paid period",
 						"format": "int64",
 						"type": "integer"
 					},
 					"id": { "format": "int64", "type": "integer" },
 					"key_days": {
-						"description": "Longest life of a provider key in days, 0 has no limit. Apps refresh for the next one",
+						"description": "Worker setting. Longest life of a paid key in days, 0 has no limit. Apps refresh for the next one",
 						"format": "int64",
 						"type": "integer"
 					},
-					"mail_accent": { "description": "Color of the key mail, #rrggbb", "type": "string" },
-					"mail_company": {
-						"description": "Last line of the key mail: legal name, address, register number",
+					"mail_accent": {
+						"description": "Worker setting. Color of the key mail, #rrggbb",
 						"type": "string"
 					},
-					"mail_footer": { "description": "One line under the key in the mail", "type": "string" },
-					"mail_from": { "description": "Sender of the key mails", "type": "string" },
+					"mail_company": {
+						"description": "Worker setting. Last line of the key mail: legal name, address, register number",
+						"type": "string"
+					},
+					"mail_footer": {
+						"description": "Worker setting. One line under the key in the mail",
+						"type": "string"
+					},
+					"mail_from": {
+						"description": "Worker setting. Sender of the key mails",
+						"type": "string"
+					},
 					"mail_logo": {
-						"description": "https url of a logo for the dark header of the key mail",
+						"description": "Worker setting. https url of a logo for the dark header of the key mail",
 						"type": "string"
 					},
 					"name": { "type": "string" },
 					"plan": {
-						"description": "Plan claim for provider prices without plan metadata and the default for manual licenses",
+						"description": "Default for manual licenses. The worker gives it to prices without plan metadata",
 						"type": "string"
 					},
 					"prefix": {
 						"description": "Visible key prefix and the app name the product verifies against",
 						"type": "string"
 					},
-					"provider_connected": {
-						"description": "Whether an API key and a provider product are stored",
-						"type": "boolean"
-					},
 					"provider_product": {
-						"description": "Payment provider product id. Its subscriptions are licenses",
+						"description": "Worker setting. Stripe product id, its subscriptions and purchases are licenses",
 						"type": "string"
 					},
 					"public_key": {
 						"description": "Hex Ed25519 public key to build into the product",
 						"type": "string"
 					},
-					"smtp_addr": {
-						"description": "Mail server a worker sends keys through, host:port with STARTTLS",
-						"type": "string"
-					},
-					"smtp_pass_set": {
-						"description": "Whether a mail server password is stored",
-						"type": "boolean"
-					},
-					"smtp_user": { "type": "string" },
 					"sync_error": {
-						"description": "Why the last provider sync failed, empty when it worked",
+						"description": "Why the worker could not be read, or what is off with it. Empty when all is well",
 						"type": "string"
 					},
 					"synced_at": {
-						"description": "Last successful provider sync",
+						"description": "Last time the worker was read",
 						"format": "date-time",
 						"type": ["string", "null"]
 					},
-					"webhook_secret_set": {
-						"description": "Whether a webhook signing secret is stored",
+					"worker_connected": {
+						"description": "Whether a worker url is stored",
 						"type": "boolean"
+					},
+					"worker_url": {
+						"description": "Where the worker of the product runs. Its paid licenses are mirrored from there",
+						"type": "string"
 					}
 				},
 				"required": [
@@ -322,20 +308,17 @@
 					"name",
 					"prefix",
 					"plan",
+					"public_key",
+					"worker_url",
+					"worker_connected",
 					"grace_days",
 					"key_days",
-					"public_key",
 					"provider_product",
-					"provider_connected",
-					"smtp_addr",
-					"smtp_user",
 					"mail_from",
 					"mail_logo",
 					"mail_accent",
 					"mail_footer",
 					"mail_company",
-					"webhook_secret_set",
-					"smtp_pass_set",
 					"synced_at",
 					"sync_error",
 					"created_at"
@@ -379,7 +362,7 @@
 				"additionalProperties": false,
 				"properties": {
 					"licenses": {
-						"description": "Subscriptions and one time purchases found at the provider",
+						"description": "Paid licenses the worker hands out",
 						"format": "int64",
 						"type": "integer"
 					}
@@ -420,22 +403,15 @@
 					},
 					"name": { "maxLength": 64, "minLength": 1, "type": "string" },
 					"plan": { "maxLength": 32, "minLength": 1, "type": "string" },
-					"provider_key": { "description": "Empty keeps the stored key", "type": "string" },
-					"provider_product": { "description": "Empty disconnects the provider", "type": "string" },
-					"smtp_addr": {
-						"description": "Mail server of the worker, host:port with STARTTLS. Empty forgets the mail server",
-						"maxLength": 256,
+					"provider_product": {
+						"description": "Stripe product id for the worker",
+						"maxLength": 128,
 						"type": "string"
 					},
-					"smtp_pass": {
-						"description": "Empty keeps the stored password",
-						"maxLength": 256,
-						"type": "string"
-					},
-					"smtp_user": { "maxLength": 256, "type": "string" },
-					"webhook_secret": {
-						"description": "Signing secret of the webhook endpoint of the worker. Empty keeps the stored one",
-						"maxLength": 256,
+					"worker_url": {
+						"description": "Where the worker runs. Empty disconnects it",
+						"maxLength": 512,
+						"pattern": "^(https?://.+)?$",
 						"type": "string"
 					}
 				},
@@ -620,7 +596,7 @@
 				"tags": ["Products"]
 			},
 			"put": {
-				"description": "A connected product is synced with its provider right away, the outcome is on the returned product.",
+				"description": "A product with a worker is synced with it right away, the outcome is on the returned product. The worker settings only reach the worker once its env is exported and deployed.",
 				"operationId": "update-product",
 				"parameters": [
 					{
@@ -658,48 +634,6 @@
 				"tags": ["Products"]
 			}
 		},
-		"/api/products/{id}/mail-preview": {
-			"post": {
-				"description": "Renders the built in mail with a made up key. The look comes from the request, so it can be tried before it is saved.",
-				"operationId": "preview-mail",
-				"parameters": [
-					{
-						"in": "path",
-						"name": "id",
-						"required": true,
-						"schema": { "format": "int64", "type": "integer" }
-					}
-				],
-				"requestBody": {
-					"content": {
-						"application/json": {
-							"schema": { "$ref": "#/components/schemas/MailPreviewInputBody" }
-						}
-					},
-					"required": true
-				},
-				"responses": {
-					"200": {
-						"content": {
-							"application/json": {
-								"schema": { "$ref": "#/components/schemas/MailPreviewOutputBody" }
-							}
-						},
-						"description": "OK"
-					},
-					"default": {
-						"content": {
-							"application/problem+json": {
-								"schema": { "$ref": "#/components/schemas/ErrorModel" }
-							}
-						},
-						"description": "Error"
-					}
-				},
-				"summary": "Preview the key mail of a product",
-				"tags": ["Products"]
-			}
-		},
 		"/api/products/{id}/sync": {
 			"post": {
 				"operationId": "sync-product",
@@ -727,7 +661,7 @@
 						"description": "Error"
 					}
 				},
-				"summary": "Sync a product with its provider",
+				"summary": "Sync a product with its worker",
 				"tags": ["Products"]
 			}
 		},
@@ -759,7 +693,7 @@
 				"tags": ["Licenses"]
 			},
 			"put": {
-				"description": "Changing a signed field of a manual license changes its key. The provider owns its licenses, only their note is taken.",
+				"description": "Changing a signed field of a manual license changes its key. The worker owns the paid licenses, only their note is taken.",
 				"operationId": "update-license",
 				"parameters": [
 					{

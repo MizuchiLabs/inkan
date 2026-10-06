@@ -17,6 +17,8 @@ type License struct {
 	Note         string `json:"note"`
 	Status       string `json:"status"`
 	Renews       bool   `json:"renews"`
+	Key          string `json:"key"`
+	SeenAt       int64  `json:"seenAt"`
 	CreatedAt    int64  `json:"createdAt"`
 }
 
@@ -25,15 +27,12 @@ type Product struct {
 	Name            string `json:"name"`
 	Prefix          string `json:"prefix"`
 	Plan            string `json:"plan"`
+	PrivateKey      string `json:"privateKey"`
+	WorkerUrl       string `json:"workerUrl"`
+	WorkerToken     string `json:"workerToken"`
 	GraceDays       int64  `json:"graceDays"`
 	KeyDays         int64  `json:"keyDays"`
-	PrivateKey      string `json:"privateKey"`
-	ProviderKey     string `json:"providerKey"`
 	ProviderProduct string `json:"providerProduct"`
-	WebhookSecret   string `json:"webhookSecret"`
-	SmtpAddr        string `json:"smtpAddr"`
-	SmtpUser        string `json:"smtpUser"`
-	SmtpPass        string `json:"smtpPass"`
 	MailFrom        string `json:"mailFrom"`
 	MailLogo        string `json:"mailLogo"`
 	MailAccent      string `json:"mailAccent"`

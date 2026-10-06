@@ -38,7 +38,7 @@ type License struct {
 	Note         string            `json:"note"`
 	Status       string            `json:"status"        doc:"Subscription status at the provider, paid or refunded for a one time purchase, empty for a manual license"`
 	Renews       bool              `json:"renews"        doc:"Whether the provider will bill another period"`
-	Key          string            `json:"key"           doc:"The signed license key"`
+	Key          string            `json:"key"           doc:"The signed license key. A paid license has the one its worker hands out"`
 	CreatedAt    time.Time         `json:"created_at"`
 }
 
@@ -108,7 +108,7 @@ func registerLicenses(api huma.API, q *db.Queries) {
 		Method:      http.MethodPut,
 		Path:        "/api/products/{product_id}/licenses/{id}",
 		Summary:     "Update a license",
-		Description: "Changing a signed field of a manual license changes its key. The provider owns its licenses, only their note is taken.",
+		Description: "Changing a signed field of a manual license changes its key. The worker owns the paid licenses, only their note is taken.",
 		Tags:        []string{"Licenses"},
 	}, h.update)
 	huma.Register(api, huma.Operation{
@@ -226,7 +226,7 @@ func (h *licenseHandlers) delete(ctx context.Context, in *LicensePath) (*struct{
 	}
 	if n == 0 {
 		return nil, huma.Error409Conflict(
-			"only manual licenses can be deleted, provider ones come back with the next sync",
+			"only manual licenses can be deleted, paid ones come back with the next sync",
 		)
 	}
 	return nil, nil
@@ -240,8 +240,9 @@ func (h *licenseHandlers) output(p *db.Product, l *db.License) (*LicenseOutput, 
 	return &LicenseOutput{Body: out}, nil
 }
 
-// toLicense signs the key from the row. Signing is deterministic, so a
-// license shows the same key every time until one of its claims changes.
+// toLicense adds the key to the row. A manual one is signed here. Signing is
+// deterministic, so it is the same key every time until one of its claims
+// changes. A paid license has the key its worker hands out.
 func toLicense(p *db.Product, l *db.License) (License, error) {
 	if p == nil {
 		return License{}, fmt.Errorf("license %s has no product", l.ID)
@@ -250,19 +251,22 @@ func toLicense(p *db.Product, l *db.License) (License, error) {
 	if err := json.Unmarshal([]byte(l.Meta), &meta); err != nil {
 		return License{}, fmt.Errorf("license %s has broken metadata: %w", l.ID, err)
 	}
-	priv, err := license.ParsePrivateKey(p.PrivateKey)
-	if err != nil {
-		return License{}, fmt.Errorf("product %s: %w", p.Name, err)
-	}
-	key, err := license.Issue(p.Prefix, license.Claims{
-		Plan:      l.Plan,
-		Email:     l.Email,
-		ExpiresAt: l.ExpiresAt,
-		ID:        l.ID,
-		Meta:      meta,
-	}, priv)
-	if err != nil {
-		return License{}, fmt.Errorf("signing license %s: %w", l.ID, err)
+	key := l.Key
+	if l.Source == sourceManual {
+		priv, err := license.ParsePrivateKey(p.PrivateKey)
+		if err != nil {
+			return License{}, fmt.Errorf("product %s: %w", p.Name, err)
+		}
+		key, err = license.Issue(p.Prefix, license.Claims{
+			Plan:      l.Plan,
+			Email:     l.Email,
+			ExpiresAt: l.ExpiresAt,
+			ID:        l.ID,
+			Meta:      meta,
+		}, priv)
+		if err != nil {
+			return License{}, fmt.Errorf("signing license %s: %w", l.ID, err)
+		}
 	}
 
 	out := License{

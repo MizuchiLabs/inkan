@@ -11,7 +11,8 @@ const proxy = {
 };
 export default defineConfig({
 	preview: { proxy },
-	server: { proxy },
+	// The mail preview renders the key mail of the worker, see src/lib/mail.ts.
+	server: { proxy, fs: { allow: ['../worker/src'] } },
 	plugins: [
 		tailwindcss(),
 		sveltekit({

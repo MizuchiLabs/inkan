@@ -185,8 +185,8 @@
 					</div>
 				{:else}
 					<p class="text-sm text-muted-foreground">
-						Stripe owns this license. Plan and grace period come from the product, everything else
-						from the subscription.
+						The worker owns this license. It is what Stripe says, with the plan and the grace period
+						the worker runs with.
 					</p>
 				{/if}
 			</Sheet.Footer>

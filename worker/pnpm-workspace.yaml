@@ -1,0 +1,4 @@
+# Both work without their install scripts.
+allowBuilds:
+  esbuild: false
+  workerd: false

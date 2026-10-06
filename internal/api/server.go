@@ -69,12 +69,11 @@ func (s *Server) Start(ctx context.Context, addr string) error {
 	if s.auth.key == nil && !loopback(addr) {
 		return fmt.Errorf("refusing to listen on %s without a password, set INKAN_PASSWORD", addr)
 	}
-	return Serve(ctx, addr, s.Handler())
+	return serve(ctx, addr, s.Handler())
 }
 
-// Serve runs handler on addr with request logging until ctx is done. The
-// worker command serves through it too.
-func Serve(ctx context.Context, addr string, handler http.Handler) error {
+// serve runs handler on addr with request logging until ctx is done.
+func serve(ctx context.Context, addr string, handler http.Handler) error {
 	logger := httplog.RequestLogger(slog.Default(), &httplog.Options{
 		RecoverPanics: true,
 		Schema:        httplog.SchemaOTEL.Concise(logx.IsTerminal()),

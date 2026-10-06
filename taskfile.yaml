@@ -17,7 +17,7 @@ tasks:
       - pnpm run dev
 
   worker:
-    desc: Run the worker of a product with the Stripe CLI forwarding test webhooks to it, task worker -- MYAPP
+    desc: Run the worker of a product with the Stripe CLI forwarding test webhooks to it, task worker -- MYAPP. Takes INKAN_STRIPE_KEY and the mail service from the environment
     cmds:
       - |
         while IFS= read -r line; do
@@ -29,7 +29,7 @@ tasks:
         stripe listen --forward-to localhost:4242/webhook \
           --events invoice.paid,checkout.session.completed,checkout.session.async_payment_succeeded &
         trap 'kill $!' EXIT
-        go run . worker --addr :4242
+        PORT=4242 node worker/src/node.ts
 
   seed:
     desc: Fill data/demo with made up products, licenses and 90 days of history
@@ -67,11 +67,17 @@ tasks:
       - golangci-lint run --fix
 
   test-sdk:
-    desc: Run the verifiers and the Cloudflare worker against the test vectors
+    desc: Run the verifiers and the worker
     cmds:
       - cd sdk/ts && node --test
       - cd sdk/python && python3 -m unittest
-      - cd workers/cloudflare && node --test
+      - cd worker && node --test
+
+  pages:
+    desc: Rewrite worker/test/pages.json after a deliberate change of what the worker lists
+    cmds:
+      - cd worker && UPDATE=1 node --test
+      - go test ./internal/mirror/
 
   vectors:
     desc: Rewrite the test vectors after a deliberate change of the key format

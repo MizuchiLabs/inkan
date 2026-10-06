@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { CheckKeyData, CheckKeyErrors, CheckKeyResponses, CreateLicenseData, CreateLicenseErrors, CreateLicenseResponses, CreateProductData, CreateProductErrors, CreateProductResponses, DeleteLicenseData, DeleteLicenseErrors, DeleteLicenseResponses, DeleteProductData, DeleteProductErrors, DeleteProductResponses, GetSessionData, GetSessionErrors, GetSessionResponses, ListLicensesData, ListLicensesErrors, ListLicensesResponses, ListProductsData, ListProductsErrors, ListProductsResponses, ListStatsData, ListStatsErrors, ListStatsResponses, PreviewMailData, PreviewMailErrors, PreviewMailResponses, SignInData, SignInErrors, SignInResponses, SignOutData, SignOutErrors, SignOutResponses, SyncProductData, SyncProductErrors, SyncProductResponses, UpdateLicenseData, UpdateLicenseErrors, UpdateLicenseResponses, UpdateProductData, UpdateProductErrors, UpdateProductResponses } from './types.gen';
+import type { CheckKeyData, CheckKeyErrors, CheckKeyResponses, CreateLicenseData, CreateLicenseErrors, CreateLicenseResponses, CreateProductData, CreateProductErrors, CreateProductResponses, DeleteLicenseData, DeleteLicenseErrors, DeleteLicenseResponses, DeleteProductData, DeleteProductErrors, DeleteProductResponses, GetSessionData, GetSessionErrors, GetSessionResponses, ListLicensesData, ListLicensesErrors, ListLicensesResponses, ListProductsData, ListProductsErrors, ListProductsResponses, ListStatsData, ListStatsErrors, ListStatsResponses, SignInData, SignInErrors, SignInResponses, SignOutData, SignOutErrors, SignOutResponses, SyncProductData, SyncProductErrors, SyncProductResponses, UpdateLicenseData, UpdateLicenseErrors, UpdateLicenseResponses, UpdateProductData, UpdateProductErrors, UpdateProductResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -80,7 +80,7 @@ export const deleteProduct = <ThrowOnError extends boolean = false>(options: Opt
 /**
  * Update a product
  *
- * A connected product is synced with its provider right away, the outcome is on the returned product.
+ * A product with a worker is synced with it right away, the outcome is on the returned product. The worker settings only reach the worker once its env is exported and deployed.
  */
 export const updateProduct = <ThrowOnError extends boolean = false>(options: Options<UpdateProductData, ThrowOnError>): RequestResult<UpdateProductResponses, UpdateProductErrors, ThrowOnError> => (options.client ?? client).put<UpdateProductResponses, UpdateProductErrors, ThrowOnError>({
     url: '/api/products/{id}',
@@ -92,21 +92,7 @@ export const updateProduct = <ThrowOnError extends boolean = false>(options: Opt
 });
 
 /**
- * Preview the key mail of a product
- *
- * Renders the built in mail with a made up key. The look comes from the request, so it can be tried before it is saved.
- */
-export const previewMail = <ThrowOnError extends boolean = false>(options: Options<PreviewMailData, ThrowOnError>): RequestResult<PreviewMailResponses, PreviewMailErrors, ThrowOnError> => (options.client ?? client).post<PreviewMailResponses, PreviewMailErrors, ThrowOnError>({
-    url: '/api/products/{id}/mail-preview',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Sync a product with its provider
+ * Sync a product with its worker
  */
 export const syncProduct = <ThrowOnError extends boolean = false>(options: Options<SyncProductData, ThrowOnError>): RequestResult<SyncProductResponses, SyncProductErrors, ThrowOnError> => (options.client ?? client).post<SyncProductResponses, SyncProductErrors, ThrowOnError>({ url: '/api/products/{id}/sync', ...options });
 
@@ -120,7 +106,7 @@ export const deleteLicense = <ThrowOnError extends boolean = false>(options: Opt
 /**
  * Update a license
  *
- * Changing a signed field of a manual license changes its key. The provider owns its licenses, only their note is taken.
+ * Changing a signed field of a manual license changes its key. The worker owns the paid licenses, only their note is taken.
  */
 export const updateLicense = <ThrowOnError extends boolean = false>(options: Options<UpdateLicenseData, ThrowOnError>): RequestResult<UpdateLicenseResponses, UpdateLicenseErrors, ThrowOnError> => (options.client ?? client).put<UpdateLicenseResponses, UpdateLicenseErrors, ThrowOnError>({
     url: '/api/products/{product_id}/licenses/{id}',

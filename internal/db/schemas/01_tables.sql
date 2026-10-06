@@ -2,29 +2,28 @@ CREATE TABLE products (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL UNIQUE,
   prefix TEXT NOT NULL UNIQUE, -- app name signed into the keys and their visible prefix, uppercase letters and digits
-  plan TEXT NOT NULL, -- plan claim for provider prices without plan metadata, default for manual ones
-  grace_days INTEGER NOT NULL DEFAULT 14, -- added to the paid period of a provider license
-  key_days INTEGER NOT NULL DEFAULT 0, -- longest life of a provider key, 0 has no limit, apps refresh for the next one
+  plan TEXT NOT NULL, -- default for manual licenses, the worker gives it to prices without plan metadata
   private_key TEXT NOT NULL, -- base64 Ed25519, signs every key of this product
-  provider_key TEXT NOT NULL DEFAULT '', -- API key of the payment provider, reads subscriptions and customers
-  provider_product TEXT NOT NULL DEFAULT '', -- product id at the provider, its subscriptions are licenses
-  -- What a worker needs to mail keys. Only kept here so worker env can print it.
-  webhook_secret TEXT NOT NULL DEFAULT '', -- signing secret of the webhook endpoint at the provider
-  smtp_addr TEXT NOT NULL DEFAULT '', -- host:port with STARTTLS
-  smtp_user TEXT NOT NULL DEFAULT '',
-  smtp_pass TEXT NOT NULL DEFAULT '',
+  -- The worker hands out the paid licenses, inkan reads them from it.
+  worker_url TEXT NOT NULL DEFAULT '', -- where the worker runs, empty without one
+  worker_token TEXT NOT NULL DEFAULT '', -- lets inkan read the licenses of the worker
+  -- Settings of the worker. Only kept here so worker env can print them.
+  grace_days INTEGER NOT NULL DEFAULT 14, -- added to the paid period of a license
+  key_days INTEGER NOT NULL DEFAULT 0, -- longest life of a paid key, 0 has no limit, apps refresh for the next one
+  provider_product TEXT NOT NULL DEFAULT '', -- product id at Stripe, its subscriptions and purchases are licenses
   mail_from TEXT NOT NULL DEFAULT '', -- an address or "Name <address>"
   mail_logo TEXT NOT NULL DEFAULT '', -- https url, shown in the key mail
   mail_accent TEXT NOT NULL DEFAULT '', -- color of the key mail, #rrggbb
   mail_footer TEXT NOT NULL DEFAULT '', -- one line under the key
   mail_company TEXT NOT NULL DEFAULT '', -- legal name, address and the like, the last line of the key mail
-  synced_at INTEGER, -- last successful provider sync
-  sync_error TEXT NOT NULL DEFAULT '',
+  synced_at INTEGER, -- last time the worker was read
+  sync_error TEXT NOT NULL DEFAULT '', -- why the worker could not be read, or what is off with it
   created_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
--- Keys are never stored. They are signed from these rows on demand, the same
--- row always gives the same key.
+-- Manual keys are never stored. They are signed from these rows on demand, the
+-- same row always gives the same key. A paid license holds the key its worker
+-- hands out.
 CREATE TABLE licenses (
   id TEXT NOT NULL, -- subscription or checkout session id at the provider, lic_... for manual ones
   product_id INTEGER NOT NULL REFERENCES products (id) ON DELETE CASCADE,
@@ -38,6 +37,8 @@ CREATE TABLE licenses (
   note TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT '', -- subscription status at the provider, paid or refunded for a one time purchase, empty for manual
   renews BOOLEAN NOT NULL DEFAULT 0, -- the provider will bill another period
+  key TEXT NOT NULL DEFAULT '', -- the key the worker hands out, empty for manual
+  seen_at INTEGER NOT NULL DEFAULT 0, -- start of the last sync that found it at the worker
   created_at INTEGER NOT NULL DEFAULT (unixepoch()),
   -- One subscription can hold several products, each is a license of its own.
   PRIMARY KEY (product_id, id)

@@ -21,7 +21,7 @@ MYAPP-AXsid-iI6MS-wiYXB-wIjoi-...
 | ------- | ------ | ----------------------------------------------- |
 | `v`     | number | Always 1                                        |
 | `app`   | string | The product prefix                              |
-| `plan`  | string | Plan name, the app decides what 0it means       |
+| `plan`  | string | Plan name, the app decides what it means        |
 | `email` | string | Who the license is for                          |
 | `exp`   | number | Unix seconds, 0 never expires                   |
 | `id`    | string | Optional. `sub_…`, `cs_…` or `lic_…`, see below |
@@ -62,27 +62,23 @@ commas, while a signing key rotates.
 `POST` the key as the plain text body to the refresh URL of the worker. The
 answer is `200` with a key as plain text, or an error with a reason. Verify
 the answer like any key before you keep it, only `valid` and `expired` are
-keys. On any error keep the key you have.
+keys. On any error keep the key you have. [WORKER.md](WORKER.md) has the side
+of the worker.
 
 ## Sign
 
-Only needed for a worker in another language. Verifiers can skip this.
+Only needed for a worker of your own. Verifiers can skip this.
 
-The ledger and a worker must give the same key for the same license, so the
-payload has to match the Go `encoding/json` output byte for byte:
+Encode the claims as a JSON object and sign those bytes. A verifier checks the
+bytes as they arrive, so the order of the fields, the whitespace and the
+escaping are yours to choose. Write `v` as 1 and `app` as the product prefix.
 
-- The fields in the order `v`, `app`, `plan`, `email`, `exp`, `id`, `meta`,
-  without any whitespace.
-- `id` is left out when empty, `meta` when it has no entries.
-- The names in `meta` are sorted by their UTF-8 bytes.
-- Strings escape `"` and `\`, write `\b`, `\f`, `\n`, `\r`, `\t` in their
-  short form and every other character below `0x20` as `\u00xx`. On top of
-  plain JSON, `<`, `>`, `&`, U+2028 and U+2029 are written as `<`,
-  `>`, `&`, ` ` and ` `. Everything else stays as it is.
+Keep the encoding stable. Ed25519 signatures are deterministic, so the same
+bytes always give the same key, and an app that refreshes can tell that
+nothing changed.
 
 The private key inkan stores is base64 of 64 bytes, the seed is the first 32
-and the public key the last 32. Ed25519 signatures are deterministic, so the
-same payload always gives the same key.
+and the public key the last 32.
 
 ## Test vectors
 
@@ -95,7 +91,7 @@ its tests.
 | `public_key` | Hex public key to verify with                               |
 | `now`        | Unix time to check the expiry against                       |
 | `verify`     | A `key` and `app` with the `result` and `claims` to expect  |
-| `sign`       | `claims` with the `payload` and the `key` they have to give |
+| `sign`       | `claims` with the `payload` and `key` the Go package gives  |
 
 `result` is `valid`, `expired`, `format`, `signature`, `app` or `version`.
 `claims` is set for `valid` and `expired` and null otherwise.

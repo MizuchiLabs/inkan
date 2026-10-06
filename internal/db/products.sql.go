@@ -11,18 +11,19 @@ import (
 
 const createProduct = `-- name: CreateProduct :one
 INSERT INTO
-  products (name, prefix, plan, grace_days, key_days, private_key)
+  products (name, prefix, plan, grace_days, key_days, private_key, worker_token)
 VALUES
-  (?, ?, ?, ?, ?, ?) RETURNING id, name, prefix, "plan", grace_days, key_days, private_key, provider_key, provider_product, webhook_secret, smtp_addr, smtp_user, smtp_pass, mail_from, mail_logo, mail_accent, mail_footer, mail_company, synced_at, sync_error, created_at
+  (?, ?, ?, ?, ?, ?, ?) RETURNING id, name, prefix, "plan", private_key, worker_url, worker_token, grace_days, key_days, provider_product, mail_from, mail_logo, mail_accent, mail_footer, mail_company, synced_at, sync_error, created_at
 `
 
 type CreateProductParams struct {
-	Name       string `json:"name"`
-	Prefix     string `json:"prefix"`
-	Plan       string `json:"plan"`
-	GraceDays  int64  `json:"graceDays"`
-	KeyDays    int64  `json:"keyDays"`
-	PrivateKey string `json:"privateKey"`
+	Name        string `json:"name"`
+	Prefix      string `json:"prefix"`
+	Plan        string `json:"plan"`
+	GraceDays   int64  `json:"graceDays"`
+	KeyDays     int64  `json:"keyDays"`
+	PrivateKey  string `json:"privateKey"`
+	WorkerToken string `json:"workerToken"`
 }
 
 func (q *Queries) CreateProduct(ctx context.Context, arg *CreateProductParams) (*Product, error) {
@@ -33,6 +34,7 @@ func (q *Queries) CreateProduct(ctx context.Context, arg *CreateProductParams) (
 		arg.GraceDays,
 		arg.KeyDays,
 		arg.PrivateKey,
+		arg.WorkerToken,
 	)
 	var i Product
 	err := row.Scan(
@@ -40,15 +42,12 @@ func (q *Queries) CreateProduct(ctx context.Context, arg *CreateProductParams) (
 		&i.Name,
 		&i.Prefix,
 		&i.Plan,
+		&i.PrivateKey,
+		&i.WorkerUrl,
+		&i.WorkerToken,
 		&i.GraceDays,
 		&i.KeyDays,
-		&i.PrivateKey,
-		&i.ProviderKey,
 		&i.ProviderProduct,
-		&i.WebhookSecret,
-		&i.SmtpAddr,
-		&i.SmtpUser,
-		&i.SmtpPass,
 		&i.MailFrom,
 		&i.MailLogo,
 		&i.MailAccent,
@@ -74,7 +73,7 @@ func (q *Queries) DeleteProduct(ctx context.Context, id int64) error {
 
 const getProduct = `-- name: GetProduct :one
 SELECT
-  id, name, prefix, "plan", grace_days, key_days, private_key, provider_key, provider_product, webhook_secret, smtp_addr, smtp_user, smtp_pass, mail_from, mail_logo, mail_accent, mail_footer, mail_company, synced_at, sync_error, created_at
+  id, name, prefix, "plan", private_key, worker_url, worker_token, grace_days, key_days, provider_product, mail_from, mail_logo, mail_accent, mail_footer, mail_company, synced_at, sync_error, created_at
 FROM
   products
 WHERE
@@ -89,15 +88,12 @@ func (q *Queries) GetProduct(ctx context.Context, id int64) (*Product, error) {
 		&i.Name,
 		&i.Prefix,
 		&i.Plan,
+		&i.PrivateKey,
+		&i.WorkerUrl,
+		&i.WorkerToken,
 		&i.GraceDays,
 		&i.KeyDays,
-		&i.PrivateKey,
-		&i.ProviderKey,
 		&i.ProviderProduct,
-		&i.WebhookSecret,
-		&i.SmtpAddr,
-		&i.SmtpUser,
-		&i.SmtpPass,
 		&i.MailFrom,
 		&i.MailLogo,
 		&i.MailAccent,
@@ -112,7 +108,7 @@ func (q *Queries) GetProduct(ctx context.Context, id int64) (*Product, error) {
 
 const getProductByPrefix = `-- name: GetProductByPrefix :one
 SELECT
-  id, name, prefix, "plan", grace_days, key_days, private_key, provider_key, provider_product, webhook_secret, smtp_addr, smtp_user, smtp_pass, mail_from, mail_logo, mail_accent, mail_footer, mail_company, synced_at, sync_error, created_at
+  id, name, prefix, "plan", private_key, worker_url, worker_token, grace_days, key_days, provider_product, mail_from, mail_logo, mail_accent, mail_footer, mail_company, synced_at, sync_error, created_at
 FROM
   products
 WHERE
@@ -127,15 +123,12 @@ func (q *Queries) GetProductByPrefix(ctx context.Context, prefix string) (*Produ
 		&i.Name,
 		&i.Prefix,
 		&i.Plan,
+		&i.PrivateKey,
+		&i.WorkerUrl,
+		&i.WorkerToken,
 		&i.GraceDays,
 		&i.KeyDays,
-		&i.PrivateKey,
-		&i.ProviderKey,
 		&i.ProviderProduct,
-		&i.WebhookSecret,
-		&i.SmtpAddr,
-		&i.SmtpUser,
-		&i.SmtpPass,
 		&i.MailFrom,
 		&i.MailLogo,
 		&i.MailAccent,
@@ -150,7 +143,7 @@ func (q *Queries) GetProductByPrefix(ctx context.Context, prefix string) (*Produ
 
 const listProducts = `-- name: ListProducts :many
 SELECT
-  id, name, prefix, "plan", grace_days, key_days, private_key, provider_key, provider_product, webhook_secret, smtp_addr, smtp_user, smtp_pass, mail_from, mail_logo, mail_accent, mail_footer, mail_company, synced_at, sync_error, created_at
+  id, name, prefix, "plan", private_key, worker_url, worker_token, grace_days, key_days, provider_product, mail_from, mail_logo, mail_accent, mail_footer, mail_company, synced_at, sync_error, created_at
 FROM
   products
 ORDER BY
@@ -171,15 +164,12 @@ func (q *Queries) ListProducts(ctx context.Context) ([]*Product, error) {
 			&i.Name,
 			&i.Prefix,
 			&i.Plan,
+			&i.PrivateKey,
+			&i.WorkerUrl,
+			&i.WorkerToken,
 			&i.GraceDays,
 			&i.KeyDays,
-			&i.PrivateKey,
-			&i.ProviderKey,
 			&i.ProviderProduct,
-			&i.WebhookSecret,
-			&i.SmtpAddr,
-			&i.SmtpUser,
-			&i.SmtpPass,
 			&i.MailFrom,
 			&i.MailLogo,
 			&i.MailAccent,
@@ -224,13 +214,37 @@ const setProductSynced = `-- name: SetProductSynced :exec
 UPDATE products
 SET
   synced_at = unixepoch(),
-  sync_error = ''
+  sync_error = ?
 WHERE
   id = ?
 `
 
-func (q *Queries) SetProductSynced(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, setProductSynced, id)
+type SetProductSyncedParams struct {
+	SyncError string `json:"syncError"`
+	ID        int64  `json:"id"`
+}
+
+// The worker was read. sync_error is empty, or what is off with the worker.
+func (q *Queries) SetProductSynced(ctx context.Context, arg *SetProductSyncedParams) error {
+	_, err := q.db.ExecContext(ctx, setProductSynced, arg.SyncError, arg.ID)
+	return err
+}
+
+const setProductWorkerToken = `-- name: SetProductWorkerToken :exec
+UPDATE products
+SET
+  worker_token = ?
+WHERE
+  id = ?
+`
+
+type SetProductWorkerTokenParams struct {
+	WorkerToken string `json:"workerToken"`
+	ID          int64  `json:"id"`
+}
+
+func (q *Queries) SetProductWorkerToken(ctx context.Context, arg *SetProductWorkerTokenParams) error {
+	_, err := q.db.ExecContext(ctx, setProductWorkerToken, arg.WorkerToken, arg.ID)
 	return err
 }
 
@@ -241,19 +255,15 @@ SET
   plan = ?,
   grace_days = ?,
   key_days = ?,
-  provider_key = ?,
   provider_product = ?,
-  webhook_secret = ?,
-  smtp_addr = ?,
-  smtp_user = ?,
-  smtp_pass = ?,
+  worker_url = ?,
   mail_from = ?,
   mail_logo = ?,
   mail_accent = ?,
   mail_footer = ?,
   mail_company = ?
 WHERE
-  id = ? RETURNING id, name, prefix, "plan", grace_days, key_days, private_key, provider_key, provider_product, webhook_secret, smtp_addr, smtp_user, smtp_pass, mail_from, mail_logo, mail_accent, mail_footer, mail_company, synced_at, sync_error, created_at
+  id = ? RETURNING id, name, prefix, "plan", private_key, worker_url, worker_token, grace_days, key_days, provider_product, mail_from, mail_logo, mail_accent, mail_footer, mail_company, synced_at, sync_error, created_at
 `
 
 type UpdateProductParams struct {
@@ -261,12 +271,8 @@ type UpdateProductParams struct {
 	Plan            string `json:"plan"`
 	GraceDays       int64  `json:"graceDays"`
 	KeyDays         int64  `json:"keyDays"`
-	ProviderKey     string `json:"providerKey"`
 	ProviderProduct string `json:"providerProduct"`
-	WebhookSecret   string `json:"webhookSecret"`
-	SmtpAddr        string `json:"smtpAddr"`
-	SmtpUser        string `json:"smtpUser"`
-	SmtpPass        string `json:"smtpPass"`
+	WorkerUrl       string `json:"workerUrl"`
 	MailFrom        string `json:"mailFrom"`
 	MailLogo        string `json:"mailLogo"`
 	MailAccent      string `json:"mailAccent"`
@@ -281,12 +287,8 @@ func (q *Queries) UpdateProduct(ctx context.Context, arg *UpdateProductParams) (
 		arg.Plan,
 		arg.GraceDays,
 		arg.KeyDays,
-		arg.ProviderKey,
 		arg.ProviderProduct,
-		arg.WebhookSecret,
-		arg.SmtpAddr,
-		arg.SmtpUser,
-		arg.SmtpPass,
+		arg.WorkerUrl,
 		arg.MailFrom,
 		arg.MailLogo,
 		arg.MailAccent,
@@ -300,15 +302,12 @@ func (q *Queries) UpdateProduct(ctx context.Context, arg *UpdateProductParams) (
 		&i.Name,
 		&i.Prefix,
 		&i.Plan,
+		&i.PrivateKey,
+		&i.WorkerUrl,
+		&i.WorkerToken,
 		&i.GraceDays,
 		&i.KeyDays,
-		&i.PrivateKey,
-		&i.ProviderKey,
 		&i.ProviderProduct,
-		&i.WebhookSecret,
-		&i.SmtpAddr,
-		&i.SmtpUser,
-		&i.SmtpPass,
 		&i.MailFrom,
 		&i.MailLogo,
 		&i.MailAccent,

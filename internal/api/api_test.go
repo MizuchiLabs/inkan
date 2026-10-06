@@ -80,7 +80,7 @@ func TestProductKeys(t *testing.T) {
 	p := createProduct(t, srv)
 	assert.Len(t, p.PublicKey, 64, "a fresh product gets a keypair")
 	assert.Equal(t, int64(14), p.GraceDays)
-	assert.False(t, p.ProviderConnected)
+	assert.False(t, p.WorkerConnected)
 
 	stored, err := q.GetProduct(t.Context(), p.ID)
 	require.NoError(t, err)
@@ -99,23 +99,53 @@ func TestProductKeys(t *testing.T) {
 		map[string]any{"name": "Bad", "prefix": "BAD", "plan": "pro", "private_key": "nope"}, nil))
 }
 
-func TestMailPreview(t *testing.T) {
-	srv, _ := newTestServer(t)
-	var p Product
-	body := map[string]any{"name": "App", "prefix": "APP", "plan": "pro"}
-	require.Equal(t, http.StatusCreated, call(t, srv, http.MethodPost, "/api/products", body, &p))
+// The worker settings of a product are only kept for worker env. Saving them
+// reads the worker right away.
+func TestProductWorker(t *testing.T) {
+	t.Parallel()
+	srv, q := newTestServer(t)
+	p := createProduct(t, srv)
 
-	var mail struct {
-		Subject string `json:"subject"`
-		HTML    string `json:"html"`
+	stored, err := q.GetProduct(t.Context(), p.ID)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, len(stored.WorkerToken), 32, "a worker turns a shorter token down")
+
+	worker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "Bearer "+stored.WorkerToken, r.Header.Get("Authorization"))
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte("stripe: Invalid API Key provided"))
+	}))
+	t.Cleanup(worker.Close)
+
+	path := fmt.Sprintf("/api/products/%d", p.ID)
+	settings := map[string]any{
+		"name": "App", "plan": "team", "grace_days": 7, "key_days": 30, "provider_product": "prod_app",
+		"worker_url": worker.URL, "mail_from": "Keys <keys@example.com>", "mail_accent": "#c2410c",
 	}
-	look := map[string]any{"name": "Renamed", "mail_accent": "#c2410c", "mail_footer": "Ask <us>"}
-	path := fmt.Sprintf("/api/products/%d/mail-preview", p.ID)
-	require.Equal(t, http.StatusOK, call(t, srv, http.MethodPost, path, look, &mail))
-	assert.Equal(t, "Your Renamed license key", mail.Subject, "the look comes from the request, saved or not")
-	assert.Contains(t, mail.HTML, "#c2410c")
-	assert.Contains(t, mail.HTML, "Ask &lt;us&gt;")
-	assert.Contains(t, mail.HTML, "APP-", "with a sample key of the product")
+	var saved Product
+	require.Equal(t, http.StatusOK, call(t, srv, http.MethodPut, path, settings, &saved))
+	assert.True(t, saved.WorkerConnected)
+	assert.Equal(t, "team", saved.Plan)
+	assert.Equal(t, int64(30), saved.KeyDays)
+	assert.Contains(t, saved.SyncError, "Invalid API Key provided", "a failed sync is not a failed update")
+	assert.Equal(t, http.StatusBadGateway, call(t, srv, http.MethodPost, path+"/sync", nil, nil))
+
+	resp, err := srv.Client().Get(srv.URL + "/api/products")
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	var listed bytes.Buffer
+	_, err = listed.ReadFrom(resp.Body)
+	require.NoError(t, err)
+	assert.NotContains(t, listed.String(), stored.WorkerToken, "the token only leaves through worker env")
+	assert.NotContains(t, listed.String(), stored.PrivateKey)
+
+	settings["worker_url"] = "ftp://worker.example.com"
+	assert.Equal(t, http.StatusUnprocessableEntity, call(t, srv, http.MethodPut, path, settings, nil))
+	settings["worker_url"] = ""
+	require.Equal(t, http.StatusOK, call(t, srv, http.MethodPut, path, settings, &saved))
+	assert.False(t, saved.WorkerConnected, "an empty url disconnects the worker")
+	assert.Equal(t, http.StatusConflict, call(t, srv, http.MethodPost, path+"/sync", nil, nil))
+	assert.Equal(t, http.StatusNotFound, call(t, srv, http.MethodPut, "/api/products/999", settings, nil))
 }
 
 func TestIssueAndCheck(t *testing.T) {
@@ -205,7 +235,7 @@ func TestProviderLicenseIsReadOnly(t *testing.T) {
 
 	require.NoError(t, q.UpsertProviderLicense(t.Context(), &db.UpsertProviderLicenseParams{
 		ID: "sub_1", ProductID: p.ID, Source: "stripe", Email: "a@x.io", Plan: "pro", ExpiresAt: 1_900_000_000,
-		Meta: "{}", Status: "active", Renews: true, CreatedAt: 1_700_000_000,
+		Meta: "{}", Status: "active", Renews: true, Key: "APP-FROM-THE-WORKER", CreatedAt: 1_700_000_000,
 	}))
 
 	var l License
@@ -213,8 +243,9 @@ func TestProviderLicenseIsReadOnly(t *testing.T) {
 		map[string]any{"email": "evil@x.io", "plan": "enterprise", "note": "vip"}, &l)
 	require.Equal(t, http.StatusOK, status)
 	assert.Equal(t, "vip", l.Note)
-	assert.Equal(t, "a@x.io", l.Email, "Stripe owns everything but the note")
+	assert.Equal(t, "a@x.io", l.Email, "the worker owns everything but the note")
 	assert.Equal(t, "pro", l.Plan)
+	assert.Equal(t, "APP-FROM-THE-WORKER", l.Key, "a paid license shows the key its worker hands out")
 
 	assert.Equal(t, http.StatusConflict, call(t, srv, http.MethodDelete, licensePath(p.ID, "sub_1"), nil, nil))
 }

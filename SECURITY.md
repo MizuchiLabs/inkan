@@ -52,8 +52,7 @@ key = "MYAPP-" + "-".join(enc[i : i + 5] for i in range(0, len(enc), 5))
 
 With the seed bytes 0 to 31 the key is `MYAPP-AXsid-iI6MS-…-e0RyC-JdsM`, a test
 in `license` pins it. The private key Inkan stores is base64 of 64 bytes, the
-seed is the first 32. Only keys from the `license` package are promised to
-match the ones Inkan shows, byte for byte.
+seed is the first 32.
 
 ## What a key can and cannot do
 
@@ -72,16 +71,20 @@ match the ones Inkan shows, byte for byte.
 
 ## Where the secrets are
 
-- **Inkan** keeps signing keys and Stripe API keys unencrypted in `inkan.db`.
-  The data directory is created owner only. Back it up like a secret.
-- **The worker** gets the private key and a Stripe key through its
-  environment. A restricted Stripe key that reads subscriptions and customers
-  is enough. One time purchases also need Checkout sessions, payment intents
-  and charges. `inkan worker env` prints the private key, treat its output like
-  one.
+- **Inkan** keeps the signing keys and the worker tokens unencrypted in
+  `inkan.db`. The data directory is created owner only. Back it up like a
+  secret. It holds no Stripe key and no secret of a mail service.
+- **The worker** gets the private key, a Stripe key and the key of a mail
+  service through its environment. A restricted Stripe key that reads
+  subscriptions and customers is enough. One time purchases also need
+  Checkout sessions, payment intents and charges. `inkan worker env` prints
+  the private key, treat its output like one.
 - **The webhook** only takes events with a valid Stripe signature that are at
   most five minutes old.
 - **Refresh** only looks up keys with a valid signature of the product.
+- **The license list** of a worker is only for the dashboard. It takes a token
+  of at least 32 characters that Inkan makes for each product. Whoever has it
+  reads every customer and key of the product.
 
 ## The login
 

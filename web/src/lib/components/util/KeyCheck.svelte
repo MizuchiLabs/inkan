@@ -140,7 +140,7 @@
 						{:else if result.license_id}
 							<span>
 								<span class="font-mono">{result.license_id}</span> is not in the ledger. It was deleted,
-								or Stripe has not synced yet.
+								or the worker was not read yet.
 							</span>
 						{:else}
 							<span>Issued before keys carried an id, so it cannot be matched to a license.</span>

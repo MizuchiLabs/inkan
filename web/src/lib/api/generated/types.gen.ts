@@ -135,7 +135,7 @@ export type License = {
      */
     id: string;
     /**
-     * The signed license key
+     * The signed license key. A paid license has the one its worker hands out
      */
     key: string;
     /**
@@ -178,53 +178,40 @@ export type LicenseFields = {
     plan?: string;
 };
 
-export type MailPreviewInputBody = {
-    mail_accent?: string;
-    mail_company?: string;
-    mail_footer?: string;
-    mail_logo?: string;
-    name?: string;
-};
-
-export type MailPreviewOutputBody = {
-    html: string;
-    subject: string;
-};
-
 export type Product = {
     created_at: string;
     /**
-     * Days a provider license stays valid past its paid period
+     * Worker setting. Days a paid license stays valid past its paid period
      */
     grace_days: number;
     id: number;
     /**
-     * Longest life of a provider key in days, 0 has no limit. Apps refresh for the next one
+     * Worker setting. Longest life of a paid key in days, 0 has no limit. Apps refresh for the next one
      */
     key_days: number;
     /**
-     * Color of the key mail, #rrggbb
+     * Worker setting. Color of the key mail, #rrggbb
      */
     mail_accent: string;
     /**
-     * Last line of the key mail: legal name, address, register number
+     * Worker setting. Last line of the key mail: legal name, address, register number
      */
     mail_company: string;
     /**
-     * One line under the key in the mail
+     * Worker setting. One line under the key in the mail
      */
     mail_footer: string;
     /**
-     * Sender of the key mails
+     * Worker setting. Sender of the key mails
      */
     mail_from: string;
     /**
-     * https url of a logo for the dark header of the key mail
+     * Worker setting. https url of a logo for the dark header of the key mail
      */
     mail_logo: string;
     name: string;
     /**
-     * Plan claim for provider prices without plan metadata and the default for manual licenses
+     * Default for manual licenses. The worker gives it to prices without plan metadata
      */
     plan: string;
     /**
@@ -232,11 +219,7 @@ export type Product = {
      */
     prefix: string;
     /**
-     * Whether an API key and a provider product are stored
-     */
-    provider_connected: boolean;
-    /**
-     * Payment provider product id. Its subscriptions are licenses
+     * Worker setting. Stripe product id, its subscriptions and purchases are licenses
      */
     provider_product: string;
     /**
@@ -244,26 +227,21 @@ export type Product = {
      */
     public_key: string;
     /**
-     * Mail server a worker sends keys through, host:port with STARTTLS
-     */
-    smtp_addr: string;
-    /**
-     * Whether a mail server password is stored
-     */
-    smtp_pass_set: boolean;
-    smtp_user: string;
-    /**
-     * Why the last provider sync failed, empty when it worked
+     * Why the worker could not be read, or what is off with it. Empty when all is well
      */
     sync_error: string;
     /**
-     * Last successful provider sync
+     * Last time the worker was read
      */
     synced_at: string | null;
     /**
-     * Whether a webhook signing secret is stored
+     * Whether a worker url is stored
      */
-    webhook_secret_set: boolean;
+    worker_connected: boolean;
+    /**
+     * Where the worker of the product runs. Its paid licenses are mirrored from there
+     */
+    worker_url: string;
 };
 
 export type Session = {
@@ -296,7 +274,7 @@ export type Snapshot = {
 
 export type SyncOutputBody = {
     /**
-     * Subscriptions and one time purchases found at the provider
+     * Paid licenses the worker hands out
      */
     licenses: number;
 };
@@ -327,26 +305,13 @@ export type UpdateProductInputBody = {
     name: string;
     plan: string;
     /**
-     * Empty keeps the stored key
-     */
-    provider_key?: string;
-    /**
-     * Empty disconnects the provider
+     * Stripe product id for the worker
      */
     provider_product?: string;
     /**
-     * Mail server of the worker, host:port with STARTTLS. Empty forgets the mail server
+     * Where the worker runs. Empty disconnects it
      */
-    smtp_addr?: string;
-    /**
-     * Empty keeps the stored password
-     */
-    smtp_pass?: string;
-    smtp_user?: string;
-    /**
-     * Signing secret of the webhook endpoint of the worker. Empty keeps the stored one
-     */
-    webhook_secret?: string;
+    worker_url?: string;
 };
 
 export type CheckKeyData = {
@@ -527,33 +492,6 @@ export type UpdateProductResponses = {
 };
 
 export type UpdateProductResponse = UpdateProductResponses[keyof UpdateProductResponses];
-
-export type PreviewMailData = {
-    body: MailPreviewInputBody;
-    path: {
-        id: number;
-    };
-    query?: never;
-    url: '/api/products/{id}/mail-preview';
-};
-
-export type PreviewMailErrors = {
-    /**
-     * Error
-     */
-    default: ErrorModel;
-};
-
-export type PreviewMailError = PreviewMailErrors[keyof PreviewMailErrors];
-
-export type PreviewMailResponses = {
-    /**
-     * OK
-     */
-    200: MailPreviewOutputBody;
-};
-
-export type PreviewMailResponse = PreviewMailResponses[keyof PreviewMailResponses];
 
 export type SyncProductData = {
     body?: never;
