@@ -3,6 +3,9 @@
 The public side of one inkan product. It reads Stripe, signs the keys of the
 paid licenses, mails them and refreshes them. It stores nothing.
 
+Deploy it from a clone of the whole repository. It imports the verifier from
+`../sdk/ts`, this folder alone does not build.
+
 | Endpoint        |                                                             |
 | --------------- | ----------------------------------------------------------- |
 | `POST /refresh` | An app sends its key and gets the current one back          |
@@ -19,7 +22,8 @@ Print the settings of the product from inkan, then fill in the comments.
 inkan worker env MYAPP > worker.env
 ```
 
-`worker.env` holds the private key. Delete it once the worker has it.
+`worker.env` holds the private key. Delete it once the worker has it. Values
+with a space or a `#` are in quotes, Node and wrangler read them as they are.
 
 | Setting                       |                                                           |
 | ----------------------------- | --------------------------------------------------------- |
@@ -59,7 +63,8 @@ cd dist && zip function.zip scaleway.js package.json
 ```
 
 Create a function on a Node runtime from `function.zip`, with the handler
-`scaleway.handle` and the lines of `worker.env` as secrets.
+`scaleway.handle` and the lines of `worker.env` as secrets, without the
+quotes around a value.
 
 ## Anywhere Node runs
 

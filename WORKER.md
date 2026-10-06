@@ -27,17 +27,20 @@ license is owed now.
 | `413`  | Longer than 8 kB                                      |
 | `502`  | The payment provider could not be asked, try again    |
 
-1. Clean and verify the key like any verifier does. An expired key is fine,
+1. Clean and verify the key like any verifier does, against the current
+   public key and the old ones from before a rotation. An expired key is fine,
    the renewal may come late. Anything else is a `400`, so only keys of the
    product ever reach the payment provider.
 2. A key with a `lic_…` id or without an id was issued by hand. Answer with
    the cleaned key, it is all there is.
-3. Look the license up by the id of the key and sign what it is owed now.
+3. Look the license up by the id of the key and sign what it is owed now,
+   always with the current private key.
    When the provider no longer knows who the customer was, keep the email of
    the key that came in.
 
-Answer from memory for a few minutes per license. A key that leaks must not be
-a way to spend the rate limit of the provider.
+Answer from memory for a few minutes per license, also for one that is not
+there. A key that leaks must not be a way to spend the rate limit of the
+provider.
 
 ## `POST /webhook`
 
@@ -60,7 +63,7 @@ of a period of a month or less sends no mail, those keys are left to refresh.
 The dashboard reads the paid licenses of the product, page by page.
 
 ```
-GET /licenses?cursor=<next of the page before>&limit=50
+GET /licenses?cursor=<next of the page before>&limit=100
 Authorization: Bearer <INKAN_WORKER_TOKEN>
 ```
 
@@ -70,11 +73,13 @@ fewer licenses than the limit, or none, and still have a `next`.
 ```json
 {
   "product": {
+    "provider": "stripe",
     "prefix": "MYAPP",
     "public_key": "03a107bf…",
+    "old_public_keys": [],
     "plan": "pro",
     "grace_days": 14,
-    "key_days": 0,
+    "max_key_days": 0,
     "stripe_product": "prod_…"
   },
   "licenses": [
@@ -97,21 +102,23 @@ fewer licenses than the limit, or none, and still have a `next`.
 }
 ```
 
-| Field           |                                                                      |
-| --------------- | -------------------------------------------------------------------- |
-| `product`       | What the worker runs with, the same on every page                    |
-| `id`            | Id at the provider, never `lic_…`. The key carries it as its `id`    |
-| `email`         | Who the license is for                                               |
-| `customer`      | Display name, not part of the key                                    |
-| `customer_gone` | The provider deleted the customer, `email` and `customer` are empty  |
-| `plan`, `meta`  | As signed into the key                                               |
-| `expires_at`    | Unix seconds, 0 never expires                                        |
-| `status`        | Status at the provider, like `active`, `canceled`, `paid`, `refunded` |
-| `renews`        | Whether the provider will bill another period                        |
-| `created_at`    | Unix seconds                                                         |
-| `key`           | The key a refresh gives this license right now                       |
-| `skipped`       | What the worker could not list. `purchases` is the one there is      |
-| `next`          | Cursor of the next page, `null` on the last one                      |
+| Field             |                                                                       |
+| ----------------- | --------------------------------------------------------------------- |
+| `product`         | What the worker runs with, the same on every page                     |
+| `provider`        | Who is asked what is paid. The dashboard shows it as the source       |
+| `old_public_keys` | Hex keys from before a rotation that a refresh still takes            |
+| `id`              | Id at the provider, never `lic_…`. The key carries it as its `id`     |
+| `email`           | Who the license is for                                                |
+| `customer`        | Display name, not part of the key                                     |
+| `customer_gone`   | The provider deleted the customer, `email` and `customer` are empty   |
+| `plan`, `meta`    | As signed into the key                                                |
+| `expires_at`      | Unix seconds, 0 never expires                                         |
+| `status`          | Status at the provider, like `active`, `canceled`, `paid`, `refunded` |
+| `renews`          | Whether the provider will bill another period                         |
+| `created_at`      | Unix seconds                                                          |
+| `key`             | The key a refresh gives this license right now                        |
+| `skipped`         | What the worker could not list. `purchases` is the one there is       |
+| `next`            | Cursor of the next page, `null` on the last one                       |
 
 | Status | Body                                                    |
 | ------ | ------------------------------------------------------- |
@@ -123,9 +130,10 @@ fewer licenses than the limit, or none, and still have a `next`.
 What the dashboard does with it:
 
 - It checks `prefix` and `public_key` against the product and reads nothing
-  from a worker that signs for another one.
-- It tells the user when `plan`, `grace_days`, `key_days` or `stripe_product`
-  differ from what the product shows.
+  from a worker that signs for another one. A worker that still signs with a
+  key from before a rotation is read, and the user is told to deploy it.
+- It tells the user when `old_public_keys`, `plan`, `grace_days`,
+  `max_key_days` or `stripe_product` differ from what the product shows.
 - It keeps a row per license and drops the rows a full read no longer lists.
   It keeps the one time purchases when `skipped` names them, and it drops
   nothing while `stripe_product` differs.
