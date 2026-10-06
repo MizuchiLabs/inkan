@@ -25,8 +25,8 @@ Japan.
 - A small worker reads Stripe, mails keys to customers and renews them for
   apps that are online. It runs on Cloudflare Workers, Scaleway Functions or
   anywhere Node runs
-- A Go package to verify, hold and renew keys, small verifiers for TypeScript
-  and Python, a documented format for every other language
+- Small packages for Go, TypeScript and Python that verify, hold and renew
+  keys, a documented format for every other language
 - Paste any key to see what is inside
 - The dashboard is one binary with SQLite and a web UI, Docker-ready
 
@@ -175,7 +175,8 @@ curl -X POST https://<worker>/refresh --data "$MYAPP_LICENSE_KEY"
 | Python     | [`sdk/python`](sdk/python), one file              |
 | Any other  | [FORMAT.md](FORMAT.md) and the test vectors in it |
 
-Neither is on npm or PyPI yet. Each is one file, copy it into your app.
+Neither is on npm or PyPI yet. Each is one file, copy it into your app. Both
+have the same `Keeper` as the Go package.
 
 Check the key where the user cannot change the code. For a web app that is
 the server, a check in the browser is a hint and not a lock.

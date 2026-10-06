@@ -14,7 +14,14 @@ export type Claims = {
   meta?: Record<string, string>;
 };
 
-export type LicenseErrorCode = "format" | "signature" | "app" | "version" | "expired";
+export type LicenseErrorCode =
+  | "format"
+  | "signature"
+  | "app"
+  | "version"
+  | "expired"
+  /** Only from a Keeper that holds no key. */
+  | "nokey";
 
 const messages: Record<LicenseErrorCode, string> = {
   format: "license format is invalid",
@@ -22,6 +29,7 @@ const messages: Record<LicenseErrorCode, string> = {
   app: "license issued for a different application",
   version: "invalid license version",
   expired: "license has expired",
+  nokey: "no license key set",
 };
 
 export class LicenseError extends Error {
@@ -39,6 +47,8 @@ export class LicenseError extends Error {
 
 const wireVersion = 1;
 const signatureSize = 64;
+const minute = 60;
+const day = 86_400;
 
 /**
  * Strips what a key picks up on its way: the line breaks of a mail client,
@@ -86,7 +96,7 @@ export async function verify(
   const claims = parseClaims(payload);
   if (claims.app !== app) throw new LicenseError("app");
   if (claims.v !== wireVersion) throw new LicenseError("version");
-  if (claims.exp !== 0 && now > claims.exp) throw new LicenseError("expired", claims);
+  if (ranOut(claims, now)) throw new LicenseError("expired", claims);
   return claims;
 }
 
@@ -118,6 +128,157 @@ export async function refresh(
     if (!(err instanceof LicenseError && err.code === "expired")) throw err;
   }
   return clean(answer);
+}
+
+/**
+ * How many seconds a keeper waits before it asks the worker again. exp is the
+ * expiry of the held key and now the time, both in unix seconds. failures
+ * counts the tries in a row that did not work.
+ *
+ * Once a day, at half of the time a key has left when that comes sooner, and
+ * a minute after a failed try, twice as long after every further one.
+ * FORMAT.md has the rule. Keeper.renew follows it, an app with a loop of its
+ * own can ask here.
+ */
+export function renewWait(exp: number, now: number, failures: number): number {
+  if (failures > 0) return Math.min(minute * 2 ** (failures - 1), day);
+  const left = exp - now;
+  if (exp === 0 || left <= 0) return day;
+  // Never under a minute, or the end of a key that nobody renews is asked
+  // about in a tight loop.
+  return Math.min(day, Math.max(left / 2, minute));
+}
+
+export type RenewOptions = {
+  /** Gets every new key, so the app can store it and start with it next time. */
+  save?: (key: string) => void | Promise<void>;
+  /** Gets the error of every try that did not work, for the app to log. */
+  failed?: (err: unknown) => void;
+  /** Ends the renewal when it aborts. */
+  signal?: AbortSignal;
+};
+
+/**
+ * Holds the license key of a running app, so the key can change without a
+ * restart. Either someone hands the app a new key, or the app fetches it from
+ * a worker:
+ *
+ *     const lic = new Keeper("MYAPP", publicKey);
+ *     await lic.set(storedKey);
+ *     lic.renew("https://keys.example.com/refresh", { save });
+ *
+ * Ask valid() wherever the app gates a feature, or claims() if it depends on
+ * the plan or the meta. Both are cheap and need no await, the signature is
+ * only checked in set.
+ *
+ * A keeper is for a process that stays up. Where every request starts from
+ * nothing, like on Cloudflare Workers, call verify per request instead.
+ */
+export class Keeper {
+  #app: string;
+  #publicKeys: string;
+  #held?: { key: string; claims: Claims };
+
+  /** app and publicKeys are the ones verify takes. */
+  constructor(app: string, publicKeys: string) {
+    this.#app = app;
+    this.#publicKeys = publicKeys;
+  }
+
+  /**
+   * Swaps in a key and returns its claims like verify does. An expired key
+   * is held too, renew can trade it for the current one, and set throws
+   * "expired" with its claims. On any other error the keeper keeps the key
+   * it has.
+   */
+  async set(key: string): Promise<Claims> {
+    await this.#hold(key);
+    return this.claims();
+  }
+
+  /**
+   * Whether a key is held that has not run out. It is all an app needs that
+   * only asks if there is a license.
+   */
+  valid(): boolean {
+    return this.#held !== undefined && !ranOut(this.#held.claims, Date.now() / 1000);
+  }
+
+  /**
+   * The claims of the held key. The expiry is checked on every call, so a key
+   * that runs out while the app runs throws "expired" with its claims.
+   * Without a key it throws "nokey".
+   */
+  claims(): Claims {
+    const held = this.#held;
+    if (!held) throw new LicenseError("nokey");
+    // A copy, the caller must not be able to change what is held.
+    const claims = { ...held.claims };
+    if (claims.meta) claims.meta = { ...claims.meta };
+    if (ranOut(claims, Date.now() / 1000)) throw new LicenseError("expired", claims);
+    return claims;
+  }
+
+  /** The held key, for the app to store. It is empty without one. */
+  key(): string {
+    return this.#held?.key ?? "";
+  }
+
+  /**
+   * Keeps the held key current until signal aborts. It asks the worker at
+   * endpoint with refresh, right away and then as renewWait says: once a
+   * day, sooner for a key that runs out before that, and with growing waits
+   * after a failed try. The held key stays as it is when a try fails.
+   *
+   * The timer does not keep a Node process alive that is otherwise done.
+   */
+  renew(endpoint: string, { save, failed, signal }: RenewOptions = {}): void {
+    let failures = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const next = (seconds: number) => {
+      if (signal?.aborted) return;
+      timer = setTimeout(attempt, seconds * 1000);
+      (timer as unknown as { unref?: () => void }).unref?.();
+    };
+    const attempt = async () => {
+      const old = this.key();
+      // A key pasted later must not wait a day for its first refresh.
+      if (!old) return next(minute);
+      try {
+        const key = await refresh(endpoint, old, this.#app, this.#publicKeys);
+        if (signal?.aborted) return;
+        // The next outage starts with short waits again.
+        failures = 0;
+        if (key !== old) {
+          // refresh has verified the key, it cannot be turned down.
+          await this.#hold(key);
+          await save?.(key);
+        }
+      } catch (err) {
+        if (signal?.aborted) return;
+        failures++;
+        failed?.(err);
+      }
+      next(renewWait(this.#held?.claims.exp ?? 0, Date.now() / 1000, failures));
+    };
+    signal?.addEventListener("abort", () => clearTimeout(timer), { once: true });
+    next(0);
+  }
+
+  async #hold(key: string): Promise<void> {
+    let claims: Claims;
+    try {
+      claims = await verify(key, this.#app, this.#publicKeys);
+    } catch (err) {
+      if (!(err instanceof LicenseError && err.code === "expired" && err.claims)) throw err;
+      claims = err.claims;
+    }
+    this.#held = { key: clean(key), claims };
+  }
+}
+
+function ranOut(claims: Claims, now: number): boolean {
+  return claims.exp !== 0 && now > claims.exp;
 }
 
 function importPublicKey(hex: string): Promise<CryptoKey> {
