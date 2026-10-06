@@ -189,7 +189,13 @@
 	<div class="grid gap-4 sm:grid-cols-2">
 		<Field.Field>
 			<Field.Label for="product-name">Name</Field.Label>
-			<Input id="product-name" bind:value={form.name} required placeholder="My App" />
+			<Input
+				id="product-name"
+				bind:value={form.name}
+				onblur={() => (form.prefix = form.name.toUpperCase())}
+				required
+				placeholder="My App"
+			/>
 		</Field.Field>
 		<Field.Field data-disabled={product ? true : undefined}>
 			<Field.Label for="product-prefix">Key prefix</Field.Label>

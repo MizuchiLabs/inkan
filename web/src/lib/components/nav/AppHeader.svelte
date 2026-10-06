@@ -33,8 +33,8 @@
 			aria-label="Main"
 		>
 			<a href={resolve('/')} class="flex items-center gap-2 pr-3 pl-1.5" aria-label="inkan">
-				<Inkan class="size-7 -rotate-6" />
-				<span class="font-black tracking-tight max-sm:hidden">inkan</span>
+				<Inkan class="size-7 -rotate-12" />
+				<span class="font-black tracking-tight max-sm:hidden">Inkan</span>
 			</a>
 			{#each links as link (link.href)}
 				<Button
