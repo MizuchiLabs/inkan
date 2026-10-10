@@ -48,6 +48,8 @@ tasks:
     cmds:
       - go get -u ./...
       - cd web && pnpm update --latest
+      - cd email && pnpm update --latest
+      - cd worker && pnpm update --latest
 
   gen:
     desc: Generate sqlc and the web API client
