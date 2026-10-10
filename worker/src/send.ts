@@ -6,17 +6,17 @@ export type Send = (mail: Mail) => Promise<void>;
 
 export type SendEnv = {
 	RESEND_API_KEY?: string;
-	// Scaleway Transactional Email
-	SCW_SECRET_KEY?: string;
-	SCW_PROJECT_ID?: string;
-	SCW_REGION?: string;
+	// Scaleway Transactional Email. Scaleway keeps SCW_ for itself on its functions.
+	INKAN_SCW_SECRET_KEY?: string;
+	INKAN_SCW_PROJECT_ID?: string;
+	INKAN_SCW_REGION?: string;
 };
 
 /** The sender the settings ask for, none when no mail service is set. */
 export function sender(env: SendEnv): Send | undefined {
 	if (env.RESEND_API_KEY) return resend(env.RESEND_API_KEY);
-	if (env.SCW_SECRET_KEY && env.SCW_PROJECT_ID) {
-		return scaleway(env.SCW_SECRET_KEY, env.SCW_PROJECT_ID, env.SCW_REGION || 'fr-par');
+	if (env.INKAN_SCW_SECRET_KEY && env.INKAN_SCW_PROJECT_ID) {
+		return scaleway(env.INKAN_SCW_SECRET_KEY, env.INKAN_SCW_PROJECT_ID, env.INKAN_SCW_REGION || 'fr-par');
 	}
 	return undefined;
 }

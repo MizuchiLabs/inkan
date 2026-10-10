@@ -514,8 +514,8 @@ test('the mail goes out through Scaleway when that is what is set', async (t) =>
 	const scw: Env = {
 		...env,
 		RESEND_API_KEY: undefined,
-		SCW_SECRET_KEY: 'scw_secret',
-		SCW_PROJECT_ID: 'project_1'
+		INKAN_SCW_SECRET_KEY: 'scw_secret',
+		INKAN_SCW_PROJECT_ID: 'project_1'
 	};
 	const body = JSON.stringify({
 		id: 'evt_scw',

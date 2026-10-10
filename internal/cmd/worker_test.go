@@ -3,12 +3,18 @@ package cmd
 import (
 	"archive/tar"
 	"bytes"
+	"encoding/json/v2"
 	"io"
+	"maps"
 	"os"
+	"regexp"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/mizuchilabs/inkan/internal/db"
 )
 
 func TestEnvValue(t *testing.T) {
@@ -44,6 +50,29 @@ func TestTemplateModule(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, module, `export const template =
 	"<p>{{key}}</p>\n</script>";`)
+}
+
+// worker.json names what worker.env sets, nothing else and nothing less.
+func TestEnvJSON(t *testing.T) {
+	t.Parallel()
+	p := &db.Product{
+		Prefix: "MYAPP", PrivateKey: "key", WorkerToken: "token", Plan: "pro", GraceDays: 14,
+		Name: "My App", MailFooter: `Write to "us" #1`,
+	}
+	out, err := envJSON(p)
+	require.NoError(t, err)
+	var got map[string]string
+	require.NoError(t, json.Unmarshal([]byte(out), &got))
+	assert.Equal(t, `Write to "us" #1`, got["INKAN_MAIL_FOOTER"], "a value is not quoted for an env file")
+	assert.NotContains(t, got, "INKAN_MAIL_LOGO", "an empty setting is left out")
+	assert.Equal(t, "0", got["INKAN_MAX_KEY_DAYS"])
+
+	set := regexp.MustCompile(`(?m)^([A-Z_]+)=`).FindAllStringSubmatch(envFile(p), -1)
+	var names []string
+	for _, m := range set {
+		names = append(names, m[1])
+	}
+	assert.ElementsMatch(t, slices.Collect(maps.Keys(got)), names)
 }
 
 func TestWriteTar(t *testing.T) {

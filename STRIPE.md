@@ -76,8 +76,9 @@ inkan worker export MYAPP
 docker exec inkan inkan worker export MYAPP - | tar x
 ```
 
-This writes `worker.env` and the key mail in `src/template.ts`. Add the Stripe
-key to `worker.env` and deploy the worker with it. [`worker`](worker) has the
+This writes `worker.env`, the same as `worker.json` for a console that takes
+JSON, and the key mail in `src/template.ts`. Add the Stripe key and deploy
+the worker with it. [`worker`](worker) has the
 steps for Cloudflare Workers, Scaleway Functions and any host that runs Node.
 Then enter where the worker runs under Edit on the Products page. Its
 licenses show up on the Licenses page.
@@ -96,9 +97,9 @@ licenses show up on the Licenses page.
 | `INKAN_STRIPE_WEBHOOK_SECRET` | -          | Signing secret of the webhook endpoint         |
 | `INKAN_MAIL_FROM`             | -          | Sender of the key mails                        |
 | `RESEND_API_KEY`              | -          | Sends the mails through Resend                 |
-| `SCW_SECRET_KEY`              | -          | Or through Scaleway Transactional Email        |
-| `SCW_PROJECT_ID`              | -          | Project of the Scaleway key                    |
-| `SCW_REGION`                  | `fr-par`   | Region of Scaleway Transactional Email         |
+| `INKAN_SCW_SECRET_KEY`        | -          | Or through Scaleway Transactional Email        |
+| `INKAN_SCW_PROJECT_ID`        | -          | Project of the Scaleway key                    |
+| `INKAN_SCW_REGION`            | `fr-par`   | Region of Scaleway Transactional Email         |
 | `INKAN_PRODUCT_NAME`          | the prefix | How the key mail calls the product             |
 | `INKAN_MAIL_LOGO`             | -          | https url of a logo for the dark header        |
 | `INKAN_MAIL_ACCENT`           | `#2f3e8f`  | Color of the key mail                          |

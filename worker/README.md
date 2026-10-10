@@ -29,9 +29,11 @@ docker exec inkan inkan worker export MYAPP - | tar -xO src/template.ts   # the 
 docker exec inkan inkan worker export MYAPP - | tar -xO worker.env > worker.env
 ```
 
-It writes `worker.env` and `src/template.ts`, the key mail of the product.
-`worker.env` holds the private key. Delete it once the worker has it. Values
-with a space or a `#` are in quotes, Node and wrangler read them as they are.
+It writes `worker.env`, the same settings as `worker.json` for a console
+that takes JSON, and `src/template.ts`, the key mail of the product. The
+first two hold the private key. Delete them once the worker has them. Values
+with a space or a `#` are in quotes in the env file, Node and wrangler read
+them as they are.
 
 | Setting                       |                                                           |
 | ----------------------------- | --------------------------------------------------------- |
@@ -39,8 +41,8 @@ with a space or a `#` are in quotes, Node and wrangler read them as they are.
 | `INKAN_STRIPE_PRODUCT`        | The Stripe product id, when the product has none set yet  |
 | `INKAN_STRIPE_WEBHOOK_SECRET` | Signing secret of the webhook endpoint, for the key mails |
 | `RESEND_API_KEY`              | Sends the mails through [Resend](https://resend.com)      |
-| `SCW_SECRET_KEY`              | Or through Scaleway Transactional Email                   |
-| `SCW_PROJECT_ID`              | Project of the Scaleway key                               |
+| `INKAN_SCW_SECRET_KEY`        | Or through Scaleway Transactional Email                   |
+| `INKAN_SCW_PROJECT_ID`        | Project of the Scaleway key                               |
 
 One time purchases also need read access to Checkout sessions, payment intents
 and charges.
@@ -70,9 +72,11 @@ pnpm build
 cd dist && zip function.zip scaleway.js package.json
 ```
 
-Create a function on a Node runtime from `function.zip`, with the handler
-`scaleway.handle` and the lines of `worker.env` as secrets, without the
-quotes around a value.
+Create a function on a Node runtime from `function.zip` with the handler
+`scaleway.handle`. Switch the Secrets to JSON, paste `worker.json` and add
+the Stripe key and the mail service to it. Scaleway keeps the `SCW_` prefix
+for itself there, so the worker reads its Transactional Email key as
+`INKAN_SCW_SECRET_KEY`.
 
 ## Anywhere Node runs
 

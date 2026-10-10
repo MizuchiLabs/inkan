@@ -2,16 +2,19 @@ package cmd
 
 import (
 	"archive/tar"
+	"bytes"
 	"cmp"
 	"context"
 	"crypto/rand"
 	"database/sql"
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -68,8 +71,13 @@ func workerExport(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return err
 	}
+	settings, err := envJSON(p)
+	if err != nil {
+		return err
+	}
 	files := []exported{
 		{"worker.env", 0o600, envFile(p)},
+		{"worker.json", 0o600, settings},
 		{"src/template.ts", 0o644, module},
 	}
 
@@ -80,7 +88,7 @@ func workerExport(ctx context.Context, cmd *cli.Command) error {
 		}
 		fmt.Fprintln(
 			os.Stderr,
-			"worker.env holds the private key. Fill in the comments, deploy the worker, then delete it.",
+			"worker.env and worker.json hold the private key. Deploy the worker, then delete them.",
 		)
 		return nil
 	}
@@ -92,8 +100,11 @@ func workerExport(ctx context.Context, cmd *cli.Command) error {
 			return err
 		}
 	}
-	fmt.Printf("Wrote %s and %s.\n", filepath.Join(dir, "worker.env"), filepath.Join(dir, "src", "template.ts"))
-	fmt.Println("worker.env holds the private key. Fill in the comments, deploy the worker, then delete it.")
+	fmt.Printf("Wrote %s, %s and %s.\n",
+		filepath.Join(dir, "worker.env"), filepath.Join(dir, "worker.json"), filepath.Join(dir, "src", "template.ts"))
+	fmt.Println(
+		"worker.env and worker.json hold the private key. Fill in what is missing, deploy the worker, then delete them.",
+	)
 	return nil
 }
 
@@ -151,8 +162,8 @@ func envFile(p *db.Product) string {
 	b.WriteString("# INKAN_STRIPE_WEBHOOK_SECRET=whsec_...\n")
 	b.WriteString("# One mail service, Resend or Scaleway Transactional Email.\n")
 	b.WriteString("# RESEND_API_KEY=re_...\n")
-	b.WriteString("# SCW_SECRET_KEY=...\n")
-	b.WriteString("# SCW_PROJECT_ID=...\n")
+	b.WriteString("# INKAN_SCW_SECRET_KEY=...\n")
+	b.WriteString("# INKAN_SCW_PROJECT_ID=...\n")
 	writeSetting(&b, "INKAN_MAIL_FROM", p.MailFrom, "licenses@example.com")
 	writeSetting(&b, "INKAN_PRODUCT_NAME", p.Name, "")
 	writeSetting(&b, "INKAN_MAIL_LOGO", p.MailLogo, "https://example.com/logo.png")
@@ -160,6 +171,51 @@ func envFile(p *db.Product) string {
 	writeSetting(&b, "INKAN_MAIL_FOOTER", p.MailFooter, "Questions? Write to support@example.com")
 	writeSetting(&b, "INKAN_MAIL_COMPANY", p.MailCompany, "Example GmbH, Street 1, 12345 Berlin, HRB 12345")
 	return b.String()
+}
+
+// envJSON is what worker.env sets, as the object the Scaleway console takes
+// in its JSON mode. The secrets of Stripe and the mail service are added
+// there, a comment has no place in JSON.
+func envJSON(p *db.Product) (string, error) {
+	var buf bytes.Buffer
+	enc := jsontext.NewEncoder(&buf, jsontext.Multiline(true), jsontext.WithIndent("  "))
+	if err := enc.WriteToken(jsontext.BeginObject); err != nil {
+		return "", err
+	}
+	for _, s := range envSettings(p) {
+		if s[1] == "" {
+			continue
+		}
+		for _, v := range s {
+			if err := enc.WriteToken(jsontext.String(v)); err != nil {
+				return "", err
+			}
+		}
+	}
+	if err := enc.WriteToken(jsontext.EndObject); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
+// envSettings is every name worker.env sets or comments out, with its value.
+func envSettings(p *db.Product) [][2]string {
+	return [][2]string{
+		{"INKAN_PREFIX", p.Prefix},
+		{"INKAN_PRIVATE_KEY", p.PrivateKey},
+		{"INKAN_OLD_PUBLIC_KEYS", p.OldPublicKeys},
+		{"INKAN_WORKER_TOKEN", p.WorkerToken},
+		{"INKAN_PLAN", p.Plan},
+		{"INKAN_GRACE_DAYS", strconv.FormatInt(p.GraceDays, 10)},
+		{"INKAN_MAX_KEY_DAYS", strconv.FormatInt(p.MaxKeyDays, 10)},
+		{"INKAN_STRIPE_PRODUCT", p.ProviderProduct},
+		{"INKAN_MAIL_FROM", p.MailFrom},
+		{"INKAN_PRODUCT_NAME", p.Name},
+		{"INKAN_MAIL_LOGO", p.MailLogo},
+		{"INKAN_MAIL_ACCENT", p.MailAccent},
+		{"INKAN_MAIL_FOOTER", p.MailFooter},
+		{"INKAN_MAIL_COMPANY", p.MailCompany},
+	}
 }
 
 func writeSetting(b *strings.Builder, name, value, hint string) {
