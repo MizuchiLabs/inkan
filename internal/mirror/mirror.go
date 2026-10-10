@@ -208,6 +208,11 @@ func fetch(ctx context.Context, p *db.Product, cursor string) (*page, error) {
 	case http.StatusUnauthorized:
 		return nil, errors.New("worker: it has another token, run inkan worker export again and deploy it")
 	case http.StatusNotFound:
+		if serves := health(ctx, p); serves != "" && !strings.Contains(serves, "licenses") {
+			return nil, errors.New(
+				"worker: it runs without INKAN_WORKER_TOKEN, so it serves no /licenses. Run inkan worker export again and deploy it",
+			)
+		}
 		return nil, errors.New("worker: no /licenses there, check the worker url and that it has a token")
 	default:
 		said := strings.TrimSpace(string(body[:min(len(body), 200)]))
@@ -219,6 +224,25 @@ func fetch(ctx context.Context, p *db.Product, cursor string) (*page, error) {
 		return nil, fmt.Errorf("worker: reading the answer: %w", err)
 	}
 	return &pg, nil
+}
+
+// health is what the worker answers on /healthz, like "ok: refresh, licenses",
+// or empty when nothing of ours answers there.
+func health(ctx context.Context, p *db.Product) string {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(p.WorkerUrl, "/")+"/healthz", nil)
+	if err != nil {
+		return ""
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 200))
+	if err != nil || resp.StatusCode != http.StatusOK || !strings.HasPrefix(string(body), "ok") {
+		return ""
+	}
+	return string(body)
 }
 
 // drift names the settings the worker runs with that the product does not

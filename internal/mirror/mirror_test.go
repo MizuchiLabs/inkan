@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json/v2"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -26,10 +27,11 @@ const token = "a-long-token-only-the-dashboard-knows"
 // fakeWorker answers with the pages the real worker gives in its own tests,
 // see worker/test/pages.json. That file is what the two sides agree on.
 type fakeWorker struct {
-	pages  []page
-	asked  []string // the cursors, in the order they came
-	status int      // when set, every answer is this and said
-	said   string
+	noToken bool
+	pages   []page
+	asked   []string // the cursors, in the order they came
+	status  int      // when set, every answer is this and said
+	said    string
 }
 
 func newWorker(t *testing.T) (*fakeWorker, string) {
@@ -46,7 +48,10 @@ func newWorker(t *testing.T) (*fakeWorker, string) {
 
 func (w *fakeWorker) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	switch {
-	case r.URL.Path != "/licenses":
+	case r.URL.Path == "/healthz":
+		_, _ = fmt.Fprint(rw, "ok: refresh, webhook", map[bool]string{false: ", licenses", true: ""}[w.noToken])
+		return
+	case r.URL.Path != "/licenses" || w.noToken:
 		rw.WriteHeader(http.StatusNotFound)
 		return
 	case r.Header.Get("Authorization") != "Bearer "+token:
@@ -274,6 +279,10 @@ func TestSyncFailures(t *testing.T) {
 	p.WorkerUrl = url + "/nothing-here"
 	failed("no /licenses there", "a wrong url is named as such")
 	p.WorkerUrl = url
+
+	w.noToken = true
+	failed("without INKAN_WORKER_TOKEN", "a worker without a token says so through /healthz")
+	w.noToken = false
 
 	w.pages[1].Next = new("s:sub_unpaid")
 	failed("in a circle", "a broken worker must not keep the sync going forever")

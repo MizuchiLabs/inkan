@@ -151,4 +151,6 @@ The token has at least 32 characters. Compare it in constant time.
 
 ## `GET /healthz`
 
-`200` with `ok`.
+`200` with `ok: refresh`, then `webhook` when the worker mails keys and
+`licenses` when it has a token, comma separated. The dashboard reads it when
+`/licenses` answers `404`, to tell a worker without a token from a wrong url.

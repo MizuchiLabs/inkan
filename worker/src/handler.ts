@@ -85,7 +85,7 @@ export async function handle(request: Request, env: Env): Promise<Response> {
 	const send = env.INKAN_STRIPE_WEBHOOK_SECRET && env.INKAN_MAIL_FROM ? sender(env) : undefined;
 	const route = request.method + ' ' + new URL(request.url).pathname;
 	try {
-		if (route === 'GET /healthz') return text('ok', 200);
+		if (route === 'GET /healthz') return text(serves(send, env), 200);
 		if (route === 'POST /refresh') return await refresh(request, env);
 		if (route === 'POST /webhook' && send) return await webhook(request, env, send);
 		if (route === 'GET /licenses' && env.INKAN_WORKER_TOKEN) return await licenses(request, env);
@@ -95,6 +95,14 @@ export async function handle(request: Request, env: Env): Promise<Response> {
 	}
 	// The usual slip is a webhook endpoint or a refresh url without its path.
 	return text('this worker serves POST /refresh' + (send ? ' and POST /webhook' : ''), 404);
+}
+
+// What a worker is set up for, so a look at /healthz says what is missing.
+function serves(send: Send | undefined, env: Env): string {
+	const parts = ['refresh'];
+	if (send) parts.push('webhook');
+	if (env.INKAN_WORKER_TOKEN) parts.push('licenses');
+	return 'ok: ' + parts.join(', ');
 }
 
 // refresh trades a key for the one its license is owed now. A canceled or

@@ -599,7 +599,11 @@ test('a worker says what it is missing', async () => {
 	const bare = { ...env, RESEND_API_KEY: undefined };
 	const webhook = await call('POST', '/webhook', '{}', {}, bare);
 	assert.equal(webhook.status, 404, 'without a mail service there is no webhook');
-	assert.equal((await call('GET', '/healthz', undefined, {}, bare)).status, 200);
+	const health = await call('GET', '/healthz', undefined, {}, bare);
+	assert.equal(health.status, 200);
+	assert.equal(await health.text(), 'ok: refresh, licenses', 'no mail service, so no webhook');
+	const noToken = await call('GET', '/healthz', undefined, {}, { ...env, INKAN_WORKER_TOKEN: '' });
+	assert.equal(await noToken.text(), 'ok: refresh, webhook', 'no token, so no licenses');
 
 	const broken = await call('GET', '/healthz', undefined, {}, { ...env, INKAN_STRIPE_PRODUCT: '' });
 	assert.equal(broken.status, 500);
@@ -619,7 +623,7 @@ test('the Scaleway entry speaks its events', async (t) => {
 	assert.deepEqual(await scaleway({ httpMethod: 'GET', path: '/healthz' }), {
 		statusCode: 200,
 		headers: { 'content-type': 'text/plain; charset=utf-8' },
-		body: 'ok'
+		body: 'ok: refresh, licenses'
 	});
 
 	const manual = await keyFor('lic_abc', { exp: 0 });

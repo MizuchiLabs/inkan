@@ -86,10 +86,7 @@ func workerExport(ctx context.Context, cmd *cli.Command) error {
 		if err := writeTar(os.Stdout, files); err != nil {
 			return err
 		}
-		fmt.Fprintln(
-			os.Stderr,
-			"worker.env and worker.json hold the private key. Deploy the worker, then delete them.",
-		)
+		fmt.Fprint(os.Stderr, nextSteps)
 		return nil
 	}
 	if err := os.MkdirAll(filepath.Join(dir, "src"), 0o750); err != nil {
@@ -102,11 +99,18 @@ func workerExport(ctx context.Context, cmd *cli.Command) error {
 	}
 	fmt.Printf("Wrote %s, %s and %s.\n",
 		filepath.Join(dir, "worker.env"), filepath.Join(dir, "worker.json"), filepath.Join(dir, "src", "template.ts"))
-	fmt.Println(
-		"worker.env and worker.json hold the private key. Fill in what is missing, deploy the worker, then delete them.",
-	)
+	fmt.Print(nextSteps)
 	return nil
 }
+
+const nextSteps = `worker.env and worker.json hold the private key. Fill in what is missing, deploy the worker, then delete them.
+
+In the worker folder of a clone of the repository:
+  Cloudflare  pnpm wrangler secret bulk worker.env && pnpm deploy
+  Scaleway    pnpm build:scaleway, then upload dist/scaleway.zip and paste worker.json as the secrets
+  Node        node --env-file=worker.env src/node.ts
+Then enter the url of the worker under Edit on the Products page.
+`
 
 type exported struct {
 	name string
