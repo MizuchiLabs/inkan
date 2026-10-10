@@ -6,8 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -100,7 +103,11 @@ func serve(ctx context.Context, addr string, handler http.Handler) error {
 		RecoverPanics: true,
 		Schema:        httplog.SchemaOTEL.Concise(logx.IsTerminal()),
 		Skip: func(req *http.Request, respStatus int) bool {
-			return respStatus < http.StatusBadRequest && req.URL.Path == "/healthz"
+			if respStatus >= http.StatusBadRequest {
+				return false
+			}
+			p := req.URL.Path
+			return p == "/healthz" || !strings.HasPrefix(p, "/api/")
 		},
 	})
 	server := &http.Server{
@@ -112,10 +119,16 @@ func serve(ctx context.Context, addr string, handler http.Handler) error {
 		IdleTimeout:       120 * time.Second,
 	}
 
+	var lc net.ListenConfig
+	ln, err := lc.Listen(ctx, "tcp", addr)
+	if err != nil {
+		return fmt.Errorf("listen %s: %w", addr, err)
+	}
+	slog.Info("server listening", "url", displayURL(ln.Addr()), "bind_address", ln.Addr().String())
+
 	serverErr := make(chan error, 1)
 	go func() {
-		slog.Info("Server listening on", "addr", addr)
-		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := server.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			serverErr <- err
 		}
 	}()
@@ -130,4 +143,16 @@ func serve(ctx context.Context, addr string, handler http.Handler) error {
 	case err := <-serverErr:
 		return fmt.Errorf("server error: %w", err)
 	}
+}
+
+func displayURL(a net.Addr) string {
+	tcp, ok := a.(*net.TCPAddr)
+	if !ok {
+		return ""
+	}
+	host := tcp.IP.String()
+	if tcp.IP.IsUnspecified() {
+		host = "localhost"
+	}
+	return "http://" + net.JoinHostPort(host, strconv.Itoa(tcp.Port))
 }

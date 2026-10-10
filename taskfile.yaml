@@ -1,4 +1,4 @@
-version: "3"
+version: '3'
 
 tasks:
   dev:
@@ -7,6 +7,8 @@ tasks:
 
   backend:
     desc: Run backend
+    env:
+      INKAN_DEV_UI: http://localhost:5173
     cmds:
       - go run . --password 123
 
