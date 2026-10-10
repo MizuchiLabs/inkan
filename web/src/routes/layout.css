@@ -1,11 +1,57 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
-@import '@fontsource/zen-kaku-gothic-new/latin-400.css';
-@import '@fontsource/zen-kaku-gothic-new/latin-500.css';
-@import '@fontsource/zen-kaku-gothic-new/latin-700.css';
-@import '@fontsource/zen-kaku-gothic-new/latin-900.css';
 @import '@fontsource-variable/jetbrains-mono';
 @import 'shadcn-svelte/tailwind.css';
+
+/* The face keeps room for kana above and below its Latin glyphs, which sets
+   the text a step below the middle of every line. These center a capital. */
+@font-face {
+	font-family: 'Zen Kaku Gothic New';
+	font-style: normal;
+	font-display: swap;
+	font-weight: 400;
+	src: url('@fontsource/zen-kaku-gothic-new/files/zen-kaku-gothic-new-latin-400-normal.woff2')
+		format('woff2');
+	ascent-override: 85%;
+	descent-override: 15%;
+	line-gap-override: 0%;
+}
+
+@font-face {
+	font-family: 'Zen Kaku Gothic New';
+	font-style: normal;
+	font-display: swap;
+	font-weight: 500;
+	src: url('@fontsource/zen-kaku-gothic-new/files/zen-kaku-gothic-new-latin-500-normal.woff2')
+		format('woff2');
+	ascent-override: 85%;
+	descent-override: 15%;
+	line-gap-override: 0%;
+}
+
+@font-face {
+	font-family: 'Zen Kaku Gothic New';
+	font-style: normal;
+	font-display: swap;
+	font-weight: 700;
+	src: url('@fontsource/zen-kaku-gothic-new/files/zen-kaku-gothic-new-latin-700-normal.woff2')
+		format('woff2');
+	ascent-override: 85%;
+	descent-override: 15%;
+	line-gap-override: 0%;
+}
+
+@font-face {
+	font-family: 'Zen Kaku Gothic New';
+	font-style: normal;
+	font-display: swap;
+	font-weight: 900;
+	src: url('@fontsource/zen-kaku-gothic-new/files/zen-kaku-gothic-new-latin-900-normal.woff2')
+		format('woff2');
+	ascent-override: 85%;
+	descent-override: 15%;
+	line-gap-override: 0%;
+}
 
 @custom-variant dark (&:is(.dark *));
 
