@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"archive/tar"
 	"cmp"
 	"context"
 	"crypto/rand"
@@ -8,9 +9,11 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/urfave/cli/v3"
 
@@ -25,8 +28,8 @@ func workerCommand() *cli.Command {
 		Commands: []*cli.Command{
 			{
 				Name:      "export",
-				Usage:     "Write the worker settings of a product into its folder: worker.env and src/template.ts",
-				ArgsUsage: "<prefix> [dir]",
+				Usage:     "Write the worker settings of a product into its folder: worker.env and src/template.ts. With - as the dir, a tar of them goes to stdout",
+				ArgsUsage: "<prefix> [dir|-]",
 				Action:    workerExport,
 			},
 		},
@@ -61,23 +64,62 @@ func workerExport(ctx context.Context, cmd *cli.Command) error {
 		}
 	}
 
-	if err := os.MkdirAll(filepath.Join(dir, "src"), 0o750); err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(dir, "worker.env"), []byte(envFile(p)), 0o600); err != nil {
-		return err
-	}
 	module, err := templateModule(p.MailTemplate)
 	if err != nil {
 		return err
 	}
-	//nolint:gosec // the mail is source the worker is built from, not a secret
-	if err := os.WriteFile(filepath.Join(dir, "src", "template.ts"), []byte(module), 0o644); err != nil {
+	files := []exported{
+		{"worker.env", 0o600, envFile(p)},
+		{"src/template.ts", 0o644, module},
+	}
+
+	// A container has no way to hand files out, a pipe into tar on the host has.
+	if dir == "-" {
+		if err := writeTar(os.Stdout, files); err != nil {
+			return err
+		}
+		fmt.Fprintln(
+			os.Stderr,
+			"worker.env holds the private key. Fill in the comments, deploy the worker, then delete it.",
+		)
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "src"), 0o750); err != nil {
 		return err
+	}
+	for _, f := range files {
+		if err := os.WriteFile(filepath.Join(dir, f.name), []byte(f.body), f.mode); err != nil {
+			return err
+		}
 	}
 	fmt.Printf("Wrote %s and %s.\n", filepath.Join(dir, "worker.env"), filepath.Join(dir, "src", "template.ts"))
 	fmt.Println("worker.env holds the private key. Fill in the comments, deploy the worker, then delete it.")
 	return nil
+}
+
+type exported struct {
+	name string
+	mode os.FileMode
+	body string
+}
+
+func writeTar(w io.Writer, files []exported) error {
+	tw := tar.NewWriter(w)
+	for _, f := range files {
+		err := tw.WriteHeader(&tar.Header{
+			Name:    f.name,
+			Mode:    int64(f.mode),
+			Size:    int64(len(f.body)),
+			ModTime: time.Now(),
+		})
+		if err != nil {
+			return err
+		}
+		if _, err := io.WriteString(tw, f.body); err != nil {
+			return err
+		}
+	}
+	return tw.Close()
 }
 
 func envFile(p *db.Product) string {

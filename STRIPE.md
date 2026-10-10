@@ -73,7 +73,7 @@ hold the private key, treat the file like one.
 cd worker
 inkan worker export MYAPP
 # or from the container of the quick start
-docker exec inkan inkan worker export MYAPP /tmp/myapp && docker cp inkan:/tmp/myapp/. .
+docker exec inkan inkan worker export MYAPP - | tar x
 ```
 
 This writes `worker.env` and the key mail in `src/template.ts`. Add the Stripe

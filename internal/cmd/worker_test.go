@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"archive/tar"
+	"bytes"
+	"io"
 	"os"
 	"testing"
 
@@ -41,4 +44,27 @@ func TestTemplateModule(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, module, `export const template =
 	"<p>{{key}}</p>\n</script>";`)
+}
+
+func TestWriteTar(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	files := []exported{
+		{"worker.env", 0o600, "INKAN_PREFIX=X\n"},
+		{"src/template.ts", 0o644, "export const template = '';\n"},
+	}
+	require.NoError(t, writeTar(&buf, files))
+
+	tr := tar.NewReader(&buf)
+	for _, f := range files {
+		h, err := tr.Next()
+		require.NoError(t, err)
+		assert.Equal(t, f.name, h.Name)
+		assert.Equal(t, int64(f.mode), h.Mode, "the mode travels with the file")
+		body, err := io.ReadAll(tr)
+		require.NoError(t, err)
+		assert.Equal(t, f.body, string(body))
+	}
+	_, err := tr.Next()
+	require.ErrorIs(t, err, io.EOF)
 }
