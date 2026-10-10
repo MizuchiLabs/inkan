@@ -41,6 +41,7 @@ type Product struct {
 	MailAccent      string `json:"mailAccent"`
 	MailFooter      string `json:"mailFooter"`
 	MailCompany     string `json:"mailCompany"`
+	MailTemplate    string `json:"mailTemplate"`
 	SyncedAt        *int64 `json:"syncedAt"`
 	SyncError       string `json:"syncError"`
 	CreatedAt       int64  `json:"createdAt"`

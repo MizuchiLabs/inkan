@@ -57,7 +57,8 @@
 			mailLogo: product?.mail_logo ?? '',
 			mailAccent: product?.mail_accent ?? '',
 			mailFooter: product?.mail_footer ?? '',
-			mailCompany: product?.mail_company ?? ''
+			mailCompany: product?.mail_company ?? '',
+			mailTemplate: product?.mail_template ?? ''
 		};
 	}
 	const form = $state(initial());
@@ -91,9 +92,29 @@
 				fp: '',
 				meta: {}
 			},
-			look.current
+			look.current,
+			form.mailTemplate
 		)
 	);
+	const templateSize = $derived(`${Math.round(new Blob([form.mailTemplate]).size / 1024)} kB`);
+
+	// The html of a key mail of your own, built in the email folder of the repository.
+	async function loadTemplate(event: Event & { currentTarget: HTMLInputElement }) {
+		const input = event.currentTarget;
+		const file = input.files?.[0];
+		input.value = '';
+		if (!file) return;
+		if (file.size > 256 * 1024) {
+			toast.error('The mail is larger than 256 kB');
+			return;
+		}
+		const html = await file.text();
+		if (!/\{\{\s*key\s*\}\}/.test(html)) {
+			toast.error('The mail shows no {{key}}, so the worker would not send it');
+			return;
+		}
+		form.mailTemplate = html;
+	}
 	// A link would load its page inside the preview. The sandbox allows no
 	// new windows, so sending them there leaves a click without effect.
 	const inert = $derived(preview.html.replace('<head>', '<head><base target="_blank">'));
@@ -153,7 +174,8 @@
 						mail_logo: form.mailLogo,
 						mail_accent: form.mailAccent,
 						mail_footer: form.mailFooter,
-						mail_company: form.mailCompany
+						mail_company: form.mailCompany,
+						mail_template: form.mailTemplate
 					}
 				},
 				{
@@ -308,11 +330,12 @@
 								</Field.Description>
 								<CopyBlock
 									title="Its settings"
-									text={`inkan worker env ${product.prefix} > worker.env`}
+									text={`inkan worker export ${product.prefix}`}
 									what="command"
 								>
-									Prints what is set here, with the signing key. Add the Stripe key and deploy the
-									worker with it. A change here only reaches the worker that way.
+									Run it in the worker folder. It writes worker.env with what is set here and the
+									signing key, and the key mail. Add the Stripe key and deploy the worker. A change
+									here only reaches the worker that way.
 								</CopyBlock>
 
 								<Field.Field>
@@ -447,6 +470,36 @@
 										Links and email addresses in it and in the footer can be clicked.
 									</Field.Description>
 								</Field.Field>
+								<Field.Field>
+									<Field.Label for="product-mail-template">A mail of your own</Field.Label>
+									{#if form.mailTemplate}
+										<div
+											class="flex items-center justify-between gap-3 rounded-2xl bg-input/50 px-3 py-1.5 text-sm"
+										>
+											<span>An html mail of {templateSize}, shown below.</span>
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												onclick={() => (form.mailTemplate = '')}
+											>
+												Remove
+											</Button>
+										</div>
+									{:else}
+										<Input
+											id="product-mail-template"
+											type="file"
+											accept=".html,text/html"
+											onchange={loadTemplate}
+										/>
+									{/if}
+									<Field.Description>
+										Html with the key and the customer as placeholders, the email folder of the
+										repository builds one. It replaces the built-in mail, so the logo and the accent
+										above do nothing for it. The footer and the company details reach it.
+									</Field.Description>
+								</Field.Field>
 
 								<Field.Separator />
 								<p class="text-sm text-muted-foreground">
@@ -460,8 +513,7 @@
 									class="h-176 w-full rounded-lg border"
 								></iframe>
 								<p class="text-xs text-muted-foreground">
-									The key is made up and the links do nothing here. A worker with a mail of its own
-									sends that instead.
+									The key is made up and the links do nothing here.
 								</p>
 							</Field.Group>
 						</div>
@@ -522,8 +574,8 @@
 				<AlertDialog.Description>
 					This makes a new signing key and destroys the old private key. Manual licenses get new
 					keys right away. Ship a build with the public keys the Products page shows after this,
-					then export worker env and deploy it. A build from before cannot take a key of the new
-					signing key. There is no undo.
+					then run inkan worker export and deploy it. A build from before cannot take a key of the
+					new signing key. There is no undo.
 				</AlertDialog.Description>
 			{/if}
 		</AlertDialog.Header>

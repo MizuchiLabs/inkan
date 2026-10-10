@@ -324,6 +324,12 @@ func TestSyncNoticesOtherSettings(t *testing.T) {
 	for i := range w.pages {
 		w.pages[i].Product.GraceDays = 14
 		w.pages[i].Product.MaxKeyDays = 0
+		w.pages[i].Product.MailTemplate = TemplateHash("<p>{{key}}</p>")
+	}
+	assert.Contains(t, notice(), "another key mail")
+
+	for i := range w.pages {
+		w.pages[i].Product.MailTemplate = ""
 	}
 	assert.Empty(t, notice())
 }

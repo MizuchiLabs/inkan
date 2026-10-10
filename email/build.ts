@@ -1,7 +1,7 @@
-// Renders the mail with the placeholders the worker fills in and writes it
-// where the worker reads it.
+// Renders the mail with the placeholders the worker fills in, ready to upload
+// in the dashboard.
 
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 
 import { createElement } from 'react';
 import { render } from 'react-email';
@@ -14,15 +14,14 @@ const html = await render(
 		name: '{{name}}',
 		plan: '{{plan}}',
 		email: '{{email}}',
-		expires: '{{expires}}'
+		expires: '{{expires}}',
+		footer: '{{footer}}',
+		company: '{{company}}'
 	})
 );
 if (!html.includes('{{key}}')) throw new Error('the mail shows no licenseKey');
 
-const out = new URL('../worker/src/template.ts', import.meta.url);
-writeFileSync(
-	out,
-	'// Written by the build in ../../email. Empty sends the built-in mail.\n' +
-		`export const template =\n\t${JSON.stringify(html)};\n`
-);
-console.log(`wrote ${out.pathname}, deploy the worker to send it`);
+const out = new URL('dist/license.html', import.meta.url);
+mkdirSync(new URL('dist/', import.meta.url), { recursive: true });
+writeFileSync(out, html);
+console.log(`wrote ${out.pathname}, upload it under Edit on the product, in the Mail tab`);

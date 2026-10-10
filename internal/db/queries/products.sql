@@ -41,7 +41,8 @@ SET
   mail_logo = ?,
   mail_accent = ?,
   mail_footer = ?,
-  mail_company = ?
+  mail_company = ?,
+  mail_template = ?
 WHERE
   id = ? RETURNING *;
 

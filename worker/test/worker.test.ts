@@ -253,11 +253,18 @@ test('a template of your own is filled in', () => {
 	};
 	const template =
 		'<html><head><title>Dein {{name}} Schl&#xFC;ssel &amp; mehr</title></head>' +
-		'<body>{{ key }} {{plan}} {{email}} {{expires}} {{other}}</body></html>';
-	const mail = render('MYAPP-KEY', claims, { name: 'My {{key}} App' }, template);
+		'<body>{{ key }} {{plan}} {{email}} {{expires}} {{other}} {{footer}}|{{company}}</body></html>';
+	const mail = render(
+		'MYAPP-KEY',
+		claims,
+		{ name: 'My {{key}} App', footer: 'Help: a@x.io & <b>', company: 'X GmbH' },
+		template
+	);
 	assert.equal(mail.subject, 'Dein My {{key}} App Schlüssel & mehr', 'the title is the subject');
 	assert.ok(
-		mail.html.includes('<body>MYAPP-KEY &lt;b&gt;pro&lt;/b&gt; a@x.io Never {{other}}</body>'),
+		mail.html.includes(
+			'<body>MYAPP-KEY &lt;b&gt;pro&lt;/b&gt; a@x.io Never {{other}} Help: a@x.io &amp; &lt;b&gt;|X GmbH</body>'
+		),
 		'a value cannot bring markup'
 	);
 	assert.match(mail.text, /MYAPP-KEY/);

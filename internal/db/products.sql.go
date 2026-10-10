@@ -13,7 +13,7 @@ const createProduct = `-- name: CreateProduct :one
 INSERT INTO
   products (name, prefix, plan, grace_days, max_key_days, private_key, worker_token)
 VALUES
-  (?, ?, ?, ?, ?, ?, ?) RETURNING id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_logo, mail_accent, mail_footer, mail_company, synced_at, sync_error, created_at
+  (?, ?, ?, ?, ?, ?, ?) RETURNING id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_logo, mail_accent, mail_footer, mail_company, mail_template, synced_at, sync_error, created_at
 `
 
 type CreateProductParams struct {
@@ -54,6 +54,7 @@ func (q *Queries) CreateProduct(ctx context.Context, arg *CreateProductParams) (
 		&i.MailAccent,
 		&i.MailFooter,
 		&i.MailCompany,
+		&i.MailTemplate,
 		&i.SyncedAt,
 		&i.SyncError,
 		&i.CreatedAt,
@@ -74,7 +75,7 @@ func (q *Queries) DeleteProduct(ctx context.Context, id int64) error {
 
 const getProduct = `-- name: GetProduct :one
 SELECT
-  id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_logo, mail_accent, mail_footer, mail_company, synced_at, sync_error, created_at
+  id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_logo, mail_accent, mail_footer, mail_company, mail_template, synced_at, sync_error, created_at
 FROM
   products
 WHERE
@@ -101,6 +102,7 @@ func (q *Queries) GetProduct(ctx context.Context, id int64) (*Product, error) {
 		&i.MailAccent,
 		&i.MailFooter,
 		&i.MailCompany,
+		&i.MailTemplate,
 		&i.SyncedAt,
 		&i.SyncError,
 		&i.CreatedAt,
@@ -110,7 +112,7 @@ func (q *Queries) GetProduct(ctx context.Context, id int64) (*Product, error) {
 
 const getProductByPrefix = `-- name: GetProductByPrefix :one
 SELECT
-  id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_logo, mail_accent, mail_footer, mail_company, synced_at, sync_error, created_at
+  id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_logo, mail_accent, mail_footer, mail_company, mail_template, synced_at, sync_error, created_at
 FROM
   products
 WHERE
@@ -137,6 +139,7 @@ func (q *Queries) GetProductByPrefix(ctx context.Context, prefix string) (*Produ
 		&i.MailAccent,
 		&i.MailFooter,
 		&i.MailCompany,
+		&i.MailTemplate,
 		&i.SyncedAt,
 		&i.SyncError,
 		&i.CreatedAt,
@@ -146,7 +149,7 @@ func (q *Queries) GetProductByPrefix(ctx context.Context, prefix string) (*Produ
 
 const listProducts = `-- name: ListProducts :many
 SELECT
-  id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_logo, mail_accent, mail_footer, mail_company, synced_at, sync_error, created_at
+  id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_logo, mail_accent, mail_footer, mail_company, mail_template, synced_at, sync_error, created_at
 FROM
   products
 ORDER BY
@@ -179,6 +182,7 @@ func (q *Queries) ListProducts(ctx context.Context) ([]*Product, error) {
 			&i.MailAccent,
 			&i.MailFooter,
 			&i.MailCompany,
+			&i.MailTemplate,
 			&i.SyncedAt,
 			&i.SyncError,
 			&i.CreatedAt,
@@ -202,7 +206,7 @@ SET
   private_key = ?,
   old_public_keys = ?
 WHERE
-  id = ? RETURNING id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_logo, mail_accent, mail_footer, mail_company, synced_at, sync_error, created_at
+  id = ? RETURNING id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_logo, mail_accent, mail_footer, mail_company, mail_template, synced_at, sync_error, created_at
 `
 
 type SetProductKeysParams struct {
@@ -232,6 +236,7 @@ func (q *Queries) SetProductKeys(ctx context.Context, arg *SetProductKeysParams)
 		&i.MailAccent,
 		&i.MailFooter,
 		&i.MailCompany,
+		&i.MailTemplate,
 		&i.SyncedAt,
 		&i.SyncError,
 		&i.CreatedAt,
@@ -308,9 +313,10 @@ SET
   mail_logo = ?,
   mail_accent = ?,
   mail_footer = ?,
-  mail_company = ?
+  mail_company = ?,
+  mail_template = ?
 WHERE
-  id = ? RETURNING id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_logo, mail_accent, mail_footer, mail_company, synced_at, sync_error, created_at
+  id = ? RETURNING id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_logo, mail_accent, mail_footer, mail_company, mail_template, synced_at, sync_error, created_at
 `
 
 type UpdateProductParams struct {
@@ -325,6 +331,7 @@ type UpdateProductParams struct {
 	MailAccent      string `json:"mailAccent"`
 	MailFooter      string `json:"mailFooter"`
 	MailCompany     string `json:"mailCompany"`
+	MailTemplate    string `json:"mailTemplate"`
 	ID              int64  `json:"id"`
 }
 
@@ -341,6 +348,7 @@ func (q *Queries) UpdateProduct(ctx context.Context, arg *UpdateProductParams) (
 		arg.MailAccent,
 		arg.MailFooter,
 		arg.MailCompany,
+		arg.MailTemplate,
 		arg.ID,
 	)
 	var i Product
@@ -361,6 +369,7 @@ func (q *Queries) UpdateProduct(ctx context.Context, arg *UpdateProductParams) (
 		&i.MailAccent,
 		&i.MailFooter,
 		&i.MailCompany,
+		&i.MailTemplate,
 		&i.SyncedAt,
 		&i.SyncError,
 		&i.CreatedAt,

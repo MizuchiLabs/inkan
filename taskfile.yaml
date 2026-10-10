@@ -20,13 +20,14 @@ tasks:
     desc: Run the worker of a product with the Stripe CLI forwarding test webhooks to it, task worker -- MYAPP. Takes INKAN_STRIPE_KEY and the mail service from the environment
     cmds:
       - |
-        env="$(mktemp)"
-        trap 'rm -f "$env"' EXIT
-        go run . worker env {{.CLI_ARGS}} > "$env"
+        dir="$(mktemp -d)"
+        trap 'rm -rf "$dir"' EXIT
+        go run . worker export {{.CLI_ARGS}} "$dir"
+        env="$dir/worker.env"
         export INKAN_STRIPE_WEBHOOK_SECRET="$(stripe listen --print-secret)"
         stripe listen --forward-to localhost:4242/webhook \
           --events invoice.paid,checkout.session.completed,checkout.session.async_payment_succeeded &
-        trap 'kill $!; rm -f "$env"' EXIT
+        trap 'kill $!; rm -rf "$dir"' EXIT
         PORT=4242 node --env-file="$env" worker/src/node.ts
 
   seed:

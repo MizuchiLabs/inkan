@@ -250,7 +250,8 @@ async function licenses(request: Request, env: Env): Promise<Response> {
 			plan: settings.plan,
 			grace_days: settings.grace_days,
 			max_key_days: settings.max_key_days,
-			provider_product: settings.id
+			provider_product: settings.id,
+			mail_template: await templateHash()
 		},
 		licenses: await Promise.all(
 			page.licenses.map(async (license) => ({
@@ -315,6 +316,13 @@ function product(env: Env): Product {
 		grace_days: whole(env.INKAN_GRACE_DAYS, 14),
 		max_key_days: whole(env.INKAN_MAX_KEY_DAYS, 0)
 	};
+}
+
+// The dashboard compares it with the template it holds, empty is the built-in mail.
+async function templateHash(): Promise<string> {
+	if (!template) return '';
+	const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(template));
+	return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 function mail(env: Env, key: string, claims: Claims) {

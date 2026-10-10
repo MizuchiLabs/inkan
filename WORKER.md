@@ -80,7 +80,8 @@ fewer licenses than the limit, or none, and still have a `next`.
     "plan": "pro",
     "grace_days": 14,
     "max_key_days": 0,
-    "provider_product": "prod_…"
+    "provider_product": "prod_…",
+    "mail_template": ""
   },
   "licenses": [
     {
@@ -109,6 +110,7 @@ fewer licenses than the limit, or none, and still have a `next`.
 | `product`         | What the worker runs with, the same on every page                     |
 | `provider`        | Who is asked what is paid. The dashboard shows it as the source       |
 | `old_public_keys` | Hex keys from before a rotation that a refresh still takes            |
+| `mail_template`   | SHA-256 hex of the key mail the worker sends, empty for the built-in  |
 | `id`              | Id at the provider, never `lic_…`. The key carries it as its `id`     |
 | `kind`            | `subscription` or `purchase`                                          |
 | `email`           | Who the license is for                                                |
@@ -137,7 +139,8 @@ What the dashboard does with it:
   from a worker that signs for another one. A worker that still signs with a
   key from before a rotation is read, and the user is told to deploy it.
 - It tells the user when `old_public_keys`, `plan`, `grace_days`,
-  `max_key_days` or `provider_product` differ from what the product shows.
+  `max_key_days` or `provider_product` differ from what the product shows, or
+  when `mail_template` is not the hash of the mail uploaded there.
 - It keeps a row per license and drops the rows a full read no longer lists.
   It keeps the purchases when `skipped` names them, and it drops nothing
   while `provider_product` differs.

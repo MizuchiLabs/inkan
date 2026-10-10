@@ -82,7 +82,7 @@ For when a private key may have leaked, or the people who had it moved on.
    as an old key. Manual licenses show new keys from now on.
 2. **Ship a build** with the public keys the Products page now shows, the new
    one and the old ones behind it. It takes keys of both.
-3. **Deploy the worker** with a fresh `inkan worker env`. It signs with the new
+3. **Deploy the worker** with a fresh `inkan worker export`. It signs with the new
    key and still refreshes keys of the old one, so an app trades its old key
    for a new one on its next refresh. The settings are swapped in one go on
    Cloudflare and Scaleway, on Node the worker restarts.
@@ -112,8 +112,8 @@ the worker keeps signing with the old key until step 3.
 - **The worker** gets the private key, a Stripe key and the key of a mail
   service through its environment. A restricted Stripe key that reads
   subscriptions and customers is enough. One time purchases also need
-  Checkout sessions, payment intents and charges. `inkan worker env` prints
-  the private key, treat its output like one.
+  Checkout sessions, payment intents and charges. `inkan worker export`
+  writes the private key into `worker.env`, treat the file like one.
 - **The webhook** only takes events with a valid Stripe signature that are at
   most five minutes old.
 - **Refresh** only looks up keys with a valid signature of the product, by

@@ -7,6 +7,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/ed25519"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json/v2"
 	"errors"
@@ -53,6 +54,7 @@ type settings struct {
 	GraceDays       int64    `json:"grace_days"`
 	MaxKeyDays      int64    `json:"max_key_days"`
 	ProviderProduct string   `json:"provider_product"`
+	MailTemplate    string   `json:"mail_template"`
 }
 
 type listed struct {
@@ -204,7 +206,7 @@ func fetch(ctx context.Context, p *db.Product, cursor string) (*page, error) {
 	switch resp.StatusCode {
 	case http.StatusOK:
 	case http.StatusUnauthorized:
-		return nil, errors.New("worker: it has another token, export worker env again and deploy it")
+		return nil, errors.New("worker: it has another token, run inkan worker export again and deploy it")
 	case http.StatusNotFound:
 		return nil, errors.New("worker: no /licenses there, check the worker url and that it has a token")
 	default:
@@ -223,10 +225,10 @@ func fetch(ctx context.Context, p *db.Product, cursor string) (*page, error) {
 // show. They only reach the worker when its env is exported and deployed.
 func drift(p *db.Product, s settings, current string) string {
 	if s.PublicKey != current {
-		return "The worker still signs with the key from before the rotation. Export worker env again and deploy it."
+		return "The worker still signs with the key from before the rotation. Run inkan worker export again and deploy it."
 	}
 	if !slices.Equal(s.OldPublicKeys, p.OldKeys()) {
-		return "The worker takes other old keys than the product has. Export worker env again and deploy it."
+		return "The worker takes other old keys than the product has. Run inkan worker export again and deploy it."
 	}
 	var off []string
 	if s.Plan != p.Plan {
@@ -241,11 +243,25 @@ func drift(p *db.Product, s settings, current string) string {
 	if s.ProviderProduct != p.ProviderProduct {
 		off = append(off, cmp.Or(s.Provider, "stripe")+" product "+s.ProviderProduct)
 	}
-	if len(off) == 0 {
+	if len(off) > 0 {
+		return "The worker runs with " + strings.Join(off, ", ") +
+			". Run inkan worker export again and deploy it, or set the same here."
+	}
+	if s.MailTemplate != TemplateHash(p.MailTemplate) {
+		return "The worker sends another key mail than the one here. Run inkan worker export again and deploy it."
+	}
+	return ""
+}
+
+// TemplateHash is how a worker names the key mail it sends on /licenses, so
+// the dashboard can tell when the one here is not deployed yet. Empty is the
+// built-in mail.
+func TemplateHash(template string) string {
+	if template == "" {
 		return ""
 	}
-	return "The worker runs with " + strings.Join(off, ", ") +
-		". Export worker env again and deploy it, or set the same here."
+	sum := sha256.Sum256([]byte(template))
+	return hex.EncodeToString(sum[:])
 }
 
 func store(ctx context.Context, q *db.Queries, p *db.Product, provider string, l listed, round int64) error {

@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -37,6 +38,7 @@ type Product struct {
 	MailAccent      string     `json:"mail_accent"      doc:"Worker setting. Color of the key mail, #rrggbb"`
 	MailFooter      string     `json:"mail_footer"      doc:"Worker setting. One line under the key in the mail"`
 	MailCompany     string     `json:"mail_company"     doc:"Worker setting. Last line of the key mail: legal name, address, register number"`
+	MailTemplate    string     `json:"mail_template"    doc:"Worker setting. Html of a key mail of its own with placeholders, empty sends the built-in mail"`
 	SyncedAt        *time.Time `json:"synced_at"        doc:"Last time the worker was read"`
 	SyncError       string     `json:"sync_error"       doc:"Why the worker could not be read, or what is off with it. Empty when all is well"`
 	CreatedAt       time.Time  `json:"created_at"`
@@ -80,6 +82,7 @@ type UpdateProductInput struct {
 		MailAccent      string `json:"mail_accent,omitempty"      pattern:"^(#[0-9a-fA-F]{6})?$"                   doc:"Color of the key mail, like #2f3e8f"`
 		MailFooter      string `json:"mail_footer,omitempty"                                       maxLength:"256" doc:"One line under the key in the mail, like where to get help"`
 		MailCompany     string `json:"mail_company,omitempty"                                      maxLength:"512" doc:"Last line of the key mail, for what a business has to state: legal name, address, register number"`
+		MailTemplate    string `json:"mail_template,omitempty"                                     maxLength:"262144" doc:"Html of a key mail of its own, with {{key}} and the other placeholders in it. Empty sends the built-in mail"`
 	}
 }
 
@@ -88,6 +91,9 @@ type SyncOutput struct {
 		Licenses int `json:"licenses" doc:"Paid licenses the worker hands out"`
 	}
 }
+
+// A mail without the key is worth nothing, the worker would not use it.
+var keyPlaceholder = regexp.MustCompile(`\{\{\s*key\s*\}\}`)
 
 type productHandlers struct {
 	q *db.Queries
@@ -201,6 +207,9 @@ func (h *productHandlers) create(ctx context.Context, in *CreateProductInput) (*
 }
 
 func (h *productHandlers) update(ctx context.Context, in *UpdateProductInput) (*ProductOutput, error) {
+	if in.Body.MailTemplate != "" && !keyPlaceholder.MatchString(in.Body.MailTemplate) {
+		return nil, huma.Error422UnprocessableEntity("the mail template shows no {{key}}")
+	}
 	p, err := h.q.UpdateProduct(ctx, &db.UpdateProductParams{
 		Name:            in.Body.Name,
 		Plan:            in.Body.Plan,
@@ -213,6 +222,7 @@ func (h *productHandlers) update(ctx context.Context, in *UpdateProductInput) (*
 		MailAccent:      in.Body.MailAccent,
 		MailFooter:      strings.TrimSpace(in.Body.MailFooter),
 		MailCompany:     strings.TrimSpace(in.Body.MailCompany),
+		MailTemplate:    in.Body.MailTemplate,
 		ID:              in.ID,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -335,6 +345,7 @@ func toProduct(p *db.Product) Product {
 		MailAccent:      p.MailAccent,
 		MailFooter:      p.MailFooter,
 		MailCompany:     p.MailCompany,
+		MailTemplate:    p.MailTemplate,
 		SyncError:       p.SyncError,
 		CreatedAt:       time.Unix(p.CreatedAt, 0),
 		// Never null, the UI joins it with the current key.

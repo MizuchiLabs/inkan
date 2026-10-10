@@ -65,20 +65,22 @@ keeps no state. Stripe says what is paid and the private key signs it.
 | `POST /webhook` | Stripe reports a payment, the key is mailed to the customer |
 | `GET /licenses` | The dashboard reads what the worker hands out               |
 
-Print the settings of a product into a file. It holds the private key, treat
-it like one.
+The worker is deployed from a clone of this repository, it shares the
+verifier in `sdk/ts`. Write the settings of a product into its folder. They
+hold the private key, treat the file like one.
 
 ```sh
-inkan worker env MYAPP > worker.env
+cd worker
+inkan worker export MYAPP
 # or from the container of the quick start
-docker exec inkan inkan worker env MYAPP > worker.env
+docker exec inkan inkan worker export MYAPP /tmp/myapp && docker cp inkan:/tmp/myapp/. .
 ```
 
-Add the Stripe key to the file and deploy the worker with it. The worker is
-deployed from a clone of this repository, it shares the verifier in `sdk/ts`.
-[`worker`](worker) has the steps for Cloudflare Workers, Scaleway Functions
-and any host that runs Node. Then enter where the worker runs under Edit on
-the Products page. Its licenses show up on the Licenses page.
+This writes `worker.env` and the key mail in `src/template.ts`. Add the Stripe
+key to `worker.env` and deploy the worker with it. [`worker`](worker) has the
+steps for Cloudflare Workers, Scaleway Functions and any host that runs Node.
+Then enter where the worker runs under Edit on the Products page. Its
+licenses show up on the Licenses page.
 
 | Env Var                       | Default    | Description                                    |
 | ----------------------------- | ---------- | ---------------------------------------------- |
@@ -103,8 +105,9 @@ the Products page. Its licenses show up on the Licenses page.
 | `INKAN_MAIL_FOOTER`           | -          | One line under the key, like where to get help |
 | `INKAN_MAIL_COMPANY`          | -          | Last line of the mail, your company details    |
 
-`worker env` prints what the product has. The secrets of Stripe and the mail
-service are not kept in the dashboard, they come out as comments to fill in.
+`worker export` writes what the product has. The secrets of Stripe and the
+mail service are not kept in the dashboard, they come out as comments to fill
+in.
 
 The settings of the worker live on the product, under Edit on the Products
 page. A change only reaches the worker when you export the file again and
@@ -124,7 +127,7 @@ Stripe key and the mail service from your environment.
 The mail shows the key, its plan, how long it is valid and who it is for, as
 HTML with a plain text twin. A dark header carries the name of the product or
 its logo. These make it yours. Set them on the product under Edit, `worker
-env` prints them.
+export` writes them.
 
 - **Logo.** An https url. It sits on the dark header, 32 pixels high, so it
   has to read on a dark background.
@@ -142,8 +145,11 @@ clicked.
 Edit on a product has a Mail tab with a preview that follows what you type. It
 runs the very code the worker sends the mail with.
 
-For a mail of your own, design it in [`email`](email) and build it into the
-worker. The preview keeps showing the built-in mail.
+For a mail of your own, design it in [`email`](email) and upload the html it
+builds in the Mail tab. The preview shows it, `worker export` writes it into
+the worker, and the Products page says when the worker still sends another
+one. It gets the footer and the company details from here, the logo and the
+accent are part of its design.
 
 ### How it behaves
 

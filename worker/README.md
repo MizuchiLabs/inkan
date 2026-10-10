@@ -16,12 +16,14 @@ Deploy it from a clone of the whole repository. It imports the verifier from
 
 ## Settings
 
-Print the settings of the product from inkan, then fill in the comments.
+Write the settings of the product from inkan into this folder, then fill in
+the comments.
 
 ```sh
-inkan worker env MYAPP > worker.env
+inkan worker export MYAPP
 ```
 
+It writes `worker.env` and `src/template.ts`, the key mail of the product.
 `worker.env` holds the private key. Delete it once the worker has it. Values
 with a space or a `#` are in quotes, Node and wrangler read them as they are.
 
@@ -85,16 +87,20 @@ HTTP API. `src/send.ts` has one small function per service. Add yours there.
 
 ## A mail of your own
 
-Put it into `src/template.ts` as html with `{{key}}`, `{{name}}`, `{{plan}}`,
-`{{email}}` and `{{expires}}` in it. The worker fills them in, and the
-`<title>` is the subject. `{{expires}}` is a date like 16 October 2096, or
-Never. A template without `{{key}}` is not used.
+Upload it on the product in inkan, under Edit in the Mail tab, as html with
+`{{key}}`, `{{name}}`, `{{plan}}`, `{{email}}`, `{{expires}}`, `{{footer}}`
+and `{{company}}` in it. `worker export` writes it into `src/template.ts`,
+the worker fills the placeholders in, and the `<title>` is the subject.
+`{{expires}}` is a date like 16 October 2096, or Never. The footer and the
+company details are the ones of the product, as for the built-in mail. A mail
+without `{{key}}` is not taken.
 
-[`email`](../email) builds that file from a React Email component, start
-there. Any other html works too.
+[`email`](../email) builds such a mail from a React Email component, start
+there. Any other html works too. The logo and accent settings only shape the
+built-in mail.
 
-The logo, accent, footer and company settings only shape the built-in mail,
-and the Mail tab of the dashboard previews only that one.
+`/licenses` names the mail the worker sends by its SHA-256, so the dashboard
+can say when the one uploaded is not deployed yet.
 
 ## Tests
 

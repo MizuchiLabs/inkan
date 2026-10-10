@@ -291,6 +291,10 @@
 						"description": "Worker setting. https url of a logo for the dark header of the key mail",
 						"type": "string"
 					},
+					"mail_template": {
+						"description": "Worker setting. Html of a key mail of its own with placeholders, empty sends the built-in mail",
+						"type": "string"
+					},
 					"max_key_days": {
 						"description": "Worker setting. Longest life of a paid key in days, 0 has no limit. Apps refresh for the next one",
 						"format": "int64",
@@ -353,6 +357,7 @@
 					"mail_accent",
 					"mail_footer",
 					"mail_company",
+					"mail_template",
 					"synced_at",
 					"sync_error",
 					"created_at"
@@ -432,6 +437,11 @@
 						"description": "https url of a logo for the dark header of the key mail",
 						"maxLength": 512,
 						"pattern": "^(https://.+)?$",
+						"type": "string"
+					},
+					"mail_template": {
+						"description": "Html of a key mail of its own, with {{key}} and the other placeholders in it. Empty sends the built-in mail",
+						"maxLength": 262144,
 						"type": "string"
 					},
 					"max_key_days": { "format": "int64", "maximum": 3650, "minimum": 0, "type": "integer" },

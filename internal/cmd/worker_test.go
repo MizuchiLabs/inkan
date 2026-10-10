@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestEnvValue(t *testing.T) {
@@ -23,4 +25,20 @@ func TestEnvValue(t *testing.T) {
 	} {
 		assert.Equal(t, want, envValue(value), value)
 	}
+}
+
+// An export without a mail leaves the file as the repository has it, so a
+// clone stays clean.
+func TestTemplateModule(t *testing.T) {
+	t.Parallel()
+	stub, err := os.ReadFile("../../worker/src/template.ts")
+	require.NoError(t, err)
+	module, err := templateModule("")
+	require.NoError(t, err)
+	assert.Equal(t, string(stub), module)
+
+	module, err = templateModule("<p>{{key}}</p>\n</script>")
+	require.NoError(t, err)
+	assert.Contains(t, module, `export const template =
+	"<p>{{key}}</p>\n</script>";`)
 }

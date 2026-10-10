@@ -229,6 +229,10 @@ export type Product = {
      */
     mail_logo: string;
     /**
+     * Worker setting. Html of a key mail of its own with placeholders, empty sends the built-in mail
+     */
+    mail_template: string;
+    /**
      * Worker setting. Longest life of a paid key in days, 0 has no limit. Apps refresh for the next one
      */
     max_key_days: number;
@@ -328,6 +332,10 @@ export type UpdateProductInputBody = {
      * https url of a logo for the dark header of the key mail
      */
     mail_logo?: string;
+    /**
+     * Html of a key mail of its own, with {{key}} and the other placeholders in it. Empty sends the built-in mail
+     */
+    mail_template?: string;
     max_key_days?: number;
     name: string;
     plan: string;

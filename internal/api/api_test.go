@@ -184,7 +184,7 @@ func TestListLicensesInPages(t *testing.T) {
 	assert.Empty(t, ids("?limit=2&offset=4"))
 }
 
-// The worker settings of a product are only kept for worker env. Saving them
+// The worker settings of a product are only kept for worker export. Saving them
 // reads the worker right away.
 func TestProductWorker(t *testing.T) {
 	t.Parallel()
@@ -221,11 +221,23 @@ func TestProductWorker(t *testing.T) {
 	var listed bytes.Buffer
 	_, err = listed.ReadFrom(resp.Body)
 	require.NoError(t, err)
-	assert.NotContains(t, listed.String(), stored.WorkerToken, "the token only leaves through worker env")
+	assert.NotContains(t, listed.String(), stored.WorkerToken, "the token only leaves through worker export")
 	assert.NotContains(t, listed.String(), stored.PrivateKey)
 
 	settings["worker_url"] = "ftp://worker.example.com"
 	assert.Equal(t, http.StatusUnprocessableEntity, call(t, srv, http.MethodPut, path, settings, nil))
+	settings["worker_url"] = worker.URL
+	settings["mail_template"] = "<p>{{name}}</p>"
+	assert.Equal(
+		t,
+		http.StatusUnprocessableEntity,
+		call(t, srv, http.MethodPut, path, settings, nil),
+		"a mail without the key",
+	)
+	settings["mail_template"] = "<p>{{ key }}</p>"
+	require.Equal(t, http.StatusOK, call(t, srv, http.MethodPut, path, settings, &saved))
+	assert.Equal(t, "<p>{{ key }}</p>", saved.MailTemplate)
+	delete(settings, "mail_template")
 	settings["worker_url"] = ""
 	require.Equal(t, http.StatusOK, call(t, srv, http.MethodPut, path, settings, &saved))
 	assert.False(t, saved.WorkerConnected, "an empty url disconnects the worker")

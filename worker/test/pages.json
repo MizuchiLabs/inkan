@@ -8,7 +8,8 @@
 			"plan": "pro",
 			"grace_days": 14,
 			"max_key_days": 0,
-			"provider_product": "prod_app"
+			"provider_product": "prod_app",
+			"mail_template": ""
 		},
 		"licenses": [
 			{
@@ -39,7 +40,8 @@
 			"plan": "pro",
 			"grace_days": 14,
 			"max_key_days": 0,
-			"provider_product": "prod_app"
+			"provider_product": "prod_app",
+			"mail_template": ""
 		},
 		"licenses": [
 			{
@@ -70,7 +72,8 @@
 			"plan": "pro",
 			"grace_days": 14,
 			"max_key_days": 0,
-			"provider_product": "prod_app"
+			"provider_product": "prod_app",
+			"mail_template": ""
 		},
 		"licenses": [
 			{

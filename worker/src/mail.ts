@@ -18,7 +18,8 @@ const placeholder = /\{\{\s*(\w+)\s*\}\}/g;
 
 /**
  * The mail for a key. A template is html with {{key}}, {{name}}, {{plan}},
- * {{email}} and {{expires}} in it, its title is the subject.
+ * {{email}}, {{expires}}, {{footer}} and {{company}} in it, its title is the
+ * subject.
  */
 export function render(
 	key: string,
@@ -57,7 +58,9 @@ export function render(
 			name,
 			plan: claims.plan,
 			email: claims.email,
-			expires: expires || 'Never'
+			expires: expires || 'Never',
+			footer,
+			company
 		};
 		const title = template.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? '';
 		return {

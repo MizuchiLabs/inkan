@@ -17,6 +17,7 @@ CREATE TABLE products (
   mail_accent TEXT NOT NULL DEFAULT '', -- color of the key mail, #rrggbb
   mail_footer TEXT NOT NULL DEFAULT '', -- one line under the key
   mail_company TEXT NOT NULL DEFAULT '', -- legal name, address and the like, the last line of the key mail
+  mail_template TEXT NOT NULL DEFAULT '', -- html of a key mail of its own, with placeholders, empty sends the built-in one
   synced_at INTEGER, -- last time the worker was read
   sync_error TEXT NOT NULL DEFAULT '', -- why the worker could not be read, or what is off with it
   created_at INTEGER NOT NULL DEFAULT (unixepoch())
