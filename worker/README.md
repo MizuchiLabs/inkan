@@ -23,6 +23,10 @@ the comments.
 inkan worker export MYAPP
 # or from a container, a tar of the files comes out of stdout
 docker exec inkan inkan worker export MYAPP - | tar x
+# or to stdout
+docker exec inkan inkan worker export MYAPP - | tar -xO worker.env        # the env file on screen
+docker exec inkan inkan worker export MYAPP - | tar -xO src/template.ts   # the mail module
+docker exec inkan inkan worker export MYAPP - | tar -xO worker.env > worker.env
 ```
 
 It writes `worker.env` and `src/template.ts`, the key mail of the product.
