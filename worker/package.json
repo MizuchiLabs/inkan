@@ -6,7 +6,9 @@
 		"start": "node src/node.ts",
 		"dev": "wrangler dev",
 		"deploy": "wrangler deploy",
-		"build": "esbuild src/node.ts src/scaleway.ts --bundle --platform=node --format=esm --outdir=dist && echo '{\"type\":\"module\"}' > dist/package.json",
+		"build": "pnpm build:node && pnpm build:scaleway",
+		"build:node": "esbuild src/node.ts --bundle --platform=node --format=esm --outfile=dist/node.js",
+		"build:scaleway": "esbuild src/scaleway.ts --bundle --platform=node --format=esm --outfile=dist/scaleway/handler.js && echo '{\"type\":\"module\"}' > dist/scaleway/package.json && node scripts/zip.ts dist/scaleway.zip dist/scaleway",
 		"check": "tsc",
 		"test": "node --test"
 	},

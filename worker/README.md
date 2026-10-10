@@ -61,21 +61,20 @@ tab.
 ```sh
 pnpm install
 pnpm wrangler secret bulk worker.env
-pnpm run deploy
+pnpm deploy
 ```
 
 ## Scaleway Serverless Functions
 
 ```sh
 pnpm install
-pnpm build
-cd dist && zip function.zip scaleway.js package.json
+pnpm build:scaleway
 ```
 
-Create a function on a Node runtime from `function.zip` with the handler
-`scaleway.handle`. Switch the Secrets to JSON, paste `worker.json` and add
-the Stripe key and the mail service to it. Scaleway keeps the `SCW_` prefix
-for itself there, so the worker reads its Transactional Email key as
+Create a function on a Node runtime from `dist/scaleway.zip`, with every
+setting at its default. Switch the Secrets to JSON, paste `worker.json` and
+add the Stripe key and the mail service to it. Scaleway keeps the `SCW_`
+prefix for itself there, so the worker reads its Transactional Email key as
 `INKAN_SCW_SECRET_KEY`.
 
 ## Anywhere Node runs
@@ -87,7 +86,7 @@ Node 24 or newer runs the TypeScript as it is. `PORT` is where it listens,
 node --env-file=worker.env src/node.ts
 ```
 
-`pnpm build` also writes `dist/node.js`, one file without dependencies for a
+`pnpm build:node` writes `dist/node.js`, one file without dependencies for a
 container or a server.
 
 ## Another mail service

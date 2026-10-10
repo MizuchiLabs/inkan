@@ -1,5 +1,6 @@
-// Entry for Scaleway Serverless Functions on a Node runtime. Bundle it with
-// `pnpm build` and set the handler to scaleway.handle.
+// Entry for Scaleway Serverless Functions on a Node runtime. `pnpm build`
+// bundles it into dist/handler.js, where the default handler handler.handle
+// finds it.
 
 import { handle as answer, type Env } from './handler.ts';
 
