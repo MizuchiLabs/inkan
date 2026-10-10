@@ -38,6 +38,11 @@ except inkan.LicenseError:
     pass  # Not a key of this app. A key that ran out is held all the same.
 lic.renew("https://<worker>/refresh", save=store)
 
+A third argument binds the keeper to this machine. It is whatever the app
+calls the machine, like an install id it keeps in its data directory. A key
+issued with that fingerprint works nowhere else, a key without one works
+everywhere. `verify` takes it as `fingerprint=`.
+
 lic.valid()  # is there a license right now
 lic.claims()  # plan, email and meta, raises a LicenseError without one
 lic.set(pasted)  # a new key came by mail

@@ -33,7 +33,7 @@ func TestKeeperSet(t *testing.T) {
 	team := issueFor(t, priv, "team", time.Hour)
 	expired := issueFor(t, priv, "pro", -time.Hour)
 
-	k := NewKeeper("myapp", pub)
+	k := NewKeeper("myapp", pub, "")
 	if c, err := k.Claims(); c != nil || !errors.Is(err, ErrNoKey) || k.Key() != "" || k.Valid() {
 		t.Fatalf("an empty keeper must say so: %+v, %v, %q", c, err, k.Key())
 	}
@@ -64,7 +64,7 @@ func TestKeeperSet(t *testing.T) {
 
 func TestKeeperWithoutAPublicKey(t *testing.T) {
 	_, priv := testKeypair(t)
-	k := NewKeeper("myapp", "")
+	k := NewKeeper("myapp", "", "")
 	if _, err := k.Set(issueFor(t, priv, "pro", time.Hour)); !errors.Is(err, ErrNoPublicKey) {
 		t.Fatalf("got %v, want ErrNoPublicKey", err)
 	}
@@ -79,7 +79,7 @@ func TestKeeperClaimsAreACopy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	k := NewKeeper("myapp", pub)
+	k := NewKeeper("myapp", pub, "")
 	c, err := k.Set(key)
 	if err != nil {
 		t.Fatal(err)
@@ -94,7 +94,7 @@ func TestKeeperClaimsAreACopy(t *testing.T) {
 func TestKeeperNoticesExpiryWhileRunning(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		pub, priv := testKeypair(t)
-		k := NewKeeper("myapp", pub)
+		k := NewKeeper("myapp", pub, "")
 		if _, err := k.Set(issueFor(t, priv, "pro", time.Hour)); err != nil {
 			t.Fatal(err)
 		}
@@ -134,7 +134,7 @@ func TestKeeperRenew(t *testing.T) {
 		})
 		t.Cleanup(func() { refreshClient.Transport = nil })
 
-		k := NewKeeper("myapp", pub)
+		k := NewKeeper("myapp", pub, "")
 		if _, err := k.Set(old); !errors.Is(err, ErrExpired) {
 			t.Fatalf("the old key: got %v", err)
 		}
@@ -191,7 +191,7 @@ func TestKeeperRenewStartsOverAfterASuccess(t *testing.T) {
 		})
 		t.Cleanup(func() { refreshClient.Transport = nil })
 
-		k := NewKeeper("myapp", pub)
+		k := NewKeeper("myapp", pub, "")
 		if _, err := k.Set(held); err != nil {
 			t.Fatal(err)
 		}
@@ -233,7 +233,7 @@ func TestKeeperRenewAsksSoonerForAShortKey(t *testing.T) {
 		})
 		t.Cleanup(func() { refreshClient.Transport = nil })
 
-		k := NewKeeper("myapp", pub)
+		k := NewKeeper("myapp", pub, "")
 		if _, err := k.Set(short); err != nil {
 			t.Fatal(err)
 		}
@@ -270,7 +270,7 @@ func TestKeeperRenewDoesNotHammerAtTheEndOfAKey(t *testing.T) {
 		})
 		t.Cleanup(func() { refreshClient.Transport = nil })
 
-		k := NewKeeper("myapp", pub)
+		k := NewKeeper("myapp", pub, "")
 		if _, err := k.Set(ending); err != nil {
 			t.Fatal(err)
 		}
@@ -304,7 +304,7 @@ func TestKeeperRenewWithoutAKey(t *testing.T) {
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
-			NewKeeper("myapp", "").Renew(ctx, "https://keys.example.com/refresh", nil, nil)
+			NewKeeper("myapp", "", "").Renew(ctx, "https://keys.example.com/refresh", nil, nil)
 		}()
 		time.Sleep(49 * time.Hour)
 		cancel()

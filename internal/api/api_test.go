@@ -137,7 +137,7 @@ func TestRotateKey(t *testing.T) {
 	assert.NotEqual(t, before.Key, listed[0].Key, "a manual license is signed with the new key")
 	pub, err := hex.DecodeString(rotated.PublicKey)
 	require.NoError(t, err)
-	_, err = license.VerifyWith(listed[0].Key, "APP", pub)
+	_, err = license.VerifyWith(listed[0].Key, "APP", "", pub)
 	require.NoError(t, err)
 
 	var res CheckResult
@@ -241,24 +241,29 @@ func TestIssueAndCheck(t *testing.T) {
 	expires := time.Now().Add(24 * time.Hour).Truncate(time.Second)
 	var l License
 	status := call(t, srv, http.MethodPost, "/api/licenses", map[string]any{
-		"product_id": p.ID,
-		"email":      "ops@acme.io",
-		"expires_at": expires,
-		"meta":       map[string]string{"seats": "25"},
+		"product_id":  p.ID,
+		"email":       "ops@acme.io",
+		"expires_at":  expires,
+		"meta":        map[string]string{"seats": "25"},
+		"fingerprint": " machine-1 ",
 	}, &l)
 	require.Equal(t, http.StatusCreated, status)
+	assert.Equal(t, "machine-1", l.Fingerprint)
 	assert.Equal(t, "pro", l.Plan, "the plan defaults to the product's")
 	assert.Equal(t, sourceManual, l.Source)
 
 	// The key has to hold up in a product that only knows the public key.
 	pub, err := hex.DecodeString(p.PublicKey)
 	require.NoError(t, err)
-	claims, err := license.VerifyWith(l.Key, "APP", pub)
+	claims, err := license.VerifyWith(l.Key, "APP", "", pub)
 	require.NoError(t, err)
 	assert.Equal(t, l.ID, claims.ID)
 	assert.Equal(t, "ops@acme.io", claims.Email)
 	assert.Equal(t, expires.Unix(), claims.ExpiresAt)
 	assert.Equal(t, "25", claims.Meta["seats"])
+	assert.Equal(t, "machine-1", claims.Fingerprint)
+	_, err = license.VerifyWith(l.Key, "APP", "machine-2", pub)
+	require.ErrorIs(t, err, license.ErrBound, "the key is bound to one machine")
 
 	var listed []License
 	require.Equal(t, http.StatusOK, call(t, srv, http.MethodGet, "/api/licenses", nil, &listed))
@@ -271,6 +276,7 @@ func TestIssueAndCheck(t *testing.T) {
 	assert.True(t, res.Known)
 	assert.Equal(t, l.ID, res.LicenseID)
 	assert.Equal(t, "25", res.Meta["seats"])
+	assert.Equal(t, "machine-1", res.Fingerprint, "the check shows the machine without knowing it")
 
 	mangled := `"` + l.Key[:40] + "\r\n" + l.Key[40:] + `"`
 	call(t, srv, http.MethodPost, "/api/check", map[string]string{"key": mangled}, &res)

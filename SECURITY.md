@@ -18,12 +18,12 @@ A key is a signed statement, not a secret. It is built in three steps:
 
 | Claim   |                                                        |
 | ------- | ------------------------------------------------------ |
-| `v`     | Always 1                                               |
 | `app`   | The product prefix                                     |
 | `plan`  | Plan name, the app decides what it means               |
 | `email` | Who the license is for                                 |
 | `exp`   | Unix seconds, 0 never expires                          |
-| `id`    | `sub_…`, `cs_…` or `lic_…`, missing in old keys        |
+| `id`    | Id at the issuer, `lic_…` by hand, missing in old keys |
+| `fp`    | Optional. The machine the key is bound to              |
 | `meta`  | Optional. Extra strings, e.g. seats                    |
 
 Your app checks the signature with the public key built into it. That needs no
@@ -44,13 +44,13 @@ The format is small enough to sign anywhere too. This is all of the signing
 in Python:
 
 ```python
-payload = b'{"v":1,"app":"MYAPP","plan":"pro","email":"ops@acme.io","exp":1800000000,"id":"sub_123"}'
+payload = b'{"app":"MYAPP","plan":"pro","email":"ops@acme.io","exp":1800000000,"id":"sub_123"}'
 sig = Ed25519PrivateKey.from_private_bytes(seed).sign(payload)
 enc = base64.b64encode(b"\x01" + payload + sig).decode().rstrip("=")
 key = "MYAPP-" + "-".join(enc[i : i + 5] for i in range(0, len(enc), 5))
 ```
 
-With the seed bytes 0 to 31 the key is `MYAPP-AXsid-iI6MS-…-e0RyC-JdsM`, a test
+With the seed bytes 0 to 31 the key is `MYAPP-AXsiY-XBwIj-…-m7AO4-I`, a test
 in `license` pins it. The private key Inkan stores is base64 of 64 bytes, the
 seed is the first 32.
 
@@ -61,7 +61,10 @@ seed is the first 32.
   key sees the email, the plan and the meta. Put no secrets in meta.
 - **It cannot be revoked.** It works offline until it expires. Max key days on a
   product keep that time short, for apps that refresh.
-- **It can be shared.** A key is not bound to a machine.
+- **It can be shared**, unless it carries a fingerprint. A bound key only
+  works in an app that checks its own fingerprint against it, and that
+  fingerprint is whatever the app picks, so a copied data directory may carry
+  it along. It stops a key from being pasted around and no more.
 - **The check lives in your app.** Someone who changes your binary can remove
   it. A license key keeps honest customers honest.
 - **It trusts the clock.** The expiry is checked against the time of the

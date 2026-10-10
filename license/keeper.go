@@ -14,7 +14,7 @@ const refreshEvery = 24 * time.Hour
 // without a restart. Either someone hands the app a new key, or the app
 // fetches it from a worker:
 //
-//	lic := license.NewKeeper("MYAPP", publicKey)
+//	lic := license.NewKeeper("MYAPP", publicKey, "")
 //	_, err := lic.Set(os.Getenv("MYAPP_LICENSE_KEY"))
 //	go lic.Renew(ctx, "https://keys.example.com/refresh", save, nil)
 //
@@ -22,9 +22,10 @@ const refreshEvery = 24 * time.Hour
 // it depends on the plan or the meta. Both are cheap, the signature is only
 // checked in [Keeper.Set]. All methods are safe for concurrent use.
 type Keeper struct {
-	app        string
-	publicKeys string
-	held       atomic.Pointer[held]
+	app         string
+	publicKeys  string
+	fingerprint string
+	held        atomic.Pointer[held]
 }
 
 type held struct {
@@ -32,18 +33,20 @@ type held struct {
 	claims Claims
 }
 
-// NewKeeper returns a Keeper without a key. app and publicKeys are the ones
-// [Verify] takes. A Keeper without a public key holds no key, [Keeper.Set]
-// says so with [ErrNoPublicKey].
-func NewKeeper(app, publicKeys string) *Keeper {
-	return &Keeper{app: app, publicKeys: publicKeys}
+// NewKeeper returns a Keeper without a key. app, publicKeys and fingerprint
+// are the ones [Verify] takes, fingerprint is "" for an app that does not
+// bind keys to machines. A Keeper without a public key holds no key,
+// [Keeper.Set] says so with [ErrNoPublicKey].
+func NewKeeper(app, publicKeys, fingerprint string) *Keeper {
+	return &Keeper{app: app, publicKeys: publicKeys, fingerprint: fingerprint}
 }
 
 // Set swaps in rawKey and returns its claims like [Verify] does. An expired
 // key is held too, [Keeper.Renew] can trade it for the current one. On any
-// other error the Keeper keeps the key it has.
+// other error, a key bound to another machine among them, the Keeper keeps
+// the key it has.
 func (k *Keeper) Set(rawKey string) (*Claims, error) {
-	claims, err := Verify(rawKey, k.app, k.publicKeys)
+	claims, err := Verify(rawKey, k.app, k.publicKeys, k.fingerprint)
 	if err != nil && !errors.Is(err, ErrExpired) {
 		return nil, err
 	}
@@ -114,6 +117,15 @@ func (k *Keeper) Renew(ctx context.Context, endpoint string, save func(key strin
 		if ctx.Err() != nil {
 			return
 		}
+		if err == nil && key != old {
+			// Refresh checked everything but the machine, Set does that.
+			if _, err = k.Set(key); err == nil || errors.Is(err, ErrExpired) {
+				err = nil
+				if save != nil {
+					save(key)
+				}
+			}
+		}
 		if err != nil {
 			failures++
 			if failed != nil {
@@ -124,13 +136,6 @@ func (k *Keeper) Renew(ctx context.Context, endpoint string, save func(key strin
 		}
 		// The next outage starts with short waits again.
 		failures = 0
-		if key != old {
-			// Refresh has verified the key, Set cannot turn it down.
-			_, _ = k.Set(key)
-			if save != nil {
-				save(key)
-			}
-		}
 		wait = renewWait(k.held.Load().claims.ExpiresAt, time.Now(), 0)
 	}
 }

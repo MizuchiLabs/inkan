@@ -80,16 +80,18 @@ fewer licenses than the limit, or none, and still have a `next`.
     "plan": "pro",
     "grace_days": 14,
     "max_key_days": 0,
-    "stripe_product": "prod_…"
+    "provider_product": "prod_…"
   },
   "licenses": [
     {
       "id": "sub_…",
+      "kind": "subscription",
       "email": "ops@acme.io",
       "customer": "Acme",
       "customer_gone": false,
       "plan": "team",
       "meta": { "seats": "5" },
+      "fingerprint": "",
       "expires_at": 1801209600,
       "status": "active",
       "renews": true,
@@ -108,16 +110,18 @@ fewer licenses than the limit, or none, and still have a `next`.
 | `provider`        | Who is asked what is paid. The dashboard shows it as the source       |
 | `old_public_keys` | Hex keys from before a rotation that a refresh still takes            |
 | `id`              | Id at the provider, never `lic_…`. The key carries it as its `id`     |
+| `kind`            | `subscription` or `purchase`                                          |
 | `email`           | Who the license is for                                                |
 | `customer`        | Display name, not part of the key                                     |
 | `customer_gone`   | The provider deleted the customer, `email` and `customer` are empty   |
 | `plan`, `meta`    | As signed into the key                                                |
+| `fingerprint`     | The machine the key is bound to, as signed into the key, empty is none |
 | `expires_at`      | Unix seconds, 0 never expires                                         |
 | `status`          | Status at the provider, like `active`, `canceled`, `paid`, `refunded` |
 | `renews`          | Whether the provider will bill another period                         |
 | `created_at`      | Unix seconds                                                          |
 | `key`             | The key a refresh gives this license right now                        |
-| `skipped`         | What the worker could not list. `purchases` is the one there is       |
+| `skipped`         | The kinds the worker could not list. `purchase` is the one there is   |
 | `next`            | Cursor of the next page, `null` on the last one                       |
 
 | Status | Body                                                    |
@@ -133,10 +137,10 @@ What the dashboard does with it:
   from a worker that signs for another one. A worker that still signs with a
   key from before a rotation is read, and the user is told to deploy it.
 - It tells the user when `old_public_keys`, `plan`, `grace_days`,
-  `max_key_days` or `stripe_product` differ from what the product shows.
+  `max_key_days` or `provider_product` differ from what the product shows.
 - It keeps a row per license and drops the rows a full read no longer lists.
-  It keeps the one time purchases when `skipped` names them, and it drops
-  nothing while `stripe_product` differs.
+  It keeps the purchases when `skipped` names them, and it drops nothing
+  while `provider_product` differs.
 - It keeps the last `email` and `customer` it saw for a deleted customer. The
   `key` of that license carries no email then.
 

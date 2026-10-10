@@ -50,6 +50,7 @@
 					plan: license.plan,
 					expires_at: license.expires_at ?? undefined,
 					meta: license.meta,
+					fingerprint: license.fingerprint,
 					note
 				}
 			},
@@ -137,11 +138,9 @@
 					<dd class="col-span-2">
 						{#if license.source === 'manual'}
 							Issued by hand
-						{:else if license.source === 'stripe'}
-							{license.id.startsWith('cs_') ? 'Stripe purchase' : 'Stripe subscription'},
-							{license.status.replaceAll('_', ' ')}
 						{:else}
-							{license.source}, {license.status.replaceAll('_', ' ')}
+							<span class="capitalize">{license.source}</span>
+							{license.kind}, {license.status.replaceAll('_', ' ')}
 						{/if}
 					</dd>
 
@@ -158,6 +157,11 @@
 								<Badge variant="outline"><span class="font-mono">{name}={value}</span></Badge>
 							{/each}
 						</dd>
+					{/if}
+
+					{#if license.fingerprint}
+						<dt class="text-muted-foreground">Machine</dt>
+						<dd class="col-span-2 font-mono text-xs break-all">{license.fingerprint}</dd>
 					{/if}
 				</dl>
 

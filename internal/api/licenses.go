@@ -26,15 +26,17 @@ const (
 
 // License is one issued license with its key.
 type License struct {
-	ID           string            `json:"id"            doc:"Subscription or checkout session id at the provider, or lic_... for a manual license"`
+	ID           string            `json:"id"            doc:"Id at the provider, or lic_... for a manual license"`
 	ProductID    int64             `json:"product_id"`
 	Source       string            `json:"source"        doc:"manual, or the payment provider the worker reads, like stripe"`
+	Kind         string            `json:"kind"          doc:"subscription or purchase at the provider, empty for a manual license"`
 	Email        string            `json:"email"`
 	Customer     string            `json:"customer"      doc:"Display name, not part of the key"`
 	CustomerGone bool              `json:"customer_gone" doc:"The customer was deleted at the provider, email and customer are the last known ones"`
 	Plan         string            `json:"plan"`
 	ExpiresAt    *time.Time        `json:"expires_at"    doc:"Null for a perpetual license"`
 	Meta         map[string]string `json:"meta"          doc:"Extra claims signed into the key"`
+	Fingerprint  string            `json:"fingerprint"   doc:"The machine the key is bound to, empty binds to nothing"`
 	Note         string            `json:"note"`
 	Status       string            `json:"status"        doc:"Subscription status at the provider, paid or refunded for a one time purchase, empty for a manual license"`
 	Renews       bool              `json:"renews"        doc:"Whether the provider will bill another period"`
@@ -64,12 +66,13 @@ type LicensePath struct {
 
 // LicenseFields are the parts of a manual license a user sets.
 type LicenseFields struct {
-	Email     string            `json:"email"                maxLength:"254"`
-	Customer  string            `json:"customer,omitempty"   maxLength:"128"`
-	Plan      string            `json:"plan,omitempty"       maxLength:"32"   doc:"Defaults to the product plan"`
-	ExpiresAt *time.Time        `json:"expires_at,omitempty"                  doc:"Leave out for a perpetual license"`
-	Meta      map[string]string `json:"meta,omitempty"                        doc:"Extra claims signed into the key, keep them short"`
-	Note      string            `json:"note,omitempty"       maxLength:"2000"`
+	Email       string            `json:"email"                 maxLength:"254"`
+	Customer    string            `json:"customer,omitempty"    maxLength:"128"`
+	Plan        string            `json:"plan,omitempty"        maxLength:"32"   doc:"Defaults to the product plan"`
+	ExpiresAt   *time.Time        `json:"expires_at,omitempty"                   doc:"Leave out for a perpetual license"`
+	Meta        map[string]string `json:"meta,omitempty"                         doc:"Extra claims signed into the key, keep them short"`
+	Fingerprint string            `json:"fingerprint,omitempty" maxLength:"128"  doc:"Binds the key to one machine. The app says what its fingerprint is, leave it out for a key that works everywhere"`
+	Note        string            `json:"note,omitempty"        maxLength:"2000"`
 }
 
 type CreateLicenseInput struct {
@@ -168,14 +171,15 @@ func (h *licenseHandlers) create(ctx context.Context, in *CreateLicenseInput) (*
 	}
 
 	l, err := h.q.CreateLicense(ctx, &db.CreateLicenseParams{
-		ID:        "lic_" + strings.ToLower(rand.Text()[:12]),
-		ProductID: p.ID,
-		Email:     strings.TrimSpace(in.Body.Email),
-		Customer:  strings.TrimSpace(in.Body.Customer),
-		Plan:      planOr(in.Body.Plan, p),
-		ExpiresAt: unixOrZero(in.Body.ExpiresAt),
-		Meta:      meta,
-		Note:      in.Body.Note,
+		ID:          "lic_" + strings.ToLower(rand.Text()[:12]),
+		ProductID:   p.ID,
+		Email:       strings.TrimSpace(in.Body.Email),
+		Customer:    strings.TrimSpace(in.Body.Customer),
+		Plan:        planOr(in.Body.Plan, p),
+		ExpiresAt:   unixOrZero(in.Body.ExpiresAt),
+		Meta:        meta,
+		Fingerprint: strings.TrimSpace(in.Body.Fingerprint),
+		Note:        in.Body.Note,
 	})
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to store license")
@@ -213,14 +217,15 @@ func (h *licenseHandlers) update(ctx context.Context, in *UpdateLicenseInput) (*
 		return nil, err
 	}
 	l, err = h.q.UpdateLicense(ctx, &db.UpdateLicenseParams{
-		Email:     strings.TrimSpace(in.Body.Email),
-		Customer:  strings.TrimSpace(in.Body.Customer),
-		Plan:      planOr(in.Body.Plan, p),
-		ExpiresAt: unixOrZero(in.Body.ExpiresAt),
-		Meta:      meta,
-		Note:      in.Body.Note,
-		ProductID: in.ProductID,
-		ID:        in.ID,
+		Email:       strings.TrimSpace(in.Body.Email),
+		Customer:    strings.TrimSpace(in.Body.Customer),
+		Plan:        planOr(in.Body.Plan, p),
+		ExpiresAt:   unixOrZero(in.Body.ExpiresAt),
+		Meta:        meta,
+		Fingerprint: strings.TrimSpace(in.Body.Fingerprint),
+		Note:        in.Body.Note,
+		ProductID:   in.ProductID,
+		ID:          in.ID,
 	})
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to store license")
@@ -271,11 +276,12 @@ func toLicense(p *db.Product, l *db.License) (License, error) {
 			return License{}, fmt.Errorf("product %s: %w", p.Name, err)
 		}
 		key, err = license.Issue(p.Prefix, license.Claims{
-			Plan:      l.Plan,
-			Email:     l.Email,
-			ExpiresAt: l.ExpiresAt,
-			ID:        l.ID,
-			Meta:      meta,
+			Plan:        l.Plan,
+			Email:       l.Email,
+			ExpiresAt:   l.ExpiresAt,
+			ID:          l.ID,
+			Fingerprint: l.Fingerprint,
+			Meta:        meta,
 		}, priv)
 		if err != nil {
 			return License{}, fmt.Errorf("signing license %s: %w", l.ID, err)
@@ -286,11 +292,13 @@ func toLicense(p *db.Product, l *db.License) (License, error) {
 		ID:           l.ID,
 		ProductID:    l.ProductID,
 		Source:       l.Source,
+		Kind:         l.Kind,
 		Email:        l.Email,
 		Customer:     l.Customer,
 		CustomerGone: l.CustomerGone,
 		Plan:         l.Plan,
 		Meta:         meta,
+		Fingerprint:  l.Fingerprint,
 		Note:         l.Note,
 		Status:       l.Status,
 		Renews:       l.Renews,

@@ -49,6 +49,7 @@
 			term: license ? (license.expires_at ? 'date' : 'never') : '365',
 			date: license?.expires_at ? localDay(license.expires_at) : '',
 			meta: formatMeta(license?.meta ?? {}),
+			fingerprint: license?.fingerprint ?? '',
 			note: license?.note ?? ''
 		};
 	}
@@ -77,6 +78,7 @@
 			plan: form.plan,
 			expires_at: expiresAt(),
 			meta: parseMeta(form.meta),
+			fingerprint: form.fingerprint,
 			note: form.note
 		};
 		const done = (saved: License) => {
@@ -182,6 +184,20 @@
 					/>
 					<Field.Description>
 						One name=value per line. They are signed into the key and make it longer.
+					</Field.Description>
+				</Field.Field>
+
+				<Field.Field>
+					<Field.Label for="license-fingerprint">Machine</Field.Label>
+					<Input
+						id="license-fingerprint"
+						bind:value={form.fingerprint}
+						autocomplete="off"
+						spellcheck={false}
+					/>
+					<Field.Description>
+						The fingerprint the app shows, to bind the key to that one machine. Empty works
+						everywhere.
 					</Field.Description>
 				</Field.Field>
 

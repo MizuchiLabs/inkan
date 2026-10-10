@@ -45,23 +45,25 @@ type page struct {
 
 // settings is what the worker runs with.
 type settings struct {
-	Provider      string   `json:"provider"`
-	Prefix        string   `json:"prefix"`
-	PublicKey     string   `json:"public_key"`
-	OldPublicKeys []string `json:"old_public_keys"`
-	Plan          string   `json:"plan"`
-	GraceDays     int64    `json:"grace_days"`
-	MaxKeyDays    int64    `json:"max_key_days"`
-	StripeProduct string   `json:"stripe_product"`
+	Provider        string   `json:"provider"`
+	Prefix          string   `json:"prefix"`
+	PublicKey       string   `json:"public_key"`
+	OldPublicKeys   []string `json:"old_public_keys"`
+	Plan            string   `json:"plan"`
+	GraceDays       int64    `json:"grace_days"`
+	MaxKeyDays      int64    `json:"max_key_days"`
+	ProviderProduct string   `json:"provider_product"`
 }
 
 type listed struct {
 	ID           string            `json:"id"`
+	Kind         string            `json:"kind"`
 	Email        string            `json:"email"`
 	Customer     string            `json:"customer"`
 	CustomerGone bool              `json:"customer_gone"`
 	Plan         string            `json:"plan"`
 	Meta         map[string]string `json:"meta"`
+	Fingerprint  string            `json:"fingerprint"`
 	ExpiresAt    int64             `json:"expires_at"`
 	Status       string            `json:"status"`
 	Renews       bool              `json:"renews"`
@@ -148,7 +150,7 @@ func pull(ctx context.Context, q *db.Queries, p *db.Product) (n int, notice stri
 		if runs.Prefix != p.Prefix || !ours {
 			return 0, "", errors.New("this worker signs for another product, check the worker url")
 		}
-		if slices.Contains(pg.Skipped, "purchases") {
+		if slices.Contains(pg.Skipped, "purchase") {
 			purchases = false
 		}
 		for _, l := range pg.Licenses {
@@ -167,9 +169,9 @@ func pull(ctx context.Context, q *db.Queries, p *db.Product) (n int, notice stri
 	}
 
 	notice = drift(p, runs, current)
-	// A worker on another Stripe product lists other licenses. Until that is
-	// settled nothing is dropped, the notes on the rows would go with them.
-	if runs.StripeProduct != p.ProviderProduct {
+	// A worker on another product at the provider lists other licenses. Until
+	// that is settled nothing is dropped, the notes on the rows would go with them.
+	if runs.ProviderProduct != p.ProviderProduct {
 		return n, notice, nil
 	}
 	err = q.DeleteUnseenProviderLicenses(ctx, &db.DeleteUnseenProviderLicensesParams{
@@ -236,8 +238,8 @@ func drift(p *db.Product, s settings, current string) string {
 	if s.MaxKeyDays != p.MaxKeyDays {
 		off = append(off, fmt.Sprintf("%d max key days", s.MaxKeyDays))
 	}
-	if s.StripeProduct != p.ProviderProduct {
-		off = append(off, "Stripe product "+s.StripeProduct)
+	if s.ProviderProduct != p.ProviderProduct {
+		off = append(off, cmp.Or(s.Provider, "stripe")+" product "+s.ProviderProduct)
 	}
 	if len(off) == 0 {
 		return ""
@@ -259,12 +261,14 @@ func store(ctx context.Context, q *db.Queries, p *db.Product, provider string, l
 		ID:           l.ID,
 		ProductID:    p.ID,
 		Source:       provider,
+		Kind:         l.Kind,
 		Email:        l.Email,
 		Customer:     l.Customer,
 		CustomerGone: l.CustomerGone,
 		Plan:         l.Plan,
 		ExpiresAt:    l.ExpiresAt,
 		Meta:         meta,
+		Fingerprint:  l.Fingerprint,
 		Status:       l.Status,
 		Renews:       l.Renews,
 		Key:          l.Key,

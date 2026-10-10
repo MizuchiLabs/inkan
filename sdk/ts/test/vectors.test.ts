@@ -8,7 +8,14 @@ import { LicenseError, refresh, verify, type Claims } from "../src/index.ts";
 type Vectors = {
   public_key: string;
   now: number;
-  verify: { name: string; key: string; app: string; result: string; claims: Claims | null }[];
+  verify: {
+    name: string;
+    key: string;
+    app: string;
+    fingerprint?: string;
+    result: string;
+    claims: Claims | null;
+  }[];
 };
 
 const vectors: Vectors = JSON.parse(
@@ -20,7 +27,10 @@ for (const c of vectors.verify) {
     let result = "valid";
     let claims: Claims | null = null;
     try {
-      claims = await verify(c.key, c.app, vectors.public_key, vectors.now);
+      claims = await verify(c.key, c.app, vectors.public_key, {
+        fingerprint: c.fingerprint,
+        now: vectors.now,
+      });
     } catch (err) {
       assert.ok(err instanceof LicenseError, String(err));
       result = err.code;
@@ -34,9 +44,10 @@ for (const c of vectors.verify) {
 test("several public keys, any may have signed", async () => {
   const other = "00".repeat(32);
   const good = vectors.verify[0];
-  await verify(good.key, good.app, `${other}, ${vectors.public_key}`, vectors.now);
-  await assert.rejects(verify(good.key, good.app, other, vectors.now), { code: "signature" });
-  await assert.rejects(verify(good.key, good.app, "nope", vectors.now), /public key/);
+  const now = { now: vectors.now };
+  await verify(good.key, good.app, `${other}, ${vectors.public_key}`, now);
+  await assert.rejects(verify(good.key, good.app, other, now), { code: "signature" });
+  await assert.rejects(verify(good.key, good.app, "nope", now), /public key/);
 });
 
 test("refresh only returns a key of this app", async () => {

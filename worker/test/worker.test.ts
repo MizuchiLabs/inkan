@@ -69,6 +69,7 @@ const subscriptions: Record<string, object> = {
 		ended_at: 3_999_000_000,
 		created: 1700000000,
 		customer: { id: 'cus_1', deleted: true },
+		metadata: { fingerprint: 'machine-1' },
 		items: { data: [item] }
 	},
 	sub_other: {
@@ -175,7 +176,7 @@ const post = (path: string, body: string, headers?: Record<string, string>) =>
 	call('POST', path, body, headers);
 
 async function keyFor(id: string, fields: Partial<Claims> = {}, signer = privateB64) {
-	const claims: Claims = { app: 'MYAPP', plan: 'pro', email: '', exp: 1, id, meta: {}, ...fields };
+	const claims: Claims = { app: 'MYAPP', plan: 'pro', email: '', exp: 1, id, fp: '', meta: {}, ...fields };
 	return issue(claims, await importPrivateKey(signer));
 }
 
@@ -189,16 +190,20 @@ test('a signed key verifies and the same license gives the same key', async () =
 		email: 'ops@acme.io',
 		exp: periodEnd,
 		id: 'sub_1',
+		fp: 'machine-1',
 		meta: { tier: '<gold>', seats: '5' }
 	};
 	const key = await issue(claims, privateKey);
-	assert.deepEqual(await claimsOf(key), { v: 1, ...claims });
+	assert.deepEqual(await claimsOf(key), claims);
 
 	const shuffled = { ...claims, meta: { seats: '5', tier: '<gold>' } };
 	assert.equal(await issue(shuffled, privateKey), key, 'the order of the meta does not matter');
 
-	const bare = await claimsOf(await issue({ ...claims, id: '', meta: {} }, privateKey));
-	assert.ok(!('id' in bare) && !('meta' in bare), 'empty id and meta are left out');
+	const bare = await claimsOf(await issue({ ...claims, id: '', fp: '', meta: {} }, privateKey));
+	assert.ok(
+		!('id' in bare) && !('fp' in bare) && !('meta' in bare),
+		'empty id, fp and meta are left out'
+	);
 });
 
 test('the mail holds the key and nothing a setting smuggles in', () => {
@@ -208,6 +213,7 @@ test('the mail holds the key and nothing a setting smuggles in', () => {
 		email: 'a@x.io',
 		exp: 4001209600,
 		id: '',
+		fp: '',
 		meta: {}
 	};
 	const mail = render('MYAPP-KEY', claims, {
@@ -242,6 +248,7 @@ test('a template of your own is filled in', () => {
 		email: 'a@x.io',
 		exp: 0,
 		id: '',
+		fp: '',
 		meta: {}
 	};
 	const template =
@@ -269,7 +276,12 @@ for (const c of cases) {
 			assert.throws(decide, c.error === 'not_owed' ? NotOwed : OtherProduct);
 			return;
 		}
-		assert.deepEqual(decide(), { customer_gone: false, ...c.want });
+		assert.deepEqual(decide(), {
+			kind: c.kind === 'session' ? 'purchase' : 'subscription',
+			customer_gone: false,
+			fingerprint: '',
+			...c.want
+		});
 	});
 }
 
@@ -332,6 +344,7 @@ test('refresh trades a key for the one that is owed now', async (t) => {
 	const kept = await claimsOf(await (await post('/refresh', orphan)).text());
 	assert.equal(kept.email, 'left@acme.io', 'Stripe forgot the deleted customer, the key did not');
 	assert.equal(kept.exp, 3_999_000_000 + grace);
+	assert.equal(kept.fp, 'machine-1', 'the metadata of the subscription binds the key');
 
 	const manual = await keyFor('lic_abc', { exp: 0, email: 'a@x.io' });
 	assert.equal(await (await post('/refresh', manual)).text(), manual, 'a hand issued key stays');
@@ -562,7 +575,7 @@ test('licenses hands the dashboard what the worker hands out', async (t) => {
 	const subsOnly = await get('?cursor=p%3A', auth, { ...env, INKAN_STRIPE_KEY: 'sk_subs_only' });
 	assert.deepEqual(
 		{ ...(await subsOnly.json()), product: undefined },
-		{ licenses: [], skipped: ['purchases'], next: null, product: undefined },
+		{ licenses: [], skipped: ['purchase'], next: null, product: undefined },
 		'a key without access to Checkout still lists its subscriptions'
 	);
 

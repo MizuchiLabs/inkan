@@ -250,16 +250,18 @@ async function licenses(request: Request, env: Env): Promise<Response> {
 			plan: settings.plan,
 			grace_days: settings.grace_days,
 			max_key_days: settings.max_key_days,
-			stripe_product: settings.id
+			provider_product: settings.id
 		},
 		licenses: await Promise.all(
 			page.licenses.map(async (license) => ({
 				id: license.id,
+				kind: license.kind,
 				email: license.email,
 				customer: license.customer,
 				customer_gone: license.customer_gone,
 				plan: license.plan,
 				meta: license.meta ?? {},
+				fingerprint: license.fingerprint,
 				expires_at: license.expires_at,
 				status: license.status,
 				renews: license.renews,
@@ -294,6 +296,7 @@ function claimsOf(env: Env, license: License, lastEmail = ''): Claims {
 		email: license.email || lastEmail,
 		exp: license.expires_at,
 		id: license.id,
+		fp: license.fingerprint,
 		meta: license.meta ?? {}
 	};
 }

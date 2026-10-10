@@ -16,6 +16,10 @@
 						"format": "date-time",
 						"type": ["string", "null"]
 					},
+					"fingerprint": {
+						"description": "The machine the key is bound to, empty for a key that works everywhere",
+						"type": "string"
+					},
 					"known": { "description": "Whether the license id is in the ledger", "type": "boolean" },
 					"license_id": {
 						"description": "Id signed into the key, empty for keys issued without one",
@@ -40,7 +44,8 @@
 					"plan",
 					"email",
 					"expires_at",
-					"meta"
+					"meta",
+					"fingerprint"
 				],
 				"type": "object"
 			},
@@ -52,6 +57,11 @@
 					"expires_at": {
 						"description": "Leave out for a perpetual license",
 						"format": "date-time",
+						"type": "string"
+					},
+					"fingerprint": {
+						"description": "Binds the key to one machine. The app says what its fingerprint is, leave it out for a key that works everywhere",
+						"maxLength": 128,
 						"type": "string"
 					},
 					"meta": {
@@ -164,12 +174,20 @@
 						"format": "date-time",
 						"type": ["string", "null"]
 					},
+					"fingerprint": {
+						"description": "The machine the key is bound to, empty binds to nothing",
+						"type": "string"
+					},
 					"id": {
-						"description": "Subscription or checkout session id at the provider, or lic_... for a manual license",
+						"description": "Id at the provider, or lic_... for a manual license",
 						"type": "string"
 					},
 					"key": {
 						"description": "The signed license key. A paid license has the one its worker hands out",
+						"type": "string"
+					},
+					"kind": {
+						"description": "subscription or purchase at the provider, empty for a manual license",
 						"type": "string"
 					},
 					"meta": {
@@ -197,12 +215,14 @@
 					"id",
 					"product_id",
 					"source",
+					"kind",
 					"email",
 					"customer",
 					"customer_gone",
 					"plan",
 					"expires_at",
 					"meta",
+					"fingerprint",
 					"note",
 					"status",
 					"renews",
@@ -219,6 +239,11 @@
 					"expires_at": {
 						"description": "Leave out for a perpetual license",
 						"format": "date-time",
+						"type": "string"
+					},
+					"fingerprint": {
+						"description": "Binds the key to one machine. The app says what its fingerprint is, leave it out for a key that works everywhere",
+						"maxLength": 128,
 						"type": "string"
 					},
 					"meta": {

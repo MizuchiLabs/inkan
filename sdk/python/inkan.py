@@ -39,7 +39,7 @@ _MESSAGES = {
     "format": "license format is invalid",
     "signature": "signature verification failed",
     "app": "license issued for a different application",
-    "version": "invalid license version",
+    "fingerprint": "license is bound to another machine",
     "expired": "license has expired",
     "nokey": "no license key set",
 }
@@ -47,22 +47,23 @@ _MESSAGES = {
 
 @dataclass
 class Claims:
-    v: int
     app: str
     plan: str
     email: str
     exp: int  # unix seconds, 0 never expires
     id: str = ""  # stable id of the license, empty in old keys
+    fp: str = ""  # the machine the key is bound to, empty binds to nothing
     meta: dict[str, str] = field(
         default_factory=dict
     )  # extras the app defines, like seats
 
 
 class LicenseError(Exception):
-    """code is one of format, signature, app, version, expired.
+    """code is one of format, signature, app, fingerprint, expired.
 
-    An expired key carries its claims, to show who it was for. A Keeper that
-    holds no key raises with the code nokey.
+    An expired key and a key bound to another machine carry their claims, to
+    show who they were for. A Keeper that holds no key raises with the code
+    nokey.
     """
 
     code: str
@@ -81,15 +82,26 @@ def clean(key: str) -> str:
     return "".join(key.split()).strip("\"'")
 
 
-def verify(key: str, app: str, public_keys: str, now: float | None = None) -> Claims:
+def verify(
+    key: str,
+    app: str,
+    public_keys: str,
+    fingerprint: str = "",
+    now: float | None = None,
+) -> Claims:
     """Checks a key and returns its claims.
 
     app is compared exactly, the prefix of the key is its uppercase form.
     public_keys is the hex key from the Products page, several can be given
     separated by commas while a signing key rotates.
 
-    Raises LicenseError. An expired key raises with code "expired" and
-    carries its claims. now is in unix seconds.
+    fingerprint is what this machine is called, in whatever way the app
+    picks, like a hash of /etc/machine-id or an install id kept in its data
+    dir. A key bound to another machine raises "fingerprint". An app that does
+    not bind keys leaves it empty, then nothing is compared.
+
+    Raises LicenseError. An expired key raises with code "expired", both it
+    and a bound key carry their claims. now is in unix seconds.
     """
     keys = [_public_key(part.strip()) for part in public_keys.split(",")]
 
@@ -108,8 +120,8 @@ def verify(key: str, app: str, public_keys: str, now: float | None = None) -> Cl
     claims = _parse(payload)
     if claims.app != app:
         raise LicenseError("app")
-    if claims.v != _WIRE_VERSION:
-        raise LicenseError("version")
+    if fingerprint and claims.fp and claims.fp != fingerprint:
+        raise LicenseError("fingerprint", claims)
     if _ran_out(claims, time.time() if now is None else now):
         raise LicenseError("expired", claims)
     return claims
@@ -119,8 +131,9 @@ def refresh(endpoint: str, key: str, app: str, public_keys: str) -> str:
     """Asks a worker for the key a license is owed now.
 
     The answer is verified before it is returned, so a broken server cannot
-    hand the app anything but a real key of this app. It can still be expired,
-    verify tells. On an error keep the key you have.
+    hand the app anything but a real key of this app. It can still be expired
+    or bound to another machine, verify tells. On an error keep the key you
+    have.
     """
     request = urllib.request.Request(
         endpoint,
@@ -178,24 +191,27 @@ class Keeper:
     the plan or the meta. Both are cheap, the signature is only checked in set.
     All methods are safe to call from several threads.
 
-    app and public_keys are the ones verify takes.
+    app, public_keys and fingerprint are the ones verify takes. Leave the
+    fingerprint empty in an app that does not bind keys to machines.
     """
 
     _app: str
     _public_keys: str
+    _fingerprint: str
     _held: tuple[str, Claims] | None
 
-    def __init__(self, app: str, public_keys: str):
+    def __init__(self, app: str, public_keys: str, fingerprint: str = ""):
         self._app = app
         self._public_keys = public_keys
+        self._fingerprint = fingerprint
         self._held = None
 
     def set(self, key: str) -> Claims:
         """Swaps in a key and returns its claims like verify does.
 
         An expired key is held too, renew can trade it for the current one,
-        and set raises "expired" with its claims. On any other error the
-        keeper keeps the key it has.
+        and set raises "expired" with its claims. On any other error, a key
+        bound to another machine among them, the keeper keeps the key it has.
         """
         self._hold(key)
         return self.claims()
@@ -262,13 +278,13 @@ class Keeper:
                     key = refresh(endpoint, old, self._app, self._public_keys)
                     if stopped.is_set():
                         return
-                    # The next outage starts with short waits again.
-                    failures = 0
                     if key != old:
-                        # refresh has verified the key, it cannot be turned down.
+                        # refresh checked everything but the machine, _hold does that.
                         self._hold(key)
                         if save:
                             _ = save(key)
+                    # The next outage starts with short waits again.
+                    failures = 0
                 # The network, the answer or save, nothing may end the thread.
                 except Exception as err:  # noqa: BLE001
                     if stopped.is_set():
@@ -285,7 +301,7 @@ class Keeper:
 
     def _hold(self, key: str) -> None:
         try:
-            claims = verify(key, self._app, self._public_keys)
+            claims = verify(key, self._app, self._public_keys, self._fingerprint)
         except LicenseError as err:
             if err.code != "expired" or err.claims is None:
                 raise
@@ -353,11 +369,11 @@ def _parse(payload: bytes) -> Claims:
                 raise LicenseError("format")
             meta[key] = value
     return Claims(
-        v=get("v", int, 0),
         app=get("app", str, ""),
         plan=get("plan", str, ""),
         email=get("email", str, ""),
         exp=get("exp", int, 0),
         id=get("id", str, ""),
+        fp=get("fp", str, ""),
         meta=meta,
     )

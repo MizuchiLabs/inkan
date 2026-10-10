@@ -2,7 +2,6 @@
 // github.com/mizuchilabs/inkan/license is the reference.
 
 export type Claims = {
-  v: number;
   app: string;
   plan: string;
   email: string;
@@ -10,6 +9,8 @@ export type Claims = {
   exp: number;
   /** Stable id of the license, missing in old keys. */
   id?: string;
+  /** The machine the key is bound to, as the app names it. Missing binds to nothing. */
+  fp?: string;
   /** Extras the app defines, like seats. */
   meta?: Record<string, string>;
 };
@@ -18,7 +19,7 @@ export type LicenseErrorCode =
   | "format"
   | "signature"
   | "app"
-  | "version"
+  | "fingerprint"
   | "expired"
   /** Only from a Keeper that holds no key. */
   | "nokey";
@@ -27,14 +28,26 @@ const messages: Record<LicenseErrorCode, string> = {
   format: "license format is invalid",
   signature: "signature verification failed",
   app: "license issued for a different application",
-  version: "invalid license version",
+  fingerprint: "license is bound to another machine",
   expired: "license has expired",
   nokey: "no license key set",
 };
 
+export type VerifyOptions = {
+  /**
+   * What this machine is called, in whatever way the app picks, like a hash
+   * of /etc/machine-id or an install id kept in its data dir. A key bound to
+   * another machine fails with "fingerprint". Leave it out in an app that
+   * does not bind keys, then nothing is compared.
+   */
+  fingerprint?: string;
+  /** Unix seconds, for tests. */
+  now?: number;
+};
+
 export class LicenseError extends Error {
   code: LicenseErrorCode;
-  /** Set when the key is real but ran out, to show who it was for. */
+  /** Set when the key is real but ran out or is bound to another machine, to show who it was for. */
   claims?: Claims;
 
   constructor(code: LicenseErrorCode, claims?: Claims) {
@@ -63,14 +76,14 @@ export function clean(key: string): string {
  * the key is its uppercase form. publicKeys is the hex key from the Products
  * page, several can be given separated by commas while a signing key rotates.
  *
- * Throws a LicenseError. An expired key throws with code "expired" and
- * carries its claims. now is in unix seconds.
+ * Throws a LicenseError. An expired key throws with code "expired", a key
+ * bound to another machine with "fingerprint", both carry their claims.
  */
 export async function verify(
   key: string,
   app: string,
   publicKeys: string,
-  now: number = Date.now() / 1000,
+  { fingerprint = "", now = Date.now() / 1000 }: VerifyOptions = {},
 ): Promise<Claims> {
   const keys = await Promise.all(publicKeys.split(",").map((hex) => importPublicKey(hex.trim())));
 
@@ -95,7 +108,9 @@ export async function verify(
 
   const claims = parseClaims(payload);
   if (claims.app !== app) throw new LicenseError("app");
-  if (claims.v !== wireVersion) throw new LicenseError("version");
+  if (fingerprint && claims.fp && claims.fp !== fingerprint) {
+    throw new LicenseError("fingerprint", claims);
+  }
   if (ranOut(claims, now)) throw new LicenseError("expired", claims);
   return claims;
 }
@@ -103,8 +118,8 @@ export async function verify(
 /**
  * Asks a worker for the key a license is owed now. The answer is verified
  * before it is returned, so a broken server cannot hand the app anything but
- * a real key of this app. It can still be expired, verify tells. On an error
- * keep the key you have.
+ * a real key of this app. It can still be expired or bound to another
+ * machine, verify tells. On an error keep the key you have.
  */
 export async function refresh(
   endpoint: string,
@@ -177,19 +192,24 @@ export type RenewOptions = {
 export class Keeper {
   #app: string;
   #publicKeys: string;
+  #fingerprint: string;
   #held?: { key: string; claims: Claims };
 
-  /** app and publicKeys are the ones verify takes. */
-  constructor(app: string, publicKeys: string) {
+  /**
+   * app, publicKeys and fingerprint are the ones verify takes. Leave the
+   * fingerprint out in an app that does not bind keys to machines.
+   */
+  constructor(app: string, publicKeys: string, fingerprint = "") {
     this.#app = app;
     this.#publicKeys = publicKeys;
+    this.#fingerprint = fingerprint;
   }
 
   /**
    * Swaps in a key and returns its claims like verify does. An expired key
    * is held too, renew can trade it for the current one, and set throws
-   * "expired" with its claims. On any other error the keeper keeps the key
-   * it has.
+   * "expired" with its claims. On any other error, a key bound to another
+   * machine among them, the keeper keeps the key it has.
    */
   async set(key: string): Promise<Claims> {
     await this.#hold(key);
@@ -247,13 +267,13 @@ export class Keeper {
       try {
         const key = await refresh(endpoint, old, this.#app, this.#publicKeys);
         if (signal?.aborted) return;
-        // The next outage starts with short waits again.
-        failures = 0;
         if (key !== old) {
-          // refresh has verified the key, it cannot be turned down.
+          // refresh checked everything but the machine, hold does that.
           await this.#hold(key);
           await save?.(key);
         }
+        // The next outage starts with short waits again.
+        failures = 0;
       } catch (err) {
         if (signal?.aborted) return;
         failures++;
@@ -268,7 +288,7 @@ export class Keeper {
   async #hold(key: string): Promise<void> {
     let claims: Claims;
     try {
-      claims = await verify(key, this.#app, this.#publicKeys);
+      claims = await verify(key, this.#app, this.#publicKeys, { fingerprint: this.#fingerprint });
     } catch (err) {
       if (!(err instanceof LicenseError && err.code === "expired" && err.claims)) throw err;
       claims = err.claims;
@@ -311,16 +331,16 @@ function parseClaims(payload: Uint8Array): Claims {
   };
 
   const claims: Claims = {
-    v: field("v", "number", 0),
     app: field("app", "string", ""),
     plan: field("plan", "string", ""),
     email: field("email", "string", ""),
     exp: field("exp", "number", 0),
   };
-  if (!Number.isInteger(claims.v) || !Number.isInteger(claims.exp))
-    throw new LicenseError("format");
+  if (!Number.isInteger(claims.exp)) throw new LicenseError("format");
   const id = field("id", "string", "");
   if (id) claims.id = id;
+  const fp = field("fp", "string", "");
+  if (fp) claims.fp = fp;
   const meta = field<Record<string, unknown>>("meta", "object", {});
   if (Array.isArray(meta) || Object.values(meta).some((value) => typeof value !== "string")) {
     throw new LicenseError("format");

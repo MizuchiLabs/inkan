@@ -11,20 +11,21 @@ import (
 
 const createLicense = `-- name: CreateLicense :one
 INSERT INTO
-  licenses (id, product_id, source, email, customer, plan, expires_at, meta, note)
+  licenses (id, product_id, source, email, customer, plan, expires_at, meta, fingerprint, note)
 VALUES
-  (?, ?, 'manual', ?, ?, ?, ?, ?, ?) RETURNING id, product_id, source, email, customer, customer_gone, "plan", expires_at, meta, note, status, renews, "key", seen_at, created_at
+  (?, ?, 'manual', ?, ?, ?, ?, ?, ?, ?) RETURNING id, product_id, source, kind, email, customer, customer_gone, "plan", expires_at, meta, fingerprint, note, status, renews, "key", seen_at, created_at
 `
 
 type CreateLicenseParams struct {
-	ID        string `json:"id"`
-	ProductID int64  `json:"productId"`
-	Email     string `json:"email"`
-	Customer  string `json:"customer"`
-	Plan      string `json:"plan"`
-	ExpiresAt int64  `json:"expiresAt"`
-	Meta      string `json:"meta"`
-	Note      string `json:"note"`
+	ID          string `json:"id"`
+	ProductID   int64  `json:"productId"`
+	Email       string `json:"email"`
+	Customer    string `json:"customer"`
+	Plan        string `json:"plan"`
+	ExpiresAt   int64  `json:"expiresAt"`
+	Meta        string `json:"meta"`
+	Fingerprint string `json:"fingerprint"`
+	Note        string `json:"note"`
 }
 
 func (q *Queries) CreateLicense(ctx context.Context, arg *CreateLicenseParams) (*License, error) {
@@ -36,6 +37,7 @@ func (q *Queries) CreateLicense(ctx context.Context, arg *CreateLicenseParams) (
 		arg.Plan,
 		arg.ExpiresAt,
 		arg.Meta,
+		arg.Fingerprint,
 		arg.Note,
 	)
 	var i License
@@ -43,12 +45,14 @@ func (q *Queries) CreateLicense(ctx context.Context, arg *CreateLicenseParams) (
 		&i.ID,
 		&i.ProductID,
 		&i.Source,
+		&i.Kind,
 		&i.Email,
 		&i.Customer,
 		&i.CustomerGone,
 		&i.Plan,
 		&i.ExpiresAt,
 		&i.Meta,
+		&i.Fingerprint,
 		&i.Note,
 		&i.Status,
 		&i.Renews,
@@ -99,7 +103,7 @@ WHERE
   AND seen_at < ?2
   AND (
     CAST(?3 AS BOOLEAN)
-    OR id NOT LIKE 'cs\_%' ESCAPE '\'
+    OR kind != 'purchase'
   )
 `
 
@@ -110,7 +114,7 @@ type DeleteUnseenProviderLicensesParams struct {
 }
 
 // What the worker no longer lists is gone at the provider. A worker that may
-// not read one time purchases says nothing about them, so they stay.
+// not read purchases says nothing about them, so they stay.
 func (q *Queries) DeleteUnseenProviderLicenses(ctx context.Context, arg *DeleteUnseenProviderLicensesParams) error {
 	_, err := q.db.ExecContext(ctx, deleteUnseenProviderLicenses, arg.ProductID, arg.SeenAt, arg.Purchases)
 	return err
@@ -118,7 +122,7 @@ func (q *Queries) DeleteUnseenProviderLicenses(ctx context.Context, arg *DeleteU
 
 const getLicense = `-- name: GetLicense :one
 SELECT
-  id, product_id, source, email, customer, customer_gone, "plan", expires_at, meta, note, status, renews, "key", seen_at, created_at
+  id, product_id, source, kind, email, customer, customer_gone, "plan", expires_at, meta, fingerprint, note, status, renews, "key", seen_at, created_at
 FROM
   licenses
 WHERE
@@ -138,12 +142,14 @@ func (q *Queries) GetLicense(ctx context.Context, arg *GetLicenseParams) (*Licen
 		&i.ID,
 		&i.ProductID,
 		&i.Source,
+		&i.Kind,
 		&i.Email,
 		&i.Customer,
 		&i.CustomerGone,
 		&i.Plan,
 		&i.ExpiresAt,
 		&i.Meta,
+		&i.Fingerprint,
 		&i.Note,
 		&i.Status,
 		&i.Renews,
@@ -156,7 +162,7 @@ func (q *Queries) GetLicense(ctx context.Context, arg *GetLicenseParams) (*Licen
 
 const listLicenses = `-- name: ListLicenses :many
 SELECT
-  id, product_id, source, email, customer, customer_gone, "plan", expires_at, meta, note, status, renews, "key", seen_at, created_at
+  id, product_id, source, kind, email, customer, customer_gone, "plan", expires_at, meta, fingerprint, note, status, renews, "key", seen_at, created_at
 FROM
   licenses
 ORDER BY
@@ -188,12 +194,14 @@ func (q *Queries) ListLicenses(ctx context.Context, arg *ListLicensesParams) ([]
 			&i.ID,
 			&i.ProductID,
 			&i.Source,
+			&i.Kind,
 			&i.Email,
 			&i.Customer,
 			&i.CustomerGone,
 			&i.Plan,
 			&i.ExpiresAt,
 			&i.Meta,
+			&i.Fingerprint,
 			&i.Note,
 			&i.Status,
 			&i.Renews,
@@ -261,7 +269,7 @@ SET
   note = ?
 WHERE
   product_id = ?
-  AND id = ? RETURNING id, product_id, source, email, customer, customer_gone, "plan", expires_at, meta, note, status, renews, "key", seen_at, created_at
+  AND id = ? RETURNING id, product_id, source, kind, email, customer, customer_gone, "plan", expires_at, meta, fingerprint, note, status, renews, "key", seen_at, created_at
 `
 
 type SetLicenseNoteParams struct {
@@ -277,12 +285,14 @@ func (q *Queries) SetLicenseNote(ctx context.Context, arg *SetLicenseNoteParams)
 		&i.ID,
 		&i.ProductID,
 		&i.Source,
+		&i.Kind,
 		&i.Email,
 		&i.Customer,
 		&i.CustomerGone,
 		&i.Plan,
 		&i.ExpiresAt,
 		&i.Meta,
+		&i.Fingerprint,
 		&i.Note,
 		&i.Status,
 		&i.Renews,
@@ -325,22 +335,24 @@ SET
   plan = ?,
   expires_at = ?,
   meta = ?,
+  fingerprint = ?,
   note = ?
 WHERE
   product_id = ?
   AND id = ?
-  AND source = 'manual' RETURNING id, product_id, source, email, customer, customer_gone, "plan", expires_at, meta, note, status, renews, "key", seen_at, created_at
+  AND source = 'manual' RETURNING id, product_id, source, kind, email, customer, customer_gone, "plan", expires_at, meta, fingerprint, note, status, renews, "key", seen_at, created_at
 `
 
 type UpdateLicenseParams struct {
-	Email     string `json:"email"`
-	Customer  string `json:"customer"`
-	Plan      string `json:"plan"`
-	ExpiresAt int64  `json:"expiresAt"`
-	Meta      string `json:"meta"`
-	Note      string `json:"note"`
-	ProductID int64  `json:"productId"`
-	ID        string `json:"id"`
+	Email       string `json:"email"`
+	Customer    string `json:"customer"`
+	Plan        string `json:"plan"`
+	ExpiresAt   int64  `json:"expiresAt"`
+	Meta        string `json:"meta"`
+	Fingerprint string `json:"fingerprint"`
+	Note        string `json:"note"`
+	ProductID   int64  `json:"productId"`
+	ID          string `json:"id"`
 }
 
 func (q *Queries) UpdateLicense(ctx context.Context, arg *UpdateLicenseParams) (*License, error) {
@@ -350,6 +362,7 @@ func (q *Queries) UpdateLicense(ctx context.Context, arg *UpdateLicenseParams) (
 		arg.Plan,
 		arg.ExpiresAt,
 		arg.Meta,
+		arg.Fingerprint,
 		arg.Note,
 		arg.ProductID,
 		arg.ID,
@@ -359,12 +372,14 @@ func (q *Queries) UpdateLicense(ctx context.Context, arg *UpdateLicenseParams) (
 		&i.ID,
 		&i.ProductID,
 		&i.Source,
+		&i.Kind,
 		&i.Email,
 		&i.Customer,
 		&i.CustomerGone,
 		&i.Plan,
 		&i.ExpiresAt,
 		&i.Meta,
+		&i.Fingerprint,
 		&i.Note,
 		&i.Status,
 		&i.Renews,
@@ -377,18 +392,20 @@ func (q *Queries) UpdateLicense(ctx context.Context, arg *UpdateLicenseParams) (
 
 const upsertProviderLicense = `-- name: UpsertProviderLicense :exec
 INSERT INTO
-  licenses (id, product_id, source, email, customer, customer_gone, plan, expires_at, meta, status, renews, key, seen_at, created_at)
+  licenses (id, product_id, source, kind, email, customer, customer_gone, plan, expires_at, meta, fingerprint, status, renews, key, seen_at, created_at)
 VALUES
-  (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (product_id, id) DO UPDATE
 SET
   -- A deleted customer comes back empty, the row keeps who it was.
   email = CASE excluded.email WHEN '' THEN licenses.email ELSE excluded.email END,
   customer = CASE excluded.customer WHEN '' THEN licenses.customer ELSE excluded.customer END,
   customer_gone = excluded.customer_gone,
+  kind = excluded.kind,
   plan = excluded.plan,
   expires_at = excluded.expires_at,
   meta = excluded.meta,
+  fingerprint = excluded.fingerprint,
   status = excluded.status,
   renews = excluded.renews,
   key = excluded.key,
@@ -400,12 +417,14 @@ type UpsertProviderLicenseParams struct {
 	ID           string `json:"id"`
 	ProductID    int64  `json:"productId"`
 	Source       string `json:"source"`
+	Kind         string `json:"kind"`
 	Email        string `json:"email"`
 	Customer     string `json:"customer"`
 	CustomerGone bool   `json:"customerGone"`
 	Plan         string `json:"plan"`
 	ExpiresAt    int64  `json:"expiresAt"`
 	Meta         string `json:"meta"`
+	Fingerprint  string `json:"fingerprint"`
 	Status       string `json:"status"`
 	Renews       bool   `json:"renews"`
 	Key          string `json:"key"`
@@ -419,12 +438,14 @@ func (q *Queries) UpsertProviderLicense(ctx context.Context, arg *UpsertProvider
 		arg.ID,
 		arg.ProductID,
 		arg.Source,
+		arg.Kind,
 		arg.Email,
 		arg.Customer,
 		arg.CustomerGone,
 		arg.Plan,
 		arg.ExpiresAt,
 		arg.Meta,
+		arg.Fingerprint,
 		arg.Status,
 		arg.Renews,
 		arg.Key,

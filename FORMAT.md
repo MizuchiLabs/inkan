@@ -19,17 +19,21 @@ MYAPP-AXsid-iI6MS-wiYXB-wIjoi-...
 
 | Claim   | Type   |                                                 |
 | ------- | ------ | ----------------------------------------------- |
-| `v`     | number | Always 1                                        |
 | `app`   | string | The product prefix                              |
 | `plan`  | string | Plan name, the app decides what it means        |
 | `email` | string | Who the license is for                          |
 | `exp`   | number | Unix seconds, 0 never expires                   |
-| `id`    | string | Optional. `sub_…`, `cs_…` or `lic_…`, see below |
+| `id`    | string | Optional. Id at whoever issued it, see below    |
+| `fp`    | string | Optional. The machine the key is bound to       |
 | `meta`  | object | Optional. Extra strings, e.g. seats             |
 
-The id says where a license comes from. `sub_…` is a Stripe subscription,
-`cs_…` a one time purchase through Stripe Checkout, `lic_…` was issued by
-hand. Old keys have none.
+The id is the one the license has at whoever issued it. `lic_…` was issued by
+hand in inkan, anything else belongs to the payment provider, at Stripe that
+looks like `sub_…` or `cs_…`. Old keys have none.
+
+The fingerprint is what the app calls the machine the key is for, like a hash
+of its machine id or an install id it keeps in its data directory. The app
+decides, inkan only carries it. A key without one works on every machine.
 
 ## Verify
 
@@ -46,7 +50,10 @@ hand. Old keys have none.
    claims are ignored. Anything that is not an object, or a claim of the
    wrong type, gives `format`.
 6. `app` must equal your app name exactly, case included. Else `app`.
-7. `v` must be 1. Else `version`.
+7. If the key has `fp` and the app gave you a fingerprint that is not it, the
+   result is `fingerprint`. Hand the claims back with it, so the app can say
+   which machine the key is for. Without a fingerprint nothing is compared,
+   the dashboard and the worker have none to give.
 8. If `exp` is not 0 and the time is past it, the result is `expired`. Hand
    the claims back with it, so the app can say whose license ran out.
 
@@ -92,7 +99,8 @@ Only needed for a worker of your own. Verifiers can skip this.
 
 Encode the claims as a JSON object and sign those bytes. A verifier checks the
 bytes as they arrive, so the order of the fields, the whitespace and the
-escaping are yours to choose. Write `v` as 1 and `app` as the product prefix.
+escaping are yours to choose. Write `app` as the product prefix and leave out
+`id`, `fp` and `meta` when they are empty.
 
 Keep the encoding stable. Ed25519 signatures are deterministic, so the same
 bytes always give the same key, and an app that refreshes can tell that
@@ -111,12 +119,14 @@ its tests.
 | `seed`       | Hex seed of the signing key, the bytes 0 to 31               |
 | `public_key` | Hex public key to verify with                                |
 | `now`        | Unix time to check the expiry against                        |
-| `verify`     | A `key` and `app` with the `result` and `claims` to expect   |
+| `verify`     | A `key`, `app` and maybe a `fingerprint`, with the `result` and `claims` to expect |
 | `sign`       | `claims` with the `payload` and `key` the Go package gives   |
 | `renew`      | An `exp` and `failures` with the `wait` in seconds to expect |
 
-`result` is `valid`, `expired`, `format`, `signature`, `app` or `version`.
-`claims` is set for `valid` and `expired` and null otherwise.
+`result` is `valid`, `expired`, `format`, `signature`, `app` or
+`fingerprint`. `claims` is set for `valid`, `expired` and `fingerprint` and
+null otherwise. `fingerprint` is the one the verifier is given, missing when
+it gets none.
 
 In a `renew` case `exp` is the expiry of the held key and `failures` counts
 the refreshes in a row that failed. The time is `now`.

@@ -119,7 +119,7 @@ import "github.com/mizuchilabs/inkan/license"
 // The public key from the Products page. It is no secret.
 const publicKey = "03a107bf…"
 
-lic := license.NewKeeper("MYAPP", publicKey)
+lic := license.NewKeeper("MYAPP", publicKey, "")
 _, err := lic.Set(os.Getenv("MYAPP_LICENSE_KEY"))
 
 ok := lic.Valid()             // is there a license right now
@@ -131,8 +131,15 @@ claims, err = lic.Set(pasted) // a new key came by mail
   app notices when its key runs out.
 - **Swap.** `Set` replaces the key while the app runs. It is what a settings
   page calls with a pasted key. A key it turns down changes nothing.
-- **Once.** `license.Verify(key, "MYAPP", publicKey)` checks a single key, for
-  an app that needs no more than that.
+- **Once.** `license.Verify(key, "MYAPP", publicKey, "")` checks a single
+  key, for an app that needs no more than that.
+- **Bound.** The last argument is the fingerprint of this machine, in whatever
+  way the app names it, like a hash of its machine id or an install id it
+  writes to its data directory at first start. A key issued with that
+  fingerprint works nowhere else, a key without one works everywhere, and an
+  app that passes `""` checks nothing. Show the fingerprint on the license
+  page so the customer can send it to you, then set it on the license under
+  Edit, or in the Stripe metadata, see [STRIPE.md](STRIPE.md).
 - **Open source.** An app whose source is public can keep the key out of it,
   so that only its own builds take licenses. Declare `var publicKey string`
   and set it in the release build:
@@ -239,7 +246,8 @@ sync.
   runs out with its last paid period plus the grace days.
   [Max key days](STRIPE.md#what-becomes-a-license) keep that time short for
   apps that refresh.
-- It does not bind a key to a machine or count seats.
+- It does not count seats or see which machines run a key. A key can be bound
+  to one machine, but only the app on that machine checks it.
 - It has one password, no user accounts.
 - One worker serves one product.
 - A hand issued key cannot be renewed by a worker. It comes back as it is.

@@ -5,11 +5,10 @@
   "verify": [
     {
       "name": "a key with an expiry",
-      "key": "MYAPP-AXsid-iI6MS-wiYXB-wIjoi-TVlBU-FAiLC-JwbGF-uIjoi-cHJvI-iwiZW-1haWw-iOiJv-cHNAY-WNtZS-5pbyI-sImV4-cCI6N-DEwMj-Q0NDg-wMCwi-aWQiO-iJzdW-JfMTI-zIn0g-tSwzN-9YzaD-Ii7Tn-CAP/I-+2NXx-crPEO-udaFt-VW85a-sxPcI-h9/Mi-6771V-d+rmR-6PB/b-uMydI-H9ivQ-uOtyE-9G0F",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-JvcHN-AYWNt-ZS5pb-yIsIm-V4cCI-6NDEw-MjQ0N-DgwMC-wiaWQ-iOiJz-dWJfM-TIzIn-3rDQQ-Ftyht-3rPOv-W3O6f-CnNPF-SCQ5x-TnBMr-9Ntm6-Du7u4-n8bwj-vQ8dV-JMasD-LWrWE-FXKU4-W16pz-AO0tH-/AFHs-D",
       "app": "MYAPP",
       "result": "valid",
       "claims": {
-        "v": 1,
         "app": "MYAPP",
         "plan": "pro",
         "email": "ops@acme.io",
@@ -19,11 +18,10 @@
     },
     {
       "name": "a key that never expires",
-      "key": "MYAPP-AXsid-iI6MS-wiYXB-wIjoi-TVlBU-FAiLC-JwbGF-uIjoi-cHJvI-iwiZW-1haWw-iOiJv-cHNAY-WNtZS-5pbyI-sImV4-cCI6M-H2uB2-D0Q5P-TdgEL-+x2QO-XpbF1-nptn3-9smYb-2JSpO-xTtl2-nYqbq-7yX9r-1SF+3-vP3/t-8LdKZ-8mesz-u3PM9-pCasI-QC",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-JvcHN-AYWNt-ZS5pb-yIsIm-V4cCI-6MH0u-8n8+u-6B+Cz-yix1X-kA46n-RBa4R-tqx26-RolgQ-8hl7p-Hq7vM-1yz1C-ttEe4-nSZFT-hycGP-LKhR4-rRBtg-fyQ3P-gDoM",
       "app": "MYAPP",
       "result": "valid",
       "claims": {
-        "v": 1,
         "app": "MYAPP",
         "plan": "pro",
         "email": "ops@acme.io",
@@ -32,11 +30,10 @@
     },
     {
       "name": "a key with meta",
-      "key": "MYAPP-AXsid-iI6MS-wiYXB-wIjoi-TVlBU-FAiLC-JwbGF-uIjoi-dGVhb-SIsIm-VtYWl-sIjoi-IiwiZ-XhwIj-owLCJ-pZCI6-ImxpY-19hYm-MiLCJ-tZXRh-Ijp7I-nNlYX-RzIjo-iNSIs-InRpZ-XIiOi-Jnb2x-kIn19-miQIV-6cQgg-Xzvyp-NC56g-Alw/2-1vsA+-0ZsS2-bEott-7wFXv-lrM8G-1hxHW-pLxp5-CABL5-3Om+i-UE7na-7b6ZU-vwixB-A",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oidGV-hbSIs-ImVtY-WlsIj-oiIiw-iZXhw-IjowL-CJpZC-I6Imx-pY19h-YmMiL-CJtZX-RhIjp-7InNl-YXRzI-joiNS-IsInR-pZXIi-OiJnb-2xkIn-19V1Y-jBeCY-nFmje-Wi5Hc-SirYY-oj70N-77sU3-JvCI3-kmzea-RcQsu-G9txl-G7YiO-BB7hi-ySmA0-kuDib-v3h4C-bftlP-nBQ",
       "app": "MYAPP",
       "result": "valid",
       "claims": {
-        "v": 1,
         "app": "MYAPP",
         "plan": "team",
         "email": "",
@@ -50,11 +47,10 @@
     },
     {
       "name": "a key that ran out",
-      "key": "MYAPP-AXsid-iI6MS-wiYXB-wIjoi-TVlBU-FAiLC-JwbGF-uIjoi-cHJvI-iwiZW-1haWw-iOiIi-LCJle-HAiOj-EwMDA-wMDAw-MDAsI-mlkIj-oic3V-iXzEy-MyJ9J-2rHve-LNEfW-vUlec-ePgjL-PvJll-hw5Tz-t5ar9-ZtEv9-pB7O/-s3wck-MEeql-zTN+J-e9KvY-8twJN-T5IIw-YHht6-h9pBA",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-IiLCJ-leHAi-OjEwM-DAwMD-AwMDA-sImlk-Ijoic-3ViXz-EyMyJ-98YgA-b8w/c-I8vpO-jeBTw-myDS1-hrZx5-LWs1M-3EzdC-bk9FQ-62iIl-ZwBsH-IlbWM-Sfwum-lVpZ1-GcI/x-JiMvR-zf6kB-Bw",
       "app": "MYAPP",
       "result": "expired",
       "claims": {
-        "v": 1,
         "app": "MYAPP",
         "plan": "pro",
         "email": "",
@@ -64,11 +60,10 @@
     },
     {
       "name": "wrapped by a mail client and quoted",
-      "key": "\"MYAPP-AXsid-iI6MS-wiYXB-wIjoi-TVlBU-FAiL\r\n C-JwbGF-uIjoi-cHJvI-iwiZW-1haWw-iOiJv-cHNAY-WNtZS-\n5pbyI-sImV4-cCI6N-DEwMj-Q0NDg-wMCwi-aWQiO-iJzdW-JfMTI-zIn0g-tSwzN-9YzaD-Ii7Tn-CAP/I-+2NXx-crPEO-udaFt-VW85a-sxPcI-h9/Mi-6771V-d+rmR-6PB/b-uMydI-H9ivQ-uOtyE-9G0F\" ",
+      "key": "\"MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuI\r\n j-oicHJ-vIiwi-ZW1ha-WwiOi-JvcHN-AYWNt-ZS5pb-yIsIm-\nV4cCI-6NDEw-MjQ0N-DgwMC-wiaWQ-iOiJz-dWJfM-TIzIn-3rDQQ-Ftyht-3rPOv-W3O6f-CnNPF-SCQ5x-TnBMr-9Ntm6-Du7u4-n8bwj-vQ8dV-JMasD-LWrWE-FXKU4-W16pz-AO0tH-/AFHs-D\" ",
       "app": "MYAPP",
       "result": "valid",
       "claims": {
-        "v": 1,
         "app": "MYAPP",
         "plan": "pro",
         "email": "ops@acme.io",
@@ -78,11 +73,10 @@
     },
     {
       "name": "a lowercase app has an uppercase prefix",
-      "key": "MYAPP-AXsid-iI6MS-wiYXB-wIjoi-bXlhc-HAiLC-JwbGF-uIjoi-cHJvI-iwiZW-1haWw-iOiJv-cHNAY-WNtZS-5pbyI-sImV4-cCI6N-DEwMj-Q0NDg-wMCwi-aWQiO-iJzdW-JfMTI-zIn32-ogdjV-fa/RM-h4c9m-NzK5V-AcJWG-mJXlE-M+ak3-40v8E-C6ZmO-/sLrG-qN+zt-1PyJ3-KDImt-2Icgg-GtVaO-ECn0V-B/MM",
+      "key": "MYAPP-AXsiY-XBwIj-oibXl-hcHAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-JvcHN-AYWNt-ZS5pb-yIsIm-V4cCI-6NDEw-MjQ0N-DgwMC-wiaWQ-iOiJz-dWJfM-TIzIn-08dKd-qHxNC-7w/3l-Wd5s1-syR3d-1dKoK-bV4l5-RVstk-5rlmr-tHGY/-aBDUz-U/zc4-HCrFz-vv5o3-1z8fa-K0Nir-5FJjE-I",
       "app": "myapp",
       "result": "valid",
       "claims": {
-        "v": 1,
         "app": "myapp",
         "plan": "pro",
         "email": "ops@acme.io",
@@ -92,18 +86,90 @@
     },
     {
       "name": "the app is compared exactly",
-      "key": "MYAPP-AXsid-iI6MS-wiYXB-wIjoi-bXlhc-HAiLC-JwbGF-uIjoi-cHJvI-iwiZW-1haWw-iOiJv-cHNAY-WNtZS-5pbyI-sImV4-cCI6N-DEwMj-Q0NDg-wMCwi-aWQiO-iJzdW-JfMTI-zIn32-ogdjV-fa/RM-h4c9m-NzK5V-AcJWG-mJXlE-M+ak3-40v8E-C6ZmO-/sLrG-qN+zt-1PyJ3-KDImt-2Icgg-GtVaO-ECn0V-B/MM",
+      "key": "MYAPP-AXsiY-XBwIj-oibXl-hcHAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-JvcHN-AYWNt-ZS5pb-yIsIm-V4cCI-6NDEw-MjQ0N-DgwMC-wiaWQ-iOiJz-dWJfM-TIzIn-08dKd-qHxNC-7w/3l-Wd5s1-syR3d-1dKoK-bV4l5-RVstk-5rlmr-tHGY/-aBDUz-U/zc4-HCrFz-vv5o3-1z8fa-K0Nir-5FJjE-I",
       "app": "MYAPP",
       "result": "app",
       "claims": null
     },
     {
-      "name": "a claim this version does not know",
-      "key": "MYAPP-AXsid-iI6MS-wiYXB-wIjoi-TVlBU-FAiLC-JwbGF-uIjoi-cHJvI-iwiZW-1haWw-iOiIi-LCJle-HAiOj-AsIm5-ldyI6-dHJ1Z-X0KmT-XnN5v-dPUiJ-H/JP0-64xF5-r5VHT-h+j+g-5Rcrg-24QQp-+6YeD-ixDrx-jnigd-LMGxp-2St77-Ir73+-cyu2h-YGYm4-oC",
+      "name": "a key bound to this machine",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-JvcHN-AYWNt-ZS5pb-yIsIm-V4cCI-6MCwi-aWQiO-iJsaW-NfYWJ-jIiwi-ZnAiO-iJtYW-NoaW5-lLTEi-fToDq-ol8Vc-2M5ei-ROB2r-cXw6K-6suEw-uojJj-AIu2O-+CWO9-xXsoT-5MG24-8YGu1-rOji1-WTMDk-lqXxg-httCF-s/bL8-ws",
+      "app": "MYAPP",
+      "fingerprint": "machine-1",
+      "result": "valid",
+      "claims": {
+        "app": "MYAPP",
+        "plan": "pro",
+        "email": "ops@acme.io",
+        "exp": 0,
+        "id": "lic_abc",
+        "fp": "machine-1"
+      }
+    },
+    {
+      "name": "a key bound to another machine",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-JvcHN-AYWNt-ZS5pb-yIsIm-V4cCI-6MCwi-aWQiO-iJsaW-NfYWJ-jIiwi-ZnAiO-iJtYW-NoaW5-lLTEi-fToDq-ol8Vc-2M5ei-ROB2r-cXw6K-6suEw-uojJj-AIu2O-+CWO9-xXsoT-5MG24-8YGu1-rOji1-WTMDk-lqXxg-httCF-s/bL8-ws",
+      "app": "MYAPP",
+      "fingerprint": "machine-2",
+      "result": "fingerprint",
+      "claims": {
+        "app": "MYAPP",
+        "plan": "pro",
+        "email": "ops@acme.io",
+        "exp": 0,
+        "id": "lic_abc",
+        "fp": "machine-1"
+      }
+    },
+    {
+      "name": "a bound key in an app that does not bind",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-JvcHN-AYWNt-ZS5pb-yIsIm-V4cCI-6MCwi-aWQiO-iJsaW-NfYWJ-jIiwi-ZnAiO-iJtYW-NoaW5-lLTEi-fToDq-ol8Vc-2M5ei-ROB2r-cXw6K-6suEw-uojJj-AIu2O-+CWO9-xXsoT-5MG24-8YGu1-rOji1-WTMDk-lqXxg-httCF-s/bL8-ws",
       "app": "MYAPP",
       "result": "valid",
       "claims": {
-        "v": 1,
+        "app": "MYAPP",
+        "plan": "pro",
+        "email": "ops@acme.io",
+        "exp": 0,
+        "id": "lic_abc",
+        "fp": "machine-1"
+      }
+    },
+    {
+      "name": "a key bound to nothing on a machine",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-JvcHN-AYWNt-ZS5pb-yIsIm-V4cCI-6NDEw-MjQ0N-DgwMC-wiaWQ-iOiJz-dWJfM-TIzIn-3rDQQ-Ftyht-3rPOv-W3O6f-CnNPF-SCQ5x-TnBMr-9Ntm6-Du7u4-n8bwj-vQ8dV-JMasD-LWrWE-FXKU4-W16pz-AO0tH-/AFHs-D",
+      "app": "MYAPP",
+      "fingerprint": "machine-1",
+      "result": "valid",
+      "claims": {
+        "app": "MYAPP",
+        "plan": "pro",
+        "email": "ops@acme.io",
+        "exp": 4102444800,
+        "id": "sub_123"
+      }
+    },
+    {
+      "name": "bound to another machine and ran out",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-IiLCJ-leHAi-OjEwM-DAwMD-AwMDA-sImlk-Ijoib-GljX2-FiYyI-sImZw-Ijoib-WFjaG-luZS0-xIn3J-hPD+h-qpI+E-zI+YZ-fquWp-qc2Vi-kyazm-yX+0o-pWC/Z-RkzHj-YlzI6-CX3I9-dHS2C-Mp6fv-AQvYm-PUidN-aCxXV-wbkN",
+      "app": "MYAPP",
+      "fingerprint": "machine-2",
+      "result": "fingerprint",
+      "claims": {
+        "app": "MYAPP",
+        "plan": "pro",
+        "email": "",
+        "exp": 1000000000,
+        "id": "lic_abc",
+        "fp": "machine-1"
+      }
+    },
+    {
+      "name": "a claim this version does not know",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-IiLCJ-leHAi-OjAsI-m5ldy-I6dHJ-1ZX2x-N6gLV-KN5fT-m8j3G-lHw2e-w/Dhk-SSgzy-d9Z42-vvMOp-JWg8C-Jy9fL-sdfXL-GYsi6-cxZCb-YEKbe-tAEgh-oOYHP-zisD",
+      "app": "MYAPP",
+      "result": "valid",
+      "claims": {
         "app": "MYAPP",
         "plan": "pro",
         "email": "",
@@ -112,49 +178,42 @@
     },
     {
       "name": "one changed character",
-      "key": "MYAPP-AXsid-iI6MS-wiYXC-wIjoi-TVlBU-FAiLC-JwbGF-uIjoi-cHJvI-iwiZW-1haWw-iOiJv-cHNAY-WNtZS-5pbyI-sImV4-cCI6N-DEwMj-Q0NDg-wMCwi-aWQiO-iJzdW-JfMTI-zIn0g-tSwzN-9YzaD-Ii7Tn-CAP/I-+2NXx-crPEO-udaFt-VW85a-sxPcI-h9/Mi-6771V-d+rmR-6PB/b-uMydI-H9ivQ-uOtyE-9G0F",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHK-vIiwi-ZW1ha-WwiOi-JvcHN-AYWNt-ZS5pb-yIsIm-V4cCI-6NDEw-MjQ0N-DgwMC-wiaWQ-iOiJz-dWJfM-TIzIn-3rDQQ-Ftyht-3rPOv-W3O6f-CnNPF-SCQ5x-TnBMr-9Ntm6-Du7u4-n8bwj-vQ8dV-JMasD-LWrWE-FXKU4-W16pz-AO0tH-/AFHs-D",
       "app": "MYAPP",
       "result": "signature",
       "claims": null
     },
     {
       "name": "signed with another key",
-      "key": "MYAPP-AXsid-iI6MS-wiYXB-wIjoi-TVlBU-FAiLC-JwbGF-uIjoi-cHJvI-iwiZW-1haWw-iOiJv-cHNAY-WNtZS-5pbyI-sImV4-cCI6N-DEwMj-Q0NDg-wMCwi-aWQiO-iJzdW-JfMTI-zIn2j-PUDyh-+yb8I-fwAvR-HCsa7-EisBh-DzeTk-WBWX6-qlN7Z-SYUvk-BlXDA-k5R6j-gEckF-3/Ct4-dvB1C-6DbkN-rSEL4-s6gE",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-JvcHN-AYWNt-ZS5pb-yIsIm-V4cCI-6NDEw-MjQ0N-DgwMC-wiaWQ-iOiJz-dWJfM-TIzIn-1ZwB+-9kCYC-TMMqI-vt4b/-Bfesf-TzdfI-n8VWO-EN9Ni-JSQ40-8xAah-ZY275-Ni3ZL-aqdnf-bSnpw-WdyxE-mVRCp-kNfkI-N",
       "app": "MYAPP",
       "result": "signature",
       "claims": null
     },
     {
       "name": "the key of another product",
-      "key": "OTHER-AXsid-iI6MS-wiYXB-wIjoi-T1RIR-VIiLC-JwbGF-uIjoi-cHJvI-iwiZW-1haWw-iOiJv-cHNAY-WNtZS-5pbyI-sImV4-cCI6N-DEwMj-Q0NDg-wMCwi-aWQiO-iJzdW-JfMTI-zIn1U-Yv8iz-5dVNT-/mA63-g5s4n-Kqi/B-rDuLJ-VnugS-uli54-DfpiH-ShaDH-Q++wB-M9h97-emihP-IA3a8-cMkki-qNfD3-XV4E",
+      "key": "OTHER-AXsiY-XBwIj-oiT1R-IRVIi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-JvcHN-AYWNt-ZS5pb-yIsIm-V4cCI-6NDEw-MjQ0N-DgwMC-wiaWQ-iOiJz-dWJfM-TIzIn-0gwgW-P4P4N-OlDcA-3ZM8t-NQZr2-2/tue-J5gRw-o9PhJ-adSql-iSttx-5kq6F-6chT1-YjYl+-HDEz0-46L1o-qdb99-Xzssc-M",
       "app": "MYAPP",
       "result": "format",
       "claims": null
     },
     {
       "name": "another app behind the right prefix",
-      "key": "MYAPP-AXsid-iI6MS-wiYXB-wIjoi-T1RIR-VIiLC-JwbGF-uIjoi-cHJvI-iwiZW-1haWw-iOiIi-LCJle-HAiOj-B98lz-qZs8W-XN4zG-iWrsS-Nc9T0-dvzS7-uUdU7-ARB0f-9dliY-5O88G-xK938-BWCmn-2cmD7-48iX5-6Jfks-uAMrN-5ZfP8-2Aw",
+      "key": "MYAPP-AXsiY-XBwIj-oiT1R-IRVIi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-IiLCJ-leHAi-OjB9O-IMfIm-/6qoP-Q9kHn-7oCdV-8l64T-Yluk/-vMWm6-hZayj-BGQm9-Nkiyd-cNR9O-mB7Kd-10lzU-vHrj+-DeZlw-U4NDs-WM3BA",
       "app": "MYAPP",
       "result": "app",
       "claims": null
     },
     {
-      "name": "a claims version from the future",
-      "key": "MYAPP-AXsid-iI6Mi-wiYXB-wIjoi-TVlBU-FAiLC-JwbGF-uIjoi-cHJvI-iwiZW-1haWw-iOiIi-LCJle-HAiOj-B9yRn-mVNfV-XNjDq-/Zsnu-zYi9T-loR9V-JSMXR-36GC+-JEGPL-/Ratd-TriYU-mB2NJ-1GPMT-VUi+e-G3WRL-puBia-QYhaS-UDg",
-      "app": "MYAPP",
-      "result": "version",
-      "claims": null
-    },
-    {
       "name": "a wire version from the future",
-      "key": "MYAPP-Ansid-iI6MS-wiYXB-wIjoi-TVlBU-FAiLC-JwbGF-uIjoi-cHJvI-iwiZW-1haWw-iOiIi-LCJle-HAiOj-B9GQR-JYwW6-BATZM-nR5LT-rK2Dy-EBU7I-U0/sJ-SXM5Q-eUvfR-OpzoM-MC5qq-XcWof-VaRF2-AhHOq-CUoYv-7CX/A-5GHjA-NCw",
+      "key": "MYAPP-AnsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-IiLCJ-leHAi-OjB98-UB12P-E8bZj-4C3f3-VBCL8-pjtd2-Rswb9-/WQ8R-x3ZdI-s/Htm-lHBC9-arE9Q-FEU96-h6CpO-o/RU1-tIOuh-Iv2G7-DPbAw",
       "app": "MYAPP",
       "result": "format",
       "claims": null
     },
     {
       "name": "cut off",
-      "key": "MYAPP-AXsid-iI6MS-wiYXB-wIjoi-TVlBU-FAiLC-JwbGF-uIjoi-cHJvI-iwiZW-1haWw-iOiJv-cHNAY-WNtZS-5pbyI-sImV4-cCI6N-DEwMj-Q0NDg-wMCwi-aWQiO-iJzdW-JfMTI-zIn0g-tSwzN-9YzaD-Ii7Tn-CAP/I-+2NXx-crPEO-udaFt-VW85a-sxPcI-h9/Mi-6771V-d+rm",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-JvcHN-AYWNt-ZS5pb-yIsIm-V4cCI-6NDEw-MjQ0N-DgwMC-wiaWQ-iOiJz-dWJfM-TIzIn-3rDQQ-Ftyht-3rPOv-W3O6f-CnNPF-SCQ5x-TnBMr-9Ntm6-Du7u4-n8bwj-vQ8dV-JMasD-L",
       "app": "MYAPP",
       "result": "signature",
       "claims": null
@@ -186,34 +245,31 @@
       "name": "the plain case",
       "app": "MYAPP",
       "claims": {
-        "v": 1,
         "app": "MYAPP",
         "plan": "pro",
         "email": "ops@acme.io",
         "exp": 4102444800,
         "id": "sub_123"
       },
-      "payload": "{\"v\":1,\"app\":\"MYAPP\",\"plan\":\"pro\",\"email\":\"ops@acme.io\",\"exp\":4102444800,\"id\":\"sub_123\"}",
-      "key": "MYAPP-AXsid-iI6MS-wiYXB-wIjoi-TVlBU-FAiLC-JwbGF-uIjoi-cHJvI-iwiZW-1haWw-iOiJv-cHNAY-WNtZS-5pbyI-sImV4-cCI6N-DEwMj-Q0NDg-wMCwi-aWQiO-iJzdW-JfMTI-zIn0g-tSwzN-9YzaD-Ii7Tn-CAP/I-+2NXx-crPEO-udaFt-VW85a-sxPcI-h9/Mi-6771V-d+rmR-6PB/b-uMydI-H9ivQ-uOtyE-9G0F"
+      "payload": "{\"app\":\"MYAPP\",\"plan\":\"pro\",\"email\":\"ops@acme.io\",\"exp\":4102444800,\"id\":\"sub_123\"}",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-JvcHN-AYWNt-ZS5pb-yIsIm-V4cCI-6NDEw-MjQ0N-DgwMC-wiaWQ-iOiJz-dWJfM-TIzIn-3rDQQ-Ftyht-3rPOv-W3O6f-CnNPF-SCQ5x-TnBMr-9Ntm6-Du7u4-n8bwj-vQ8dV-JMasD-LWrWE-FXKU4-W16pz-AO0tH-/AFHs-D"
     },
     {
       "name": "no id and no expiry",
       "app": "MYAPP",
       "claims": {
-        "v": 1,
         "app": "MYAPP",
         "plan": "pro",
         "email": "ops@acme.io",
         "exp": 0
       },
-      "payload": "{\"v\":1,\"app\":\"MYAPP\",\"plan\":\"pro\",\"email\":\"ops@acme.io\",\"exp\":0}",
-      "key": "MYAPP-AXsid-iI6MS-wiYXB-wIjoi-TVlBU-FAiLC-JwbGF-uIjoi-cHJvI-iwiZW-1haWw-iOiJv-cHNAY-WNtZS-5pbyI-sImV4-cCI6M-H2uB2-D0Q5P-TdgEL-+x2QO-XpbF1-nptn3-9smYb-2JSpO-xTtl2-nYqbq-7yX9r-1SF+3-vP3/t-8LdKZ-8mesz-u3PM9-pCasI-QC"
+      "payload": "{\"app\":\"MYAPP\",\"plan\":\"pro\",\"email\":\"ops@acme.io\",\"exp\":0}",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-JvcHN-AYWNt-ZS5pb-yIsIm-V4cCI-6MH0u-8n8+u-6B+Cz-yix1X-kA46n-RBa4R-tqx26-RolgQ-8hl7p-Hq7vM-1yz1C-ttEe4-nSZFT-hycGP-LKhR4-rRBtg-fyQ3P-gDoM"
     },
     {
       "name": "meta keys are sorted",
       "app": "MYAPP",
       "claims": {
-        "v": 1,
         "app": "MYAPP",
         "plan": "team",
         "email": "",
@@ -225,40 +281,51 @@
           "tier": "gold"
         }
       },
-      "payload": "{\"v\":1,\"app\":\"MYAPP\",\"plan\":\"team\",\"email\":\"\",\"exp\":0,\"id\":\"cs_1\",\"meta\":{\"Zone\":\"eu\",\"seats\":\"5\",\"tier\":\"gold\"}}",
-      "key": "MYAPP-AXsid-iI6MS-wiYXB-wIjoi-TVlBU-FAiLC-JwbGF-uIjoi-dGVhb-SIsIm-VtYWl-sIjoi-IiwiZ-XhwIj-owLCJ-pZCI6-ImNzX-zEiLC-JtZXR-hIjp7-Ilpvb-mUiOi-JldSI-sInNl-YXRzI-joiNS-IsInR-pZXIi-OiJnb-2xkIn-19Dng-3x2bu-hWKeW-GDxNd-MEe/Z-x+2wU-9uaL1-rUEml-QD40P-Mb5Wz-aSGyr-a6K+E-NhtOo-8VLD1-iBQvZ-0Ddbi-+MUpF-bCw"
+      "payload": "{\"app\":\"MYAPP\",\"plan\":\"team\",\"email\":\"\",\"exp\":0,\"id\":\"cs_1\",\"meta\":{\"Zone\":\"eu\",\"seats\":\"5\",\"tier\":\"gold\"}}",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oidGV-hbSIs-ImVtY-WlsIj-oiIiw-iZXhw-IjowL-CJpZC-I6ImN-zXzEi-LCJtZ-XRhIj-p7Ilp-vbmUi-OiJld-SIsIn-NlYXR-zIjoi-NSIsI-nRpZX-IiOiJ-nb2xk-In190-Br1L1-VKyoz-KHG72-D/foE-D9lx/-Ct/38-K3XVF-5B5/C-JKFMn-Adx0t-ePtYs-PEW4g-JKfHr-wQKKH-97XPG-Hk7SN-NH+Aw"
+    },
+    {
+      "name": "bound to a machine",
+      "app": "MYAPP",
+      "claims": {
+        "app": "MYAPP",
+        "plan": "pro",
+        "email": "ops@acme.io",
+        "exp": 0,
+        "id": "lic_abc",
+        "fp": "machine-1"
+      },
+      "payload": "{\"app\":\"MYAPP\",\"plan\":\"pro\",\"email\":\"ops@acme.io\",\"exp\":0,\"id\":\"lic_abc\",\"fp\":\"machine-1\"}",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-JvcHN-AYWNt-ZS5pb-yIsIm-V4cCI-6MCwi-aWQiO-iJsaW-NfYWJ-jIiwi-ZnAiO-iJtYW-NoaW5-lLTEi-fToDq-ol8Vc-2M5ei-ROB2r-cXw6K-6suEw-uojJj-AIu2O-+CWO9-xXsoT-5MG24-8YGu1-rOji1-WTMDk-lqXxg-httCF-s/bL8-ws"
     },
     {
       "name": "html characters are escaped",
       "app": "MYAPP",
       "claims": {
-        "v": 1,
         "app": "MYAPP",
         "plan": "a<b>&c",
         "email": "Ops <ops@acme.io>",
         "exp": 0
       },
-      "payload": "{\"v\":1,\"app\":\"MYAPP\",\"plan\":\"a\\u003cb\\u003e\\u0026c\",\"email\":\"Ops \\u003cops@acme.io\\u003e\",\"exp\":0}",
-      "key": "MYAPP-AXsid-iI6MS-wiYXB-wIjoi-TVlBU-FAiLC-JwbGF-uIjoi-YVx1M-DAzY2-JcdTA-wM2Vc-dTAwM-jZjIi-wiZW1-haWwi-OiJPc-HMgXH-UwMDN-jb3Bz-QGFjb-WUuaW-9cdTA-wM2Ui-LCJle-HAiOj-B9I2g-FrqSH-Pg2so-V2LeR-SdjE5-exSzh-Ayudp-lEGjm-PHHze-V+ii1-U2WSw-Lk0/h-v5Joo-C6JXX-kDR2+-rhFyN-1SwpZ-IAQ"
+      "payload": "{\"app\":\"MYAPP\",\"plan\":\"a\\u003cb\\u003e\\u0026c\",\"email\":\"Ops \\u003cops@acme.io\\u003e\",\"exp\":0}",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oiYVx-1MDAz-Y2Jcd-TAwM2-VcdTA-wMjZj-IiwiZ-W1haW-wiOiJ-PcHMg-XHUwM-DNjb3-BzQGF-jbWUu-aW9cd-TAwM2-UiLCJ-leHAi-OjB9p-MA6Cy-kva9O-4Y89u-aBFfv-ojYzy-cg4BE-9dsCF-xRN89-qzXiR-AsVIq-t2ibe-t3lKh-xVbl1-IKSmT-rA8yY-hHhg6-2sVAA"
     },
     {
       "name": "quotes, backslashes and control characters",
       "app": "MYAPP",
       "claims": {
-        "v": 1,
         "app": "MYAPP",
         "plan": "a\"b\\c",
         "email": "\u0000\u0001\b\f\n\r\t\u001f",
         "exp": 0
       },
-      "payload": "{\"v\":1,\"app\":\"MYAPP\",\"plan\":\"a\\\"b\\\\c\",\"email\":\"\\u0000\\u0001\\b\\f\\n\\r\\t\\u001f\",\"exp\":0}",
-      "key": "MYAPP-AXsid-iI6MS-wiYXB-wIjoi-TVlBU-FAiLC-JwbGF-uIjoi-YVwiY-lxcYy-IsImV-tYWls-IjoiX-HUwMD-AwXHU-wMDAx-XGJcZ-lxuXH-JcdFx-1MDAx-Zn8iL-CJleH-AiOjB-9FLEY-hvGQ8-XpKS+-qqZYs-QIa+9-jS8kJ-hGYMH-yC7j/-0W0BD-zJhqa-M6yrr-N/K+T-6FQ9J-2pLz0-RPigK-AL3RK-c2J44-Ag"
+      "payload": "{\"app\":\"MYAPP\",\"plan\":\"a\\\"b\\\\c\",\"email\":\"\\u0000\\u0001\\b\\f\\n\\r\\t\\u001f\",\"exp\":0}",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oiYVw-iYlxc-YyIsI-mVtYW-lsIjo-iXHUw-MDAwX-HUwMD-AxXGJ-cZlxu-XHJcd-Fx1MD-AxZn8-iLCJl-eHAiO-jB9Rr-Wdz1Q-mSG9e-gBpwR-ztz8i-5FhEJ-Sqqcq-ywnML-DEaQy-B/ZSI-OpYGL-DNCQn-9cz3L-68DI7-znc3k-RvsZJ-RHypy-ThAQ"
     },
     {
       "name": "text outside ascii stays as it is",
       "app": "MYAPP",
       "claims": {
-        "v": 1,
         "app": "MYAPP",
         "plan": "プロ",
         "email": "jürgen@müller.de",
@@ -267,35 +334,33 @@
           "emoji": "🔑"
         }
       },
-      "payload": "{\"v\":1,\"app\":\"MYAPP\",\"plan\":\"プロ\",\"email\":\"jürgen@müller.de\",\"exp\":0,\"meta\":{\"emoji\":\"🔑\"}}",
-      "key": "MYAPP-AXsid-iI6MS-wiYXB-wIjoi-TVlBU-FAiLC-JwbGF-uIjoi-44OX4-4OtIi-wiZW1-haWwi-OiJqw-7xyZ2-VuQG3-DvGxs-ZXIuZ-GUiLC-JleHA-iOjAs-Im1ld-GEiOn-siZW1-vamki-OiLwn-5SRIn-19VUZ-Rnk7y-L3JyD-SQUdH-cTTOh-T3WpE-vbkwB-/Mvt+-/msBs-c+pIl-6oI9s-cjMPe-IkNcP-gpS23-HFXUB-15Clk-hyk5J-TCw"
+      "payload": "{\"app\":\"MYAPP\",\"plan\":\"プロ\",\"email\":\"jürgen@müller.de\",\"exp\":0,\"meta\":{\"emoji\":\"🔑\"}}",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oi44O-X44Ot-IiwiZ-W1haW-wiOiJ-qw7xy-Z2VuQ-G3DvG-xsZXI-uZGUi-LCJle-HAiOj-AsIm1-ldGEi-OnsiZ-W1vam-kiOiL-wn5SR-In19H-SeaoD-DkzTR-Rjiho-HHv4b-CCIpr-+fLpb-s1jsm-DbtJT-qmy71-unK54-TOaCF-6Ybzm-fxZq7-lqMca-4IOQV-326Cx-zznDA"
     },
     {
       "name": "line separators are escaped",
       "app": "MYAPP",
       "claims": {
-        "v": 1,
         "app": "MYAPP",
         "plan": "a\u2028b\u2029c",
         "email": "",
         "exp": 0
       },
-      "payload": "{\"v\":1,\"app\":\"MYAPP\",\"plan\":\"a\\u2028b\\u2029c\",\"email\":\"\",\"exp\":0}",
-      "key": "MYAPP-AXsid-iI6MS-wiYXB-wIjoi-TVlBU-FAiLC-JwbGF-uIjoi-YVx1M-jAyOG-JcdTI-wMjlj-IiwiZ-W1haW-wiOiI-iLCJl-eHAiO-jB9my-8gZfP-402VX-s14hH-OpFg8-aEcSu-5NBBU-h4Ebj-oo6d1-bJkrf-cGY3U-ChNK0-2iSuS-V39nx-5d46h-+hPiS-ABiuO-JgBw"
+      "payload": "{\"app\":\"MYAPP\",\"plan\":\"a\\u2028b\\u2029c\",\"email\":\"\",\"exp\":0}",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oiYVx-1MjAy-OGJcd-TIwMj-ljIiw-iZW1h-aWwiO-iIiLC-JleHA-iOjB9-V8qN2-CP5rk-feBgQ-6MrME-179L6-lw6XD-acIrX-ChTUR-JZyxN-IXZdc-me9BG-rf1rM-bcZJC-QVbew-JfNRt-HfEDS-1Ww/A-w"
     },
     {
       "name": "a lowercase app",
       "app": "myapp",
       "claims": {
-        "v": 1,
         "app": "myapp",
         "plan": "pro",
         "email": "ops@acme.io",
         "exp": 4102444800,
         "id": "sub_123"
       },
-      "payload": "{\"v\":1,\"app\":\"myapp\",\"plan\":\"pro\",\"email\":\"ops@acme.io\",\"exp\":4102444800,\"id\":\"sub_123\"}",
-      "key": "MYAPP-AXsid-iI6MS-wiYXB-wIjoi-bXlhc-HAiLC-JwbGF-uIjoi-cHJvI-iwiZW-1haWw-iOiJv-cHNAY-WNtZS-5pbyI-sImV4-cCI6N-DEwMj-Q0NDg-wMCwi-aWQiO-iJzdW-JfMTI-zIn32-ogdjV-fa/RM-h4c9m-NzK5V-AcJWG-mJXlE-M+ak3-40v8E-C6ZmO-/sLrG-qN+zt-1PyJ3-KDImt-2Icgg-GtVaO-ECn0V-B/MM"
+      "payload": "{\"app\":\"myapp\",\"plan\":\"pro\",\"email\":\"ops@acme.io\",\"exp\":4102444800,\"id\":\"sub_123\"}",
+      "key": "MYAPP-AXsiY-XBwIj-oibXl-hcHAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-JvcHN-AYWNt-ZS5pb-yIsIm-V4cCI-6NDEw-MjQ0N-DgwMC-wiaWQ-iOiJz-dWJfM-TIzIn-08dKd-qHxNC-7w/3l-Wd5s1-syR3d-1dKoK-bV4l5-RVstk-5rlmr-tHGY/-aBDUz-U/zc4-HCrFz-vv5o3-1z8fa-K0Nir-5FJjE-I"
     }
   ],
   "renew": [

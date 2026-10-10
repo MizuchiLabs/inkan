@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -97,10 +98,23 @@ func newProduct(t *testing.T, q *db.Queries, workerURL string) *db.Product {
 	return p
 }
 
+// The fixture ids follow Stripe's shapes, a cs_ id is a purchase.
 func stale(t *testing.T, q *db.Queries, p *db.Product, id, email string) {
 	t.Helper()
+	kind := "subscription"
+	if strings.HasPrefix(id, "cs_") {
+		kind = "purchase"
+	}
 	require.NoError(t, q.UpsertProviderLicense(t.Context(), &db.UpsertProviderLicenseParams{
-		ID: id, ProductID: p.ID, Source: "stripe", Email: email, Customer: "Acme", Plan: "pro", Meta: "{}", SeenAt: 1,
+		ID:        id,
+		ProductID: p.ID,
+		Source:    "stripe",
+		Kind:      kind,
+		Email:     email,
+		Customer:  "Acme",
+		Plan:      "pro",
+		Meta:      "{}",
+		SeenAt:    1,
 	}))
 }
 
@@ -137,7 +151,7 @@ func TestSync(t *testing.T) {
 	assert.Equal(t, "active", sub.Status)
 	assert.True(t, sub.Renews)
 	assert.Equal(t, int64(1_700_000_000), sub.CreatedAt)
-	claims, err := license.VerifyWith(sub.Key, "MYAPP", pub)
+	claims, err := license.VerifyWith(sub.Key, "MYAPP", "", pub)
 	require.NoError(t, err, "the row holds the key the worker hands out")
 	assert.Equal(t, "sub_ok_1", claims.ID)
 	assert.Equal(t, sub.ExpiresAt, claims.ExpiresAt)
@@ -145,8 +159,13 @@ func TestSync(t *testing.T) {
 	bought, err := q.GetLicense(ctx, &db.GetLicenseParams{ProductID: p.ID, ID: "cs_1"})
 	require.NoError(t, err)
 	assert.Zero(t, bought.ExpiresAt, "a one time purchase never expires")
+	assert.Equal(t, "purchase", bought.Kind)
 	assert.Equal(t, "paid", bought.Status)
 	assert.JSONEq(t, `{"seats": "3"}`, bought.Meta)
+
+	gone, err := q.GetLicense(ctx, &db.GetLicenseParams{ProductID: p.ID, ID: "sub_deleted"})
+	require.NoError(t, err)
+	assert.Equal(t, "machine-1", gone.Fingerprint, "the row knows which machine the key is bound to")
 
 	_, err = q.SetLicenseNote(ctx, &db.SetLicenseNoteParams{Note: "vip", ProductID: p.ID, ID: "sub_ok_1"})
 	require.NoError(t, err)
@@ -188,7 +207,7 @@ func TestSyncDropsWhatTheWorkerNoLongerLists(t *testing.T) {
 
 	// This worker may not read Checkout sessions, so it knows nothing about purchases.
 	w.pages[2].Licenses = nil
-	w.pages[2].Skipped = []string{"purchases"}
+	w.pages[2].Skipped = []string{"purchase"}
 	_, err = Sync(ctx, q, p)
 	require.NoError(t, err)
 	assert.False(t, has(t, q, p, "sub_test_mode"))
@@ -287,13 +306,13 @@ func TestSyncNoticesOtherSettings(t *testing.T) {
 	}
 
 	for i := range w.pages {
-		w.pages[i].Product.StripeProduct = "prod_typo"
+		w.pages[i].Product.ProviderProduct = "prod_typo"
 	}
-	assert.Contains(t, notice(), "Stripe product prod_typo")
+	assert.Contains(t, notice(), "stripe product prod_typo")
 	assert.True(t, has(t, q, p, "sub_stale"), "a worker on another Stripe product drops nothing here")
 
 	for i := range w.pages {
-		w.pages[i].Product.StripeProduct = "prod_app"
+		w.pages[i].Product.ProviderProduct = "prod_app"
 		w.pages[i].Product.GraceDays = 7
 		w.pages[i].Product.MaxKeyDays = 30
 	}

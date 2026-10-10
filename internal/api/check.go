@@ -31,15 +31,16 @@ type CheckInput struct {
 
 // CheckResult is what a pasted key turns out to be.
 type CheckResult struct {
-	State     string            `json:"state"      enum:"valid,expired,invalid"`
-	Reason    string            `json:"reason"                                  doc:"Why the key is invalid, empty otherwise"`
-	ProductID *int64            `json:"product_id"                              doc:"Product the key prefix belongs to, null when unknown"`
-	LicenseID string            `json:"license_id"                              doc:"Id signed into the key, empty for keys issued without one"`
-	Known     bool              `json:"known"                                   doc:"Whether the license id is in the ledger"`
-	Plan      string            `json:"plan"`
-	Email     string            `json:"email"`
-	ExpiresAt *time.Time        `json:"expires_at"                              doc:"Null for a perpetual key"`
-	Meta      map[string]string `json:"meta"`
+	State       string            `json:"state"       enum:"valid,expired,invalid"`
+	Reason      string            `json:"reason"                                   doc:"Why the key is invalid, empty otherwise"`
+	ProductID   *int64            `json:"product_id"                               doc:"Product the key prefix belongs to, null when unknown"`
+	LicenseID   string            `json:"license_id"                               doc:"Id signed into the key, empty for keys issued without one"`
+	Known       bool              `json:"known"                                    doc:"Whether the license id is in the ledger"`
+	Plan        string            `json:"plan"`
+	Email       string            `json:"email"`
+	ExpiresAt   *time.Time        `json:"expires_at"                               doc:"Null for a perpetual key"`
+	Meta        map[string]string `json:"meta"`
+	Fingerprint string            `json:"fingerprint"                              doc:"The machine the key is bound to, empty for a key that works everywhere"`
 }
 
 type CheckOutput struct {
@@ -89,7 +90,7 @@ func (h *checkHandlers) check(ctx context.Context, in *CheckInput) (*CheckOutput
 			pubs = append(pubs, pub)
 		}
 	}
-	claims, err := license.VerifyWith(key, p.Prefix, pubs...)
+	claims, err := license.VerifyWith(key, p.Prefix, "", pubs...)
 	switch {
 	case err == nil:
 		res.State = stateValid
@@ -106,6 +107,7 @@ func (h *checkHandlers) check(ctx context.Context, in *CheckInput) (*CheckOutput
 	res.LicenseID = claims.ID
 	res.Plan = claims.Plan
 	res.Email = claims.Email
+	res.Fingerprint = claims.Fingerprint
 	if claims.Meta != nil {
 		res.Meta = claims.Meta
 	}

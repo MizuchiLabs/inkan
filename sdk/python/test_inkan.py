@@ -43,7 +43,11 @@ class VerifyTest(unittest.TestCase):
                 result, claims = "valid", None
                 try:
                     claims = inkan.verify(
-                        cast(str, case["key"]), cast(str, case["app"]), PUBLIC_KEY, NOW
+                        cast(str, case["key"]),
+                        cast(str, case["app"]),
+                        PUBLIC_KEY,
+                        cast(str, case.get("fingerprint", "")),
+                        NOW,
                     )
                 except inkan.LicenseError as err:
                     result, claims = err.code, err.claims
@@ -55,12 +59,12 @@ class VerifyTest(unittest.TestCase):
                 self.assertEqual(
                     claims,
                     inkan.Claims(
-                        v=cast(int, want["v"]),
                         app=cast(str, want["app"]),
                         plan=cast(str, want["plan"]),
                         email=cast(str, want["email"]),
                         exp=cast(int, want["exp"]),
                         id=cast(str, want.get("id", "")),
+                        fp=cast(str, want.get("fp", "")),
                         meta=cast(dict[str, str], want.get("meta", {})),
                     ),
                 )
@@ -69,12 +73,12 @@ class VerifyTest(unittest.TestCase):
         good = CASES[0]
         key, app = cast(str, good["key"]), cast(str, good["app"])
         other = "00" * 32
-        _ = inkan.verify(key, app, f"{other}, {PUBLIC_KEY}", NOW)
+        _ = inkan.verify(key, app, f"{other}, {PUBLIC_KEY}", now=NOW)
         with self.assertRaises(inkan.LicenseError) as raised:
-            _ = inkan.verify(key, app, other, NOW)
+            _ = inkan.verify(key, app, other, now=NOW)
         self.assertEqual(raised.exception.code, "signature")
         with self.assertRaises(ValueError):
-            _ = inkan.verify(key, app, "nope", NOW)
+            _ = inkan.verify(key, app, "nope", now=NOW)
 
 
 class RefreshTest(unittest.TestCase):

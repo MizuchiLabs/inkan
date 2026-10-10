@@ -33,11 +33,11 @@ func TestIssueVerifyRoundtrip(t *testing.T) {
 		t.Fatalf("prefix missing: %s", key)
 	}
 
-	c, err := Verify(key, "myapp", pub)
+	c, err := Verify(key, "myapp", pub, "")
 	if err != nil {
 		t.Fatalf("verify: %v", err)
 	}
-	if c.App != "myapp" || c.Plan != "pro" || c.Email != "a@b.c" || c.Version != wireVersion {
+	if c.App != "myapp" || c.Plan != "pro" || c.Email != "a@b.c" {
 		t.Fatalf("unexpected claims: %+v", c)
 	}
 }
@@ -50,7 +50,7 @@ func TestIssueIDAndMeta(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, err := Verify(key, "myapp", pub)
+	c, err := Verify(key, "myapp", pub, "")
 	if err != nil {
 		t.Fatalf("verify: %v", err)
 	}
@@ -68,14 +68,14 @@ func TestIssueIDAndMeta(t *testing.T) {
 	}
 }
 
-// Keys are deterministic, so a key without id or meta must keep the payload
-// it had before those claims existed.
+// Keys are deterministic, so a key without the optional claims must keep the
+// payload it had before those claims existed.
 func TestClaimsWithoutOptionalsKeepLegacyBytes(t *testing.T) {
-	payload, err := json.Marshal(Claims{Version: 1, App: "myapp", Plan: "pro", Email: "a@b.c", ExpiresAt: 42})
+	payload, err := json.Marshal(Claims{App: "myapp", Plan: "pro", Email: "a@b.c", ExpiresAt: 42})
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{"v":1,"app":"myapp","plan":"pro","email":"a@b.c","exp":42}`
+	want := `{"app":"myapp","plan":"pro","email":"a@b.c","exp":42}`
 	if string(payload) != want {
 		t.Fatalf("payload changed:\n got %s\nwant %s", payload, want)
 	}
@@ -92,7 +92,7 @@ func TestVerifyKeyList(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := Verify(key, "myapp", list); err != nil {
+		if _, err := Verify(key, "myapp", list, ""); err != nil {
 			t.Fatalf("%s key must verify against the list: %v", name, err)
 		}
 	}
@@ -101,7 +101,7 @@ func TestVerifyKeyList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Verify(key, "myapp", list); !errors.Is(err, ErrInvalidSig) {
+	if _, err := Verify(key, "myapp", list, ""); !errors.Is(err, ErrInvalidSig) {
 		t.Fatalf("key outside the list: got %v", err)
 	}
 }
@@ -115,7 +115,7 @@ func TestVerifyWithoutAPublicKey(t *testing.T) {
 	}
 
 	for _, none := range []string{"", "  "} {
-		if _, err := Verify(key, "myapp", none); !errors.Is(err, ErrNoPublicKey) {
+		if _, err := Verify(key, "myapp", none, ""); !errors.Is(err, ErrNoPublicKey) {
 			t.Fatalf("public key %q: got %v, want ErrNoPublicKey", none, err)
 		}
 	}
@@ -125,7 +125,7 @@ func TestVerifyWithoutAPublicKey(t *testing.T) {
 		"one bad in a list":  pub + ",zzzz",
 		"an empty list part": pub + ",",
 	} {
-		if _, err := Verify(key, "myapp", broken); err == nil || errors.Is(err, ErrNoPublicKey) {
+		if _, err := Verify(key, "myapp", broken, ""); err == nil || errors.Is(err, ErrNoPublicKey) {
 			t.Fatalf("%s: got %v, want an error about the public key", name, err)
 		}
 	}
@@ -145,18 +145,18 @@ func TestVerifyWith(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := VerifyWith(key, "myapp", pub); err != nil {
+	if _, err := VerifyWith(key, "myapp", "", pub); err != nil {
 		t.Fatalf("given key must verify: %v", err)
 	}
-	if _, err := VerifyWith(key, "myapp", otherPub); !errors.Is(err, ErrInvalidSig) {
+	if _, err := VerifyWith(key, "myapp", "", otherPub); !errors.Is(err, ErrInvalidSig) {
 		t.Fatalf("wrong key: got %v", err)
 	}
-	if _, err := VerifyWith(key, "myapp"); !errors.Is(err, ErrInvalidSig) {
+	if _, err := VerifyWith(key, "myapp", ""); !errors.Is(err, ErrInvalidSig) {
 		t.Fatalf("no keys: got %v", err)
 	}
 }
 
-func TestIssueStampsAppAndVersion(t *testing.T) {
+func TestIssueStampsApp(t *testing.T) {
 	pub, priv := testKeypair(t)
 
 	key, err := Issue("myapp", Claims{App: "otherapp", Plan: "pro"}, priv)
@@ -164,7 +164,7 @@ func TestIssueStampsAppAndVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Issue must overwrite caller-supplied App so the key verifies.
-	if _, err := Verify(key, "myapp", pub); err != nil {
+	if _, err := Verify(key, "myapp", pub, ""); err != nil {
 		t.Fatalf("stamped App ignored: %v", err)
 	}
 }
@@ -184,11 +184,41 @@ func TestVerifyAppBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := Verify(key, "otherapp", pub); !errors.Is(err, ErrInvalidFormat) {
+	if _, err := Verify(key, "otherapp", pub, ""); !errors.Is(err, ErrInvalidFormat) {
 		t.Fatalf("different app prefix: got %v", err)
 	}
-	if _, err := Verify(key, "MYAPP", pub); !errors.Is(err, ErrAppMismatch) {
+	if _, err := Verify(key, "MYAPP", pub, ""); !errors.Is(err, ErrAppMismatch) {
 		t.Fatalf("casing must matter: got %v", err)
+	}
+}
+
+func TestVerifyFingerprint(t *testing.T) {
+	pub, priv := testKeypair(t)
+
+	bound, err := Issue("myapp", Claims{Plan: "pro", Fingerprint: "machine-1"}, priv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	free, err := Issue("myapp", Claims{Plan: "pro"}, priv)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Verify(bound, "myapp", pub, "machine-1"); err != nil {
+		t.Fatalf("the right machine: %v", err)
+	}
+	c, err := Verify(bound, "myapp", pub, "machine-2")
+	if !errors.Is(err, ErrBound) {
+		t.Fatalf("another machine: got %v", err)
+	}
+	if c == nil || c.Fingerprint != "machine-1" {
+		t.Fatalf("a bound key must return its claims, so the app can say which machine: %+v", c)
+	}
+	if _, err := Verify(bound, "myapp", pub, ""); err != nil {
+		t.Fatalf("an app that does not bind keys must not check: %v", err)
+	}
+	if _, err := Verify(free, "myapp", pub, "machine-1"); err != nil {
+		t.Fatalf("a key bound to nothing works on every machine: %v", err)
 	}
 }
 
@@ -200,7 +230,7 @@ func TestVerifyExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, err := Verify(key, "myapp", pub)
+	c, err := Verify(key, "myapp", pub, "")
 	if !errors.Is(err, ErrExpired) {
 		t.Fatalf("expired key: got %v", err)
 	}
@@ -213,7 +243,7 @@ func TestVerifyExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Verify(key, "myapp", pub); err != nil {
+	if _, err := Verify(key, "myapp", pub, ""); err != nil {
 		t.Fatalf("unexpired key: %v", err)
 	}
 }
@@ -232,7 +262,7 @@ func TestVerifyMangledKey(t *testing.T) {
 		"single quoted":            " '" + key + "'\n",
 		"tabs and no-break spaces": "\t" + key[:20] + "\u00a0" + key[20:],
 	} {
-		if _, err := Verify(mangled, "myapp", pub); err != nil {
+		if _, err := Verify(mangled, "myapp", pub, ""); err != nil {
 			t.Errorf("%s: %v", name, err)
 		}
 		if got := Clean(mangled); got != key {
@@ -240,7 +270,7 @@ func TestVerifyMangledKey(t *testing.T) {
 		}
 	}
 
-	if _, err := Verify(key[:40]+"x"+key[40:], "myapp", pub); err == nil {
+	if _, err := Verify(key[:40]+"x"+key[40:], "myapp", pub, ""); err == nil {
 		t.Fatal("an extra character inside the key must not verify")
 	}
 }
@@ -260,7 +290,7 @@ func TestParsePrivateKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Verify(key, "myapp", pub); err != nil {
+	if _, err := Verify(key, "myapp", pub, ""); err != nil {
 		t.Fatalf("parsed key must sign valid keys: %v", err)
 	}
 
@@ -288,7 +318,7 @@ func TestVerifyTampered(t *testing.T) {
 	raw[len(raw)-1] ^= 0x01
 
 	tampered := "MYAPP-" + chunkKey(base64.RawStdEncoding.EncodeToString(raw))
-	if _, err := Verify(tampered, "myapp", pub); !errors.Is(err, ErrInvalidSig) {
+	if _, err := Verify(tampered, "myapp", pub, ""); !errors.Is(err, ErrInvalidSig) {
 		t.Fatalf("tampered key: got %v", err)
 	}
 }
@@ -309,7 +339,7 @@ func TestVerifyWrongWireVersion(t *testing.T) {
 	raw[0] = wireVersion + 1
 
 	bumped := "MYAPP-" + chunkKey(base64.RawStdEncoding.EncodeToString(raw))
-	if _, err := Verify(bumped, "myapp", pub); !errors.Is(err, ErrInvalidFormat) {
+	if _, err := Verify(bumped, "myapp", pub, ""); !errors.Is(err, ErrInvalidFormat) {
 		t.Fatalf("wrong wire version: got %v", err)
 	}
 }
@@ -345,9 +375,9 @@ func TestKeyBytesArePinned(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const want = "MYAPP-AXsid-iI6MS-wiYXB-wIjoi-TVlBU-FAiLC-JwbGF-uIjoi-cHJvI-iwiZW-1haWw-iOiJv-cHNAY-WNtZS-5pbyI-" +
-		"sImV4-cCI6M-TgwMD-AwMDA-wMCwi-aWQiO-iJzdW-JfMTI-zIn3Q-DEmCB-YC3y4-iSznb-oo7x7-yqfYu-BHBfj-RU/BW-" +
-		"xFysA-6WlSu-09lvw-15++b-xP4DY-wLH1H-fl2wS-OhmTO-e0RyC-JdsM"
+	const want = "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-JvcHN-AYWNt-ZS5pb-yIsIm-V4cCI-" +
+		"6MTgw-MDAwM-DAwMC-wiaWQ-iOiJz-dWJfM-TIzIn-1MwRu-efpD0-/cO3+-uNotj-WOWCF-7qngq-/8FK2-/k4JG-R+4H6-" +
+		"y4KOn-tb1JX-mAMe2-PbBhq-FY73q-t3Yrw-19Lu9-m7AO4-I"
 	if key != want {
 		t.Fatalf("the key format changed:\n got %s\nwant %s", key, want)
 	}

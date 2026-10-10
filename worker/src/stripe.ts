@@ -10,12 +10,16 @@ export type Product = {
 
 export type License = {
 	id: string;
+	/** A subscription or a one time purchase. */
+	kind: 'subscription' | 'purchase';
 	email: string;
 	customer: string;
 	/** The customer was deleted at Stripe, email and name are lost there. */
 	customer_gone: boolean;
 	plan: string;
 	meta: Record<string, string> | null;
+	/** The machine the key is bound to, from the metadata of the subscription or session. */
+	fingerprint: string;
 	expires_at: number;
 	/** Seconds one billing period lasts, 0 for a one time purchase. */
 	period: number;
@@ -26,7 +30,7 @@ export type License = {
 
 export type Page = {
 	licenses: License[];
-	/** What the Stripe key may not read, so it is missing here. */
+	/** The kinds the Stripe key may not read, so they are missing here. */
 	skipped: string[];
 	next: string | null;
 };
@@ -103,11 +107,13 @@ export function subscriptionLicense(sub: Subscription, product: Product, now: nu
 	const active = sub.status === 'active' || sub.status === 'trialing';
 	return {
 		id: sub.id,
+		kind: 'subscription',
 		email: sub.metadata?.email || sub.customer?.email || '',
 		customer: sub.metadata?.org || sub.customer?.name || '',
 		customer_gone: sub.customer?.deleted === true,
 		plan: item.price.metadata?.plan || product.plan,
 		meta: metaOf(item.price.metadata, item.quantity),
+		fingerprint: sub.metadata?.fingerprint ?? '',
 		// The grace keeps the old key alive until the renewed one is in place.
 		expires_at: capped(paid + product.grace_days * day, product.max_key_days, now),
 		period,
@@ -133,11 +139,13 @@ export function sessionLicense(session: Session, product: Product, now: number):
 
 	return {
 		id: session.id,
+		kind: 'purchase',
 		email: session.metadata?.email || session.customer_details?.email || '',
 		customer: session.metadata?.org || session.customer_details?.name || '',
 		customer_gone: false,
 		plan: item.price.metadata?.plan || product.plan,
 		meta: metaOf(item.price.metadata, item.quantity),
+		fingerprint: session.metadata?.fingerprint ?? '',
 		expires_at: capped(expires, product.max_key_days, now),
 		period: 0,
 		status: refunded ? 'refunded' : 'paid',
@@ -225,7 +233,7 @@ export async function list(
 		page = await get<List<Session>>(stripeKey, '/v1/checkout/sessions?' + query);
 	} catch (err) {
 		// A key that only reads subscriptions keeps working, it just has no one time purchases.
-		if (err instanceof Forbidden) return { licenses: [], skipped: ['purchases'], next: null };
+		if (err instanceof Forbidden) return { licenses: [], skipped: ['purchase'], next: null };
 		throw err;
 	}
 	return {

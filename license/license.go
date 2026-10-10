@@ -31,17 +31,16 @@ const (
 )
 
 var (
-	ErrInvalidFormat  = errors.New("license format is invalid")
-	ErrInvalidVersion = errors.New("invalid license version")
-	ErrInvalidSig     = errors.New("signature verification failed")
-	ErrExpired        = errors.New("license has expired")
-	ErrAppMismatch    = errors.New("license issued for a different application")
-	ErrNoKey          = errors.New("no license key set")
-	ErrNoPublicKey    = errors.New("no license public key")
+	ErrInvalidFormat = errors.New("license format is invalid")
+	ErrInvalidSig    = errors.New("signature verification failed")
+	ErrExpired       = errors.New("license has expired")
+	ErrAppMismatch   = errors.New("license issued for a different application")
+	ErrBound         = errors.New("license is bound to another machine")
+	ErrNoKey         = errors.New("no license key set")
+	ErrNoPublicKey   = errors.New("no license public key")
 )
 
 type Claims struct {
-	Version   int    `json:"v"`
 	App       string `json:"app"` // Must equal the app passed to Issue/Verify (case-sensitive)
 	Plan      string `json:"plan"`
 	Email     string `json:"email"`
@@ -49,6 +48,9 @@ type Claims struct {
 	// Stable id of the license, e.g. the billing subscription id. Omitted
 	// when empty, so keys issued without it keep their exact bytes.
 	ID string `json:"id,omitempty"`
+	// The machine the key is bound to, as the app names it. Empty binds to
+	// nothing. [Verify] compares it with the fingerprint it is given.
+	Fingerprint string `json:"fp,omitempty"`
 	// App-defined extras such as seats or features. They are signed and
 	// never read here. Every byte makes the key longer.
 	Meta map[string]string `json:"meta,omitempty"`
@@ -86,7 +88,6 @@ func Issue(app string, claims Claims, priv ed25519.PrivateKey) (string, error) {
 		return "", errors.New("invalid ed25519 private key")
 	}
 	claims.App = app
-	claims.Version = wireVersion
 
 	// encoding/json v1 on purpose, its escaping is part of the key bytes.
 	payload, err := json.Marshal(claims)
@@ -123,7 +124,13 @@ func chunkKey(encoded string) string {
 //
 // app must match the signed Claims.App exactly (case-sensitive), and the
 // key must carry the matching uppercase prefix, e.g. a key issued with
-// Issue("myapp", ...) verifies with Verify(key, "myapp", publicKeys).
+// Issue("myapp", ...) verifies with Verify(key, "myapp", publicKeys, "").
+//
+// fingerprint names this machine, in whatever way the app picks, like a hash
+// of /etc/machine-id or an install id it keeps in its data dir. A key bound to
+// another machine returns its claims alongside [ErrBound]. A key that is bound
+// to nothing verifies on every machine. An app that does not bind keys passes
+// "", then nothing is compared.
 //
 // An expired key returns the parsed claims alongside ErrExpired, so
 // callers can show plan or email details in expiry messages.
@@ -144,17 +151,17 @@ func chunkKey(encoded string) string {
 // comma-separated keys may be given, a license signed by any of them
 // verifies. That is how a signing key is rotated: ship the new key next to
 // the old one, then drop the old one once its licenses have run out.
-func Verify(rawKey, app, publicKeys string) (*Claims, error) {
+func Verify(rawKey, app, publicKeys, fingerprint string) (*Claims, error) {
 	pubs, err := decodePubKeys(publicKeys)
 	if err != nil {
 		return nil, err
 	}
-	return VerifyWith(rawKey, app, pubs...)
+	return VerifyWith(rawKey, app, fingerprint, pubs...)
 }
 
 // VerifyWith is Verify against public keys that are already decoded, for
 // issuers that hold the keys of several apps.
-func VerifyWith(rawKey, app string, pubs ...ed25519.PublicKey) (*Claims, error) {
+func VerifyWith(rawKey, app, fingerprint string, pubs ...ed25519.PublicKey) (*Claims, error) {
 	prefix := strings.ToUpper(app) + "-"
 
 	enc, ok := strings.CutPrefix(Clean(rawKey), prefix)
@@ -189,8 +196,8 @@ func VerifyWith(rawKey, app string, pubs ...ed25519.PublicKey) (*Claims, error) 
 	if c.App != app {
 		return nil, ErrAppMismatch
 	}
-	if c.Version != wireVersion {
-		return nil, ErrInvalidVersion
+	if fingerprint != "" && c.Fingerprint != "" && c.Fingerprint != fingerprint {
+		return &c, ErrBound
 	}
 	if c.IsExpired() {
 		return &c, ErrExpired

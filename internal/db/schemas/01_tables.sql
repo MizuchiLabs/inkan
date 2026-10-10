@@ -26,15 +26,17 @@ CREATE TABLE products (
 -- same row always gives the same key. A paid license holds the key its worker
 -- hands out.
 CREATE TABLE licenses (
-  id TEXT NOT NULL, -- subscription or checkout session id at the provider, lic_... for manual ones
+  id TEXT NOT NULL, -- id at the provider, lic_... for manual ones
   product_id INTEGER NOT NULL REFERENCES products (id) ON DELETE CASCADE,
   source TEXT NOT NULL, -- manual, or the name of the provider, like stripe
+  kind TEXT NOT NULL DEFAULT '', -- subscription or purchase at the provider, empty for manual
   email TEXT NOT NULL,
   customer TEXT NOT NULL DEFAULT '', -- display name, not part of the key
   customer_gone BOOLEAN NOT NULL DEFAULT 0, -- deleted at the provider, email and customer are the last known ones
   plan TEXT NOT NULL,
   expires_at INTEGER NOT NULL, -- unix seconds, 0 is perpetual
   meta TEXT NOT NULL DEFAULT '{}', -- json object of strings, signed into the key
+  fingerprint TEXT NOT NULL DEFAULT '', -- the machine the key is bound to, signed into the key, empty binds to nothing
   note TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT '', -- subscription status at the provider, paid or refunded for a one time purchase, empty for manual
   renews BOOLEAN NOT NULL DEFAULT 0, -- the provider will bill another period

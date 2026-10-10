@@ -20,7 +20,8 @@ var refreshClient = &http.Client{Timeout: 15 * time.Second}
 // was paid it is the same key again, and a hand issued key always comes back
 // as it is. The answer is checked like in [Verify] before it is returned, so
 // a broken or hostile server cannot hand the app anything but a real key of
-// this app. The key can still be expired, [Verify] tells.
+// this app. The key can still be expired or bound to another machine,
+// [Verify] tells.
 //
 // On an error the app keeps the key it has. That key works offline until it
 // expires, a failed refresh takes nothing away.
@@ -46,7 +47,7 @@ func Refresh(ctx context.Context, endpoint, rawKey, app, publicKeys string) (str
 		return "", fmt.Errorf("refreshing license: %s: %s", resp.Status, answer[:min(len(answer), 200)])
 	}
 
-	if _, err := Verify(answer, app, publicKeys); err != nil && !errors.Is(err, ErrExpired) {
+	if _, err := Verify(answer, app, publicKeys, ""); err != nil && !errors.Is(err, ErrExpired) {
 		return "", fmt.Errorf("refreshing license: the answer is not a key of this app: %w", err)
 	}
 	return Clean(answer), nil

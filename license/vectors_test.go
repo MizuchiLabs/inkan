@@ -29,11 +29,14 @@ type vectors struct {
 }
 
 type verifyVector struct {
-	Name   string  `json:"name"`
-	Key    string  `json:"key"`
-	App    string  `json:"app"`
-	Result string  `json:"result"`
-	Claims *Claims `json:"claims"`
+	Name string `json:"name"`
+	Key  string `json:"key"`
+	App  string `json:"app"`
+	// The fingerprint of the machine the verifier runs on, empty when the
+	// app does not bind keys.
+	Fingerprint string  `json:"fingerprint,omitempty"`
+	Result      string  `json:"result"`
+	Claims      *Claims `json:"claims"`
 }
 
 type signVector struct {
@@ -68,8 +71,8 @@ func resultOf(err error) string {
 		return "signature"
 	case errors.Is(err, ErrAppMismatch):
 		return "app"
-	case errors.Is(err, ErrInvalidVersion):
-		return "version"
+	case errors.Is(err, ErrBound):
+		return "fingerprint"
 	default:
 		return "format"
 	}
@@ -101,39 +104,48 @@ func buildVectors(t *testing.T) vectors {
 	}
 	plain := Claims{Plan: "pro", Email: "ops@acme.io", ExpiresAt: future, ID: "sub_123"}
 	good := issue("MYAPP", plain, priv)
-	tampered := strings.Replace(good, "wiYXB", "wiYXC", 1)
+	tampered := strings.Replace(good, "oicHJ", "oicHK", 1)
+	bound := issue("MYAPP", Claims{Plan: "pro", Email: "ops@acme.io", ID: "lic_abc", Fingerprint: "machine-1"}, priv)
 
 	v := vectors{
 		Seed:      hex.EncodeToString(seed),
 		PublicKey: hex.EncodeToString(pub),
 		Now:       vectorsNow,
 	}
-	for _, c := range []struct{ name, key, app string }{
-		{"a key with an expiry", good, "MYAPP"},
-		{"a key that never expires", issue("MYAPP", Claims{Plan: "pro", Email: "ops@acme.io"}, priv), "MYAPP"},
+	for _, c := range []struct{ name, key, app, fingerprint string }{
+		{"a key with an expiry", good, "MYAPP", ""},
+		{"a key that never expires", issue("MYAPP", Claims{Plan: "pro", Email: "ops@acme.io"}, priv), "MYAPP", ""},
 		{
 			"a key with meta",
 			issue("MYAPP", Claims{Plan: "team", ID: "lic_abc", Meta: map[string]string{"seats": "5", "tier": "gold"}}, priv),
-			"MYAPP",
+			"MYAPP", "",
 		},
-		{"a key that ran out", issue("MYAPP", Claims{Plan: "pro", ExpiresAt: past, ID: "sub_123"}, priv), "MYAPP"},
-		{"wrapped by a mail client and quoted", "\"" + good[:40] + "\r\n " + good[40:90] + "\n" + good[90:] + "\" ", "MYAPP"},
-		{"a lowercase app has an uppercase prefix", issue("myapp", plain, priv), "myapp"},
-		{"the app is compared exactly", issue("myapp", plain, priv), "MYAPP"},
-		{"a claim this version does not know", raw(1, `{"v":1,"app":"MYAPP","plan":"pro","email":"","exp":0,"new":true}`, priv), "MYAPP"},
-		{"one changed character", tampered, "MYAPP"},
-		{"signed with another key", issue("MYAPP", plain, other), "MYAPP"},
-		{"the key of another product", issue("OTHER", plain, priv), "MYAPP"},
-		{"another app behind the right prefix", raw(1, `{"v":1,"app":"OTHER","plan":"pro","email":"","exp":0}`, priv), "MYAPP"},
-		{"a claims version from the future", raw(1, `{"v":2,"app":"MYAPP","plan":"pro","email":"","exp":0}`, priv), "MYAPP"},
-		{"a wire version from the future", raw(2, `{"v":1,"app":"MYAPP","plan":"pro","email":"","exp":0}`, priv), "MYAPP"},
-		{"cut off", good[:len(good)-30], "MYAPP"},
-		{"too short to hold a signature", "MYAPP-AXsid-iI6MS", "MYAPP"},
-		{"not base64", "MYAPP-!!!!!-?????", "MYAPP"},
-		{"empty", "", "MYAPP"},
+		{"a key that ran out", issue("MYAPP", Claims{Plan: "pro", ExpiresAt: past, ID: "sub_123"}, priv), "MYAPP", ""},
+		{"wrapped by a mail client and quoted", "\"" + good[:40] + "\r\n " + good[40:90] + "\n" + good[90:] + "\" ", "MYAPP", ""},
+		{"a lowercase app has an uppercase prefix", issue("myapp", plain, priv), "myapp", ""},
+		{"the app is compared exactly", issue("myapp", plain, priv), "MYAPP", ""},
+		{"a key bound to this machine", bound, "MYAPP", "machine-1"},
+		{"a key bound to another machine", bound, "MYAPP", "machine-2"},
+		{"a bound key in an app that does not bind", bound, "MYAPP", ""},
+		{"a key bound to nothing on a machine", good, "MYAPP", "machine-1"},
+		{
+			"bound to another machine and ran out",
+			issue("MYAPP", Claims{Plan: "pro", ExpiresAt: past, ID: "lic_abc", Fingerprint: "machine-1"}, priv),
+			"MYAPP", "machine-2",
+		},
+		{"a claim this version does not know", raw(1, `{"app":"MYAPP","plan":"pro","email":"","exp":0,"new":true}`, priv), "MYAPP", ""},
+		{"one changed character", tampered, "MYAPP", ""},
+		{"signed with another key", issue("MYAPP", plain, other), "MYAPP", ""},
+		{"the key of another product", issue("OTHER", plain, priv), "MYAPP", ""},
+		{"another app behind the right prefix", raw(1, `{"app":"OTHER","plan":"pro","email":"","exp":0}`, priv), "MYAPP", ""},
+		{"a wire version from the future", raw(2, `{"app":"MYAPP","plan":"pro","email":"","exp":0}`, priv), "MYAPP", ""},
+		{"cut off", good[:len(good)-30], "MYAPP", ""},
+		{"too short to hold a signature", "MYAPP-AXsid-iI6MS", "MYAPP", ""},
+		{"not base64", "MYAPP-!!!!!-?????", "MYAPP", ""},
+		{"empty", "", "MYAPP", ""},
 	} {
-		claims, err := VerifyWith(c.key, c.app, pub)
-		v.Verify = append(v.Verify, verifyVector{c.name, c.key, c.app, resultOf(err), claims})
+		claims, err := VerifyWith(c.key, c.app, c.fingerprint, pub)
+		v.Verify = append(v.Verify, verifyVector{c.name, c.key, c.app, c.fingerprint, resultOf(err), claims})
 	}
 
 	for _, c := range []struct {
@@ -144,6 +156,7 @@ func buildVectors(t *testing.T) vectors {
 		{"the plain case", "MYAPP", plain},
 		{"no id and no expiry", "MYAPP", Claims{Plan: "pro", Email: "ops@acme.io"}},
 		{"meta keys are sorted", "MYAPP", Claims{Plan: "team", ID: "cs_1", Meta: map[string]string{"tier": "gold", "seats": "5", "Zone": "eu"}}},
+		{"bound to a machine", "MYAPP", Claims{Plan: "pro", Email: "ops@acme.io", ID: "lic_abc", Fingerprint: "machine-1"}},
 		{"html characters are escaped", "MYAPP", Claims{Plan: "a<b>&c", Email: "Ops <ops@acme.io>"}},
 		{"quotes, backslashes and control characters", "MYAPP", Claims{Plan: "a\"b\\c", Email: "\x00\x01\b\f\n\r\t\x1f\x7f"}},
 		{"text outside ascii stays as it is", "MYAPP", Claims{Plan: "プロ", Email: "jürgen@müller.de", Meta: map[string]string{"emoji": "🔑"}}},
@@ -157,7 +170,7 @@ func buildVectors(t *testing.T) vectors {
 			t.Fatal(err)
 		}
 		claims := c.claims
-		claims.App, claims.Version = c.app, wireVersion
+		claims.App = c.app
 		payload := string(data[1 : len(data)-ed25519.SignatureSize])
 		v.Sign = append(v.Sign, signVector{c.name, c.app, claims, payload, key})
 	}
@@ -222,7 +235,7 @@ func TestVectors(t *testing.T) {
 	}
 	results := map[string]bool{}
 	for _, c := range v.Verify {
-		claims, err := VerifyWith(c.Key, c.App, pub)
+		claims, err := VerifyWith(c.Key, c.App, c.Fingerprint, pub)
 		if got := resultOf(err); got != c.Result {
 			t.Errorf("%s: got %s, want %s", c.Name, got, c.Result)
 		}
@@ -231,7 +244,7 @@ func TestVectors(t *testing.T) {
 		}
 		results[c.Result] = true
 	}
-	for _, want := range []string{"valid", "expired", "signature", "app", "version", "format"} {
+	for _, want := range []string{"valid", "expired", "signature", "app", "fingerprint", "format"} {
 		if !results[want] {
 			t.Errorf("no vector ends as %s", want)
 		}

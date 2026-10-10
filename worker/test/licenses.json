@@ -5,7 +5,7 @@
     "object": {
       "id": "sub_1", "status": "active", "created": 1700000000,
       "customer": {"email": "billing@acme.io", "name": "Acme Billing"},
-      "metadata": {"email": "ops@acme.io", "org": "Acme Inc"},
+      "metadata": {"email": "ops@acme.io", "org": "Acme Inc", "fingerprint": "machine-1"},
       "items": {"data": [
         {"price": {"product": "prod_other"}, "current_period_end": 5},
         {"quantity": 5,
@@ -16,7 +16,7 @@
     "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "max_key_days": 0},
     "now": 1790000000,
     "want": {"id": "sub_1", "email": "ops@acme.io", "customer": "Acme Inc", "plan": "team",
-      "meta": {"seats": "5", "tier": "gold"}, "expires_at": 1801209600, "period": 3000000,
+      "meta": {"seats": "5", "tier": "gold"}, "fingerprint": "machine-1", "expires_at": 1801209600, "period": 3000000,
       "status": "active", "renews": true, "created_at": 1700000000}
   },
   {
@@ -117,7 +117,7 @@
     "kind": "session",
     "object": {
       "id": "cs_2", "mode": "payment", "payment_status": "paid", "created": 1780000000,
-      "metadata": {"email": "ops@acme.io", "org": "Acme Inc"},
+      "metadata": {"email": "ops@acme.io", "org": "Acme Inc", "fingerprint": "machine-1"},
       "customer_details": {"email": "buyer@acme.io", "name": "Acme"},
       "payment_intent": {"latest_charge": {"refunded": false}},
       "line_items": {"data": [{"quantity": 3,
@@ -126,7 +126,7 @@
     "product": {"id": "prod_app", "plan": "pro", "grace_days": 14, "max_key_days": 0},
     "now": 1790000000,
     "want": {"id": "cs_2", "email": "ops@acme.io", "customer": "Acme Inc", "plan": "pro", "meta": {"seats": "3"},
-      "expires_at": 1812745600, "period": 0, "status": "paid", "renews": false, "created_at": 1780000000}
+      "fingerprint": "machine-1", "expires_at": 1812745600, "period": 0, "status": "paid", "renews": false, "created_at": 1780000000}
   },
   {
     "name": "refunded purchase ran out when it was bought",

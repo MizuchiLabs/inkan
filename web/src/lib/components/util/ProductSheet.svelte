@@ -88,6 +88,7 @@
 				email: 'customer@example.com',
 				exp: sampleExpiry,
 				id: '',
+				fp: '',
 				meta: {}
 			},
 			look.current

@@ -6,6 +6,8 @@ export type Claims = {
 	email: string;
 	exp: number;
 	id: string;
+	/** The machine the key is bound to, empty binds to nothing. */
+	fp: string;
 	meta: Record<string, string>;
 };
 
@@ -44,12 +46,12 @@ export async function issue(claims: Claims, privateKey: CryptoKey): Promise<stri
 export function payload(claims: Claims): string {
 	const names = Object.keys(claims.meta).sort();
 	return JSON.stringify({
-		v: 1,
 		app: claims.app,
 		plan: claims.plan,
 		email: claims.email,
 		exp: claims.exp,
 		...(claims.id && { id: claims.id }),
+		...(claims.fp && { fp: claims.fp }),
 		...(names.length > 0 && {
 			meta: Object.fromEntries(names.map((name) => [name, claims.meta[name]]))
 		})

@@ -131,6 +131,12 @@
 						</div>
 					{/if}
 
+					{#if result.fingerprint}
+						<p class="text-sm text-muted-foreground">
+							Bound to the machine <span class="font-mono">{result.fingerprint}</span>.
+						</p>
+					{/if}
+
 					<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
 						{#if result.known && result.product_id !== null}
 							{@const ref = refOf({ product_id: result.product_id, id: result.license_id })}

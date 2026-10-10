@@ -27,6 +27,10 @@ need none of this.
 - **Seats and features.** Price metadata that starts with `meta_` is signed
   into the key, `meta_tier=gold` becomes the claim `tier=gold`. The metadata
   `quantity=seats` puts the bought quantity into the claim `seats`.
+- **Machines.** The metadata `fingerprint` on a subscription or a Checkout
+  session binds its key to that machine. A Checkout session your site creates
+  can carry the fingerprint the app shows. What the app does with it is in
+  [the README](README.md#use-the-keys-in-your-app).
 - **Max key days.** The longest a paid key lives before the app has to fetch a new
   one. It is the closest thing to taking a key back. A signed key works until
   it expires. Without a limit that is the end of the paid period plus the

@@ -15,6 +15,10 @@ export type CheckResult = {
      */
     expires_at: string | null;
     /**
+     * The machine the key is bound to, empty for a key that works everywhere
+     */
+    fingerprint: string;
+    /**
      * Whether the license id is in the ledger
      */
     known: boolean;
@@ -44,6 +48,10 @@ export type CreateLicenseInputBody = {
      * Leave out for a perpetual license
      */
     expires_at?: string;
+    /**
+     * Binds the key to one machine. The app says what its fingerprint is, leave it out for a key that works everywhere
+     */
+    fingerprint?: string;
     /**
      * Extra claims signed into the key, keep them short
      */
@@ -131,13 +139,21 @@ export type License = {
      */
     expires_at: string | null;
     /**
-     * Subscription or checkout session id at the provider, or lic_... for a manual license
+     * The machine the key is bound to, empty binds to nothing
+     */
+    fingerprint: string;
+    /**
+     * Id at the provider, or lic_... for a manual license
      */
     id: string;
     /**
      * The signed license key. A paid license has the one its worker hands out
      */
     key: string;
+    /**
+     * subscription or purchase at the provider, empty for a manual license
+     */
+    kind: string;
     /**
      * Extra claims signed into the key
      */
@@ -168,6 +184,10 @@ export type LicenseFields = {
      * Leave out for a perpetual license
      */
     expires_at?: string;
+    /**
+     * Binds the key to one machine. The app says what its fingerprint is, leave it out for a key that works everywhere
+     */
+    fingerprint?: string;
     /**
      * Extra claims signed into the key, keep them short
      */
