@@ -11,10 +11,10 @@
 		"test": "node --test"
 	},
 	"devDependencies": {
-		"@types/node": "^24.0.0",
-		"esbuild": "^0.28.0",
-		"typescript": "^6.0.3",
-		"wrangler": "^4.0.0"
+		"@types/node": "^26.6.4",
+		"esbuild": "^0.28.2",
+		"typescript": "^7.0.2",
+		"wrangler": "^4.149.0"
 	},
 	"packageManager": "pnpm@12.8.2"
 }
