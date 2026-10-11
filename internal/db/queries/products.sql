@@ -38,6 +38,7 @@ SET
   provider_product = ?,
   worker_url = ?,
   mail_from = ?,
+  mail_reply_to = ?,
   mail_logo = ?,
   mail_accent = ?,
   mail_footer = ?,

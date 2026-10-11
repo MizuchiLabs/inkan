@@ -1,7 +1,15 @@
 // Sends the key mail over the HTTP API of a mail service. Most serverless
 // platforms cannot speak SMTP. For another service, add a sender here.
 
-export type Mail = { from: string; to: string; subject: string; text: string; html: string };
+export type Mail = {
+	from: string;
+	// A bare address, an answer goes to the sender without one.
+	replyTo?: string;
+	to: string;
+	subject: string;
+	text: string;
+	html: string;
+};
 export type Send = (mail: Mail) => Promise<void>;
 
 export type SendEnv = {
@@ -29,6 +37,7 @@ function resend(apiKey: string): Send {
 			{ Authorization: 'Bearer ' + apiKey },
 			{
 				from: mail.from,
+				reply_to: mail.replyTo,
 				to: [mail.to],
 				subject: mail.subject,
 				text: mail.text,
@@ -50,6 +59,7 @@ function scaleway(secretKey: string, projectId: string, region: string): Send {
 			{
 				from,
 				to: [{ email: mail.to }],
+				additional_headers: mail.replyTo ? [{ key: 'Reply-To', value: mail.replyTo }] : undefined,
 				subject: mail.subject,
 				text: mail.text,
 				html: mail.html,

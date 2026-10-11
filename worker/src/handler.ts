@@ -44,6 +44,8 @@ export type Env = SendEnv & {
 	// Without these two or a mail service there is no /webhook.
 	INKAN_STRIPE_WEBHOOK_SECRET?: string;
 	INKAN_MAIL_FROM?: string;
+	// Where an answer to the key mail goes, for a sender that reads none.
+	INKAN_MAIL_REPLY_TO?: string;
 	// How the key mail looks, all optional.
 	INKAN_PRODUCT_NAME?: string;
 	INKAN_MAIL_LOGO?: string;
@@ -212,7 +214,12 @@ async function webhook(request: Request, env: Env, send: Send): Promise<Response
 	}
 
 	try {
-		await send({ from: env.INKAN_MAIL_FROM!, to: claims.email, ...mail(env, key, claims) });
+		await send({
+			from: env.INKAN_MAIL_FROM!,
+			replyTo: env.INKAN_MAIL_REPLY_TO?.trim() || undefined,
+			to: claims.email,
+			...mail(env, key, claims)
+		});
 	} catch (err) {
 		console.error('webhook: sending the key failed', id, err);
 		return text('the key could not be sent', 500);

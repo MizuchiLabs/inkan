@@ -291,6 +291,10 @@
 						"description": "Worker setting. https url of a logo for the dark header of the key mail",
 						"type": "string"
 					},
+					"mail_reply_to": {
+						"description": "Worker setting. Where an answer to the key mail goes, empty is the sender",
+						"type": "string"
+					},
 					"mail_template": {
 						"description": "Worker setting. Html of a key mail of its own with placeholders, empty sends the built-in mail",
 						"type": "string"
@@ -353,6 +357,7 @@
 					"max_key_days",
 					"provider_product",
 					"mail_from",
+					"mail_reply_to",
 					"mail_logo",
 					"mail_accent",
 					"mail_footer",
@@ -437,6 +442,12 @@
 						"description": "https url of a logo for the dark header of the key mail",
 						"maxLength": 512,
 						"pattern": "^(https://.+)?$",
+						"type": "string"
+					},
+					"mail_reply_to": {
+						"description": "A bare address for the answers to the key mail, for a sender that reads none",
+						"maxLength": 256,
+						"pattern": "^([^\\s\u003c\u003e@]+@[^\\s\u003c\u003e@]+)?$",
 						"type": "string"
 					},
 					"mail_template": {

@@ -37,6 +37,7 @@ type Product struct {
 	MaxKeyDays      int64  `json:"maxKeyDays"`
 	ProviderProduct string `json:"providerProduct"`
 	MailFrom        string `json:"mailFrom"`
+	MailReplyTo     string `json:"mailReplyTo"`
 	MailLogo        string `json:"mailLogo"`
 	MailAccent      string `json:"mailAccent"`
 	MailFooter      string `json:"mailFooter"`

@@ -57,13 +57,14 @@ func TestEnvJSON(t *testing.T) {
 	t.Parallel()
 	p := &db.Product{
 		Prefix: "MYAPP", PrivateKey: "key", WorkerToken: "token", Plan: "pro", GraceDays: 14,
-		Name: "My App", MailFooter: `Write to "us" #1`,
+		Name: "My App", MailFooter: `Write to "us" #1`, MailReplyTo: "support@example.com",
 	}
 	out, err := envJSON(p)
 	require.NoError(t, err)
 	var got map[string]string
 	require.NoError(t, json.Unmarshal([]byte(out), &got))
 	assert.Equal(t, `Write to "us" #1`, got["INKAN_MAIL_FOOTER"], "a value is not quoted for an env file")
+	assert.Equal(t, "support@example.com", got["INKAN_MAIL_REPLY_TO"])
 	assert.NotContains(t, got, "INKAN_MAIL_LOGO", "an empty setting is left out")
 	assert.Equal(t, "0", got["INKAN_MAX_KEY_DAYS"])
 

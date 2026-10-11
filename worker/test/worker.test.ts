@@ -30,6 +30,7 @@ const env: Env = {
 	INKAN_WORKER_TOKEN: 'a-long-token-only-the-dashboard-knows',
 	INKAN_STRIPE_WEBHOOK_SECRET: 'whsec_test',
 	INKAN_MAIL_FROM: 'Keys <keys@example.com>',
+	INKAN_MAIL_REPLY_TO: 'support@example.com',
 	RESEND_API_KEY: 're_test',
 	INKAN_PRODUCT_NAME: 'My <App>',
 	INKAN_MAIL_ACCENT: 'red; background: url(x)'
@@ -454,6 +455,7 @@ test('webhook mails the key once', async (t) => {
 	assert.equal(mails.length, 1, 'Stripe repeats events, the customer wants one mail');
 	assert.equal(mails[0].url, 'https://api.resend.com/emails');
 	assert.equal(mails[0].body.from, 'Keys <keys@example.com>');
+	assert.equal(mails[0].body.reply_to, 'support@example.com');
 	assert.deepEqual(mails[0].body.to, ['ops@acme.io']);
 	const key = mails[0].body.text.match(/MYAPP-\S+/)![0];
 	assert.equal((await claimsOf(key)).id, 'sub_ok_webhook');
@@ -534,6 +536,9 @@ test('the mail goes out through Scaleway when that is what is set', async (t) =>
 	);
 	assert.equal(mails[0].headers['X-Auth-Token'], 'scw_secret');
 	assert.deepEqual(mails[0].body.from, { name: 'Keys', email: 'keys@example.com' });
+	assert.deepEqual(mails[0].body.additional_headers, [
+		{ key: 'Reply-To', value: 'support@example.com' }
+	]);
 	assert.deepEqual(mails[0].body.to, [{ email: 'buyer@acme.io' }]);
 	assert.equal(mails[0].body.project_id, 'project_1');
 });

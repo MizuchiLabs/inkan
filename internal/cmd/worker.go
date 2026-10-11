@@ -169,10 +169,11 @@ func envFile(p *db.Product) string {
 	b.WriteString("# INKAN_SCW_SECRET_KEY=...\n")
 	b.WriteString("# INKAN_SCW_PROJECT_ID=...\n")
 	writeSetting(&b, "INKAN_MAIL_FROM", p.MailFrom, "licenses@example.com")
+	writeSetting(&b, "INKAN_MAIL_REPLY_TO", p.MailReplyTo, "support@example.com")
 	writeSetting(&b, "INKAN_PRODUCT_NAME", p.Name, "")
 	writeSetting(&b, "INKAN_MAIL_LOGO", p.MailLogo, "https://example.com/logo.png")
 	writeSetting(&b, "INKAN_MAIL_ACCENT", p.MailAccent, "#2f3e8f")
-	writeSetting(&b, "INKAN_MAIL_FOOTER", p.MailFooter, "Questions? Write to support@example.com")
+	writeSetting(&b, "INKAN_MAIL_FOOTER", p.MailFooter, "Questions? Just reply to this mail.")
 	writeSetting(&b, "INKAN_MAIL_COMPANY", p.MailCompany, "Example GmbH, Street 1, 12345 Berlin, HRB 12345")
 	return b.String()
 }
@@ -214,6 +215,7 @@ func envSettings(p *db.Product) [][2]string {
 		{"INKAN_MAX_KEY_DAYS", strconv.FormatInt(p.MaxKeyDays, 10)},
 		{"INKAN_STRIPE_PRODUCT", p.ProviderProduct},
 		{"INKAN_MAIL_FROM", p.MailFrom},
+		{"INKAN_MAIL_REPLY_TO", p.MailReplyTo},
 		{"INKAN_PRODUCT_NAME", p.Name},
 		{"INKAN_MAIL_LOGO", p.MailLogo},
 		{"INKAN_MAIL_ACCENT", p.MailAccent},

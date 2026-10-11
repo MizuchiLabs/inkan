@@ -13,7 +13,7 @@ const createProduct = `-- name: CreateProduct :one
 INSERT INTO
   products (name, prefix, plan, grace_days, max_key_days, private_key, worker_token)
 VALUES
-  (?, ?, ?, ?, ?, ?, ?) RETURNING id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_logo, mail_accent, mail_footer, mail_company, mail_template, synced_at, sync_error, created_at
+  (?, ?, ?, ?, ?, ?, ?) RETURNING id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_reply_to, mail_logo, mail_accent, mail_footer, mail_company, mail_template, synced_at, sync_error, created_at
 `
 
 type CreateProductParams struct {
@@ -50,6 +50,7 @@ func (q *Queries) CreateProduct(ctx context.Context, arg *CreateProductParams) (
 		&i.MaxKeyDays,
 		&i.ProviderProduct,
 		&i.MailFrom,
+		&i.MailReplyTo,
 		&i.MailLogo,
 		&i.MailAccent,
 		&i.MailFooter,
@@ -75,7 +76,7 @@ func (q *Queries) DeleteProduct(ctx context.Context, id int64) error {
 
 const getProduct = `-- name: GetProduct :one
 SELECT
-  id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_logo, mail_accent, mail_footer, mail_company, mail_template, synced_at, sync_error, created_at
+  id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_reply_to, mail_logo, mail_accent, mail_footer, mail_company, mail_template, synced_at, sync_error, created_at
 FROM
   products
 WHERE
@@ -98,6 +99,7 @@ func (q *Queries) GetProduct(ctx context.Context, id int64) (*Product, error) {
 		&i.MaxKeyDays,
 		&i.ProviderProduct,
 		&i.MailFrom,
+		&i.MailReplyTo,
 		&i.MailLogo,
 		&i.MailAccent,
 		&i.MailFooter,
@@ -112,7 +114,7 @@ func (q *Queries) GetProduct(ctx context.Context, id int64) (*Product, error) {
 
 const getProductByPrefix = `-- name: GetProductByPrefix :one
 SELECT
-  id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_logo, mail_accent, mail_footer, mail_company, mail_template, synced_at, sync_error, created_at
+  id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_reply_to, mail_logo, mail_accent, mail_footer, mail_company, mail_template, synced_at, sync_error, created_at
 FROM
   products
 WHERE
@@ -135,6 +137,7 @@ func (q *Queries) GetProductByPrefix(ctx context.Context, prefix string) (*Produ
 		&i.MaxKeyDays,
 		&i.ProviderProduct,
 		&i.MailFrom,
+		&i.MailReplyTo,
 		&i.MailLogo,
 		&i.MailAccent,
 		&i.MailFooter,
@@ -149,7 +152,7 @@ func (q *Queries) GetProductByPrefix(ctx context.Context, prefix string) (*Produ
 
 const listProducts = `-- name: ListProducts :many
 SELECT
-  id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_logo, mail_accent, mail_footer, mail_company, mail_template, synced_at, sync_error, created_at
+  id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_reply_to, mail_logo, mail_accent, mail_footer, mail_company, mail_template, synced_at, sync_error, created_at
 FROM
   products
 ORDER BY
@@ -178,6 +181,7 @@ func (q *Queries) ListProducts(ctx context.Context) ([]*Product, error) {
 			&i.MaxKeyDays,
 			&i.ProviderProduct,
 			&i.MailFrom,
+			&i.MailReplyTo,
 			&i.MailLogo,
 			&i.MailAccent,
 			&i.MailFooter,
@@ -206,7 +210,7 @@ SET
   private_key = ?,
   old_public_keys = ?
 WHERE
-  id = ? RETURNING id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_logo, mail_accent, mail_footer, mail_company, mail_template, synced_at, sync_error, created_at
+  id = ? RETURNING id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_reply_to, mail_logo, mail_accent, mail_footer, mail_company, mail_template, synced_at, sync_error, created_at
 `
 
 type SetProductKeysParams struct {
@@ -232,6 +236,7 @@ func (q *Queries) SetProductKeys(ctx context.Context, arg *SetProductKeysParams)
 		&i.MaxKeyDays,
 		&i.ProviderProduct,
 		&i.MailFrom,
+		&i.MailReplyTo,
 		&i.MailLogo,
 		&i.MailAccent,
 		&i.MailFooter,
@@ -310,13 +315,14 @@ SET
   provider_product = ?,
   worker_url = ?,
   mail_from = ?,
+  mail_reply_to = ?,
   mail_logo = ?,
   mail_accent = ?,
   mail_footer = ?,
   mail_company = ?,
   mail_template = ?
 WHERE
-  id = ? RETURNING id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_logo, mail_accent, mail_footer, mail_company, mail_template, synced_at, sync_error, created_at
+  id = ? RETURNING id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_reply_to, mail_logo, mail_accent, mail_footer, mail_company, mail_template, synced_at, sync_error, created_at
 `
 
 type UpdateProductParams struct {
@@ -327,6 +333,7 @@ type UpdateProductParams struct {
 	ProviderProduct string `json:"providerProduct"`
 	WorkerUrl       string `json:"workerUrl"`
 	MailFrom        string `json:"mailFrom"`
+	MailReplyTo     string `json:"mailReplyTo"`
 	MailLogo        string `json:"mailLogo"`
 	MailAccent      string `json:"mailAccent"`
 	MailFooter      string `json:"mailFooter"`
@@ -344,6 +351,7 @@ func (q *Queries) UpdateProduct(ctx context.Context, arg *UpdateProductParams) (
 		arg.ProviderProduct,
 		arg.WorkerUrl,
 		arg.MailFrom,
+		arg.MailReplyTo,
 		arg.MailLogo,
 		arg.MailAccent,
 		arg.MailFooter,
@@ -365,6 +373,7 @@ func (q *Queries) UpdateProduct(ctx context.Context, arg *UpdateProductParams) (
 		&i.MaxKeyDays,
 		&i.ProviderProduct,
 		&i.MailFrom,
+		&i.MailReplyTo,
 		&i.MailLogo,
 		&i.MailAccent,
 		&i.MailFooter,

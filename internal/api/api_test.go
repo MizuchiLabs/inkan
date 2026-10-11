@@ -206,10 +206,12 @@ func TestProductWorker(t *testing.T) {
 	settings := map[string]any{
 		"name": "App", "plan": "team", "grace_days": 7, "max_key_days": 30, "provider_product": "prod_app",
 		"worker_url": worker.URL, "mail_from": "Keys <keys@example.com>", "mail_accent": "#c2410c",
+		"mail_reply_to": "support@example.com",
 	}
 	var saved Product
 	require.Equal(t, http.StatusOK, call(t, srv, http.MethodPut, path, settings, &saved))
 	assert.True(t, saved.WorkerConnected)
+	assert.Equal(t, "support@example.com", saved.MailReplyTo)
 	assert.Equal(t, "team", saved.Plan)
 	assert.Equal(t, int64(30), saved.MaxKeyDays)
 	assert.Contains(t, saved.SyncError, "Invalid API Key provided", "a failed sync is not a failed update")
@@ -227,6 +229,14 @@ func TestProductWorker(t *testing.T) {
 	settings["worker_url"] = "ftp://worker.example.com"
 	assert.Equal(t, http.StatusUnprocessableEntity, call(t, srv, http.MethodPut, path, settings, nil))
 	settings["worker_url"] = worker.URL
+	settings["mail_reply_to"] = "support@example.com\r\nBcc: all@example.com"
+	assert.Equal(
+		t,
+		http.StatusUnprocessableEntity,
+		call(t, srv, http.MethodPut, path, settings, nil),
+		"a reply to address that brings a header of its own",
+	)
+	settings["mail_reply_to"] = "support@example.com"
 	settings["mail_template"] = "<p>{{name}}</p>"
 	assert.Equal(
 		t,

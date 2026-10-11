@@ -96,6 +96,7 @@ licenses show up on the Licenses page.
 | `INKAN_WORKER_TOKEN`          | -          | Lets the dashboard read the licenses           |
 | `INKAN_STRIPE_WEBHOOK_SECRET` | -          | Signing secret of the webhook endpoint         |
 | `INKAN_MAIL_FROM`             | -          | Sender of the key mails                        |
+| `INKAN_MAIL_REPLY_TO`         | the sender | Address an answer to the key mail goes to      |
 | `RESEND_API_KEY`              | -          | Sends the mails through Resend                 |
 | `INKAN_SCW_SECRET_KEY`        | -          | Or through Scaleway Transactional Email        |
 | `INKAN_SCW_PROJECT_ID`        | -          | Project of the Scaleway key                    |

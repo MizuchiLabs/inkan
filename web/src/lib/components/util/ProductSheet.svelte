@@ -54,6 +54,7 @@
 			graceDays: product?.grace_days ?? 14,
 			maxKeyDays: product?.max_key_days ?? 0,
 			mailFrom: product?.mail_from ?? '',
+			mailReplyTo: product?.mail_reply_to ?? '',
 			mailLogo: product?.mail_logo ?? '',
 			mailAccent: product?.mail_accent ?? '',
 			mailFooter: product?.mail_footer ?? '',
@@ -171,6 +172,7 @@
 						grace_days: form.graceDays,
 						max_key_days: form.maxKeyDays,
 						mail_from: form.mailFrom,
+						mail_reply_to: form.mailReplyTo,
 						mail_logo: form.mailLogo,
 						mail_accent: form.mailAccent,
 						mail_footer: form.mailFooter,
@@ -411,16 +413,33 @@
 									The mail the worker sends a key in. All of it is optional but the sender, the mail
 									calls the product by its name.
 								</Field.Description>
-								<Field.Field>
-									<Field.Label for="product-mail-from">Sender</Field.Label>
-									<Input
-										id="product-mail-from"
-										bind:value={form.mailFrom}
-										maxlength={256}
-										placeholder="My App <licenses@example.com>"
-										autocomplete="off"
-									/>
-								</Field.Field>
+								<div class="grid gap-4 sm:grid-cols-2">
+									<Field.Field>
+										<Field.Label for="product-mail-from">Sender</Field.Label>
+										<Input
+											id="product-mail-from"
+											bind:value={form.mailFrom}
+											maxlength={256}
+											placeholder="My App <licenses@example.com>"
+											autocomplete="off"
+										/>
+									</Field.Field>
+									<Field.Field>
+										<Field.Label for="product-mail-reply-to">Reply to</Field.Label>
+										<Input
+											id="product-mail-reply-to"
+											type="email"
+											bind:value={form.mailReplyTo}
+											maxlength={256}
+											placeholder="support@example.com"
+											autocomplete="off"
+										/>
+									</Field.Field>
+								</div>
+								<Field.Description>
+									An answer to the mail goes to the reply to address, for a sender that reads none.
+									Empty sends it to the sender.
+								</Field.Description>
 								<div class="grid gap-4 sm:grid-cols-2">
 									<Field.Field>
 										<Field.Label for="product-mail-logo">Logo</Field.Label>
@@ -454,7 +473,7 @@
 										id="product-mail-footer"
 										bind:value={form.mailFooter}
 										maxlength={256}
-										placeholder="Questions? Write to support@example.com"
+										placeholder="Questions? Just reply to this mail."
 									/>
 								</Field.Field>
 								<Field.Field>

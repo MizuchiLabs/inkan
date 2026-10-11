@@ -229,6 +229,10 @@ export type Product = {
      */
     mail_logo: string;
     /**
+     * Worker setting. Where an answer to the key mail goes, empty is the sender
+     */
+    mail_reply_to: string;
+    /**
      * Worker setting. Html of a key mail of its own with placeholders, empty sends the built-in mail
      */
     mail_template: string;
@@ -332,6 +336,10 @@ export type UpdateProductInputBody = {
      * https url of a logo for the dark header of the key mail
      */
     mail_logo?: string;
+    /**
+     * A bare address for the answers to the key mail, for a sender that reads none
+     */
+    mail_reply_to?: string;
     /**
      * Html of a key mail of its own, with {{key}} and the other placeholders in it. Empty sends the built-in mail
      */

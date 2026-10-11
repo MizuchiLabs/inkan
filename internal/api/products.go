@@ -34,6 +34,7 @@ type Product struct {
 	MaxKeyDays      int64      `json:"max_key_days"     doc:"Worker setting. Longest life of a paid key in days, 0 has no limit. Apps refresh for the next one"`
 	ProviderProduct string     `json:"provider_product" doc:"Worker setting. Stripe product id, its subscriptions and purchases are licenses"`
 	MailFrom        string     `json:"mail_from"        doc:"Worker setting. Sender of the key mails"`
+	MailReplyTo     string     `json:"mail_reply_to"    doc:"Worker setting. Where an answer to the key mail goes, empty is the sender"`
 	MailLogo        string     `json:"mail_logo"        doc:"Worker setting. https url of a logo for the dark header of the key mail"`
 	MailAccent      string     `json:"mail_accent"      doc:"Worker setting. Color of the key mail, #rrggbb"`
 	MailFooter      string     `json:"mail_footer"      doc:"Worker setting. One line under the key in the mail"`
@@ -78,6 +79,7 @@ type UpdateProductInput struct {
 		MaxKeyDays      int64  `json:"max_key_days,omitempty"         minimum:"0"                      maximum:"3650"`
 		ProviderProduct string `json:"provider_product,omitempty"                                  maxLength:"128" doc:"Stripe product id for the worker"`
 		MailFrom        string `json:"mail_from,omitempty"                                         maxLength:"256" doc:"An address or \"Name <address>\""`
+		MailReplyTo     string `json:"mail_reply_to,omitempty"    pattern:"^([^\\s<>@]+@[^\\s<>@]+)?$" maxLength:"256" doc:"A bare address for the answers to the key mail, for a sender that reads none"`
 		MailLogo        string `json:"mail_logo,omitempty"        pattern:"^(https://.+)?$"        maxLength:"512" doc:"https url of a logo for the dark header of the key mail"`
 		MailAccent      string `json:"mail_accent,omitempty"      pattern:"^(#[0-9a-fA-F]{6})?$"                   doc:"Color of the key mail, like #2f3e8f"`
 		MailFooter      string `json:"mail_footer,omitempty"                                       maxLength:"256" doc:"One line under the key in the mail, like where to get help"`
@@ -218,6 +220,7 @@ func (h *productHandlers) update(ctx context.Context, in *UpdateProductInput) (*
 		ProviderProduct: strings.TrimSpace(in.Body.ProviderProduct),
 		WorkerUrl:       strings.TrimSpace(in.Body.WorkerURL),
 		MailFrom:        strings.TrimSpace(in.Body.MailFrom),
+		MailReplyTo:     in.Body.MailReplyTo,
 		MailLogo:        strings.TrimSpace(in.Body.MailLogo),
 		MailAccent:      in.Body.MailAccent,
 		MailFooter:      strings.TrimSpace(in.Body.MailFooter),
@@ -341,6 +344,7 @@ func toProduct(p *db.Product) Product {
 		MaxKeyDays:      p.MaxKeyDays,
 		ProviderProduct: p.ProviderProduct,
 		MailFrom:        p.MailFrom,
+		MailReplyTo:     p.MailReplyTo,
 		MailLogo:        p.MailLogo,
 		MailAccent:      p.MailAccent,
 		MailFooter:      p.MailFooter,
