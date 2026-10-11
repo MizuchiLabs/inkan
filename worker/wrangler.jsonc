@@ -1,5 +1,7 @@
 {
 	"name": "inkan-worker",
 	"main": "src/cloudflare.ts",
-	"compatibility_date": "2026-09-01"
+	"compatibility_date": "2026-09-01",
+	// Keeps a flood from spending cpu time. A full page of licenses takes about 10 ms. Paid plan only, the free one has a fixed limit.
+	"limits": { "cpu_ms": 100 }
 }
