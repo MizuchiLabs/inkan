@@ -1077,8 +1077,8 @@ packages:
     resolution: {integrity: sha512-g50586zr4bZmwFiTlflMu8E0bDTb5I5gertgwAKmsdUlTQIhZtunzUlD1WSzwcVWPoAVpsrA6vlfCD7oXvRwgg==}
     engines: {node: ^10 || ^12 || >=14}
 
-  prettier@3.9.9:
-    resolution: {integrity: sha512-Z/CJHIkdujO/OtN7nXUii0Rf3VT5SRuhjBA82Xvu2XhBUgX3nhP67T0LHceBdQLex7OOFGTox+Q5Yg8Jk2Qivg==}
+  prettier@3.9.10:
+    resolution: {integrity: sha512-skGHTH1Yb9QvaTC4hWnRTzEYtCpApF0UMBPz+t/0ZPzP8ihefo/btKd+QA7pUE0fEwA1SbS/NmhyEcstdXOIdA==}
     engines: {node: '>=14'}
     hasBin: true
 
@@ -1526,7 +1526,7 @@ snapshots:
       entities: 4.5.0
       html-to-text: 9.0.5
       html5parser: 3.0.0
-      prettier: 3.9.9
+      prettier: 3.9.10
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
 
@@ -1934,7 +1934,7 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.2
 
-  prettier@3.9.9: {}
+  prettier@3.9.10: {}
 
   prismjs@1.30.0: {}
 
