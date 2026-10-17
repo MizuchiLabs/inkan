@@ -9,12 +9,12 @@
 	},
 	"packageManager": "pnpm@12.11.2",
 	"dependencies": {
-		"react": "19.3.0",
-		"react-dom": "19.3.0",
-		"react-email": "6.11.1"
+		"react": "19.3.1",
+		"react-dom": "19.3.1",
+		"react-email": "6.11.3"
 	},
 	"devDependencies": {
-		"@react-email/ui": "6.11.1",
+		"@react-email/ui": "6.11.2",
 		"@types/node": "26.6.5",
 		"@types/react": "19.3.0",
 		"tsx": "4.23.15",
