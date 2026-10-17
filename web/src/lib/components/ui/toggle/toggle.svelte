@@ -6,13 +6,15 @@
 		variants: {
 			variant: {
 				default: 'bg-transparent',
-				outline: 'border-input hover:bg-muted border bg-transparent'
+				outline: 'border-input hover:bg-muted border bg-transparent',
+				tile: 'bg-transparent data-[state=on]:bg-secondary data-[state=on]:text-secondary-foreground aria-pressed:bg-secondary aria-pressed:text-secondary-foreground'
 			},
 			size: {
 				default:
 					'h-8 min-w-8 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2',
 				sm: 'h-7 min-w-7 px-2.5 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5',
-				lg: 'h-9 min-w-9 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2'
+				lg: 'h-9 min-w-9 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2',
+				tile: 'h-auto min-w-0 flex-col items-start justify-start gap-0.5 px-4 py-3 text-left'
 			}
 		},
 		defaultVariants: {

@@ -8,6 +8,7 @@
 	} from '#lib/api/queries.js';
 	import * as Alert from '#lib/components/ui/alert/index.js';
 	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
+	import { Badge } from '#lib/components/ui/badge/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Card from '#lib/components/ui/card/index.js';
 	import * as Empty from '#lib/components/ui/empty/index.js';
@@ -81,7 +82,7 @@
 	{#if productsQuery.isPending}
 		<Skeleton class="h-56 w-full" />
 	{:else if products.length === 0}
-		<div class="rounded-2xl border">
+		<div class="rounded-4xl border">
 			<Empty.Root>
 				<Empty.Header>
 					<Empty.Media>
@@ -104,21 +105,23 @@
 				{@const count = licenseCount.get(product.id) ?? 0}
 				<Card.Root>
 					<Card.Header>
-						<div class="flex items-center gap-3">
+						<div class="flex items-center gap-4">
 							<!-- The stamp waits for the sheet to close. -->
 							<div
 								class={cn('shrink-0', product.id === createdId ? 'animate-stamp' : '-rotate-6')}
 								style:--stamp-delay="0.2s"
 							>
-								<Seal publicKey={product.public_key} class="size-12" />
+								<Seal publicKey={product.public_key} class="size-16" />
 							</div>
 							<div class="min-w-0">
 								<Card.Title><span class="block truncate">{product.name}</span></Card.Title>
-								<Card.Description>
-									{count}
-									{count === 1 ? 'license' : 'licenses'}, plan {product.plan}, {product.grace_days}
-									grace days
-								</Card.Description>
+								<div class="mt-1.5 flex flex-wrap gap-1.5">
+									<Badge variant="secondary"><span class="font-mono">{product.prefix}-</span></Badge
+									>
+									<Badge variant="secondary">{count} {count === 1 ? 'license' : 'licenses'}</Badge>
+									<Badge variant="secondary">plan {product.plan}</Badge>
+									<Badge variant="secondary">{product.grace_days} grace days</Badge>
+								</div>
 							</div>
 						</div>
 						<Card.Action>
@@ -166,7 +169,7 @@
 						</div>
 					</Card.Content>
 
-					<Card.Footer class="justify-between">
+					<Card.Footer class="flex-wrap justify-between">
 						<p class="text-sm text-muted-foreground">
 							{#if !product.worker_connected}
 								No worker, so no paid licenses.
@@ -205,6 +208,23 @@
 					</Card.Footer>
 				</Card.Root>
 			{/each}
+
+			<div class="flex rounded-4xl border border-dashed">
+				<Empty.Root>
+					<Empty.Header>
+						<Empty.Media>
+							<Seal state="blank" class="size-16" />
+						</Empty.Media>
+						<Empty.Title>Another product</Empty.Title>
+						<Empty.Description>
+							You get a keypair, or bring the private key of a product that already ships.
+						</Empty.Description>
+					</Empty.Header>
+					<Empty.Content>
+						<Button variant="outline" onclick={() => (dialog = null)}>Add a product</Button>
+					</Empty.Content>
+				</Empty.Root>
+			</div>
 		</div>
 	{/if}
 </div>

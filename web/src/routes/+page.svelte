@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { useLicenses, useProducts, type License } from '#lib/api/queries.js';
+	import { Badge } from '#lib/components/ui/badge/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Empty from '#lib/components/ui/empty/index.js';
 	import * as InputGroup from '#lib/components/ui/input-group/index.js';
 	import * as Select from '#lib/components/ui/select/index.js';
-	import * as Tabs from '#lib/components/ui/tabs/index.js';
 	import { Skeleton } from '#lib/components/ui/skeleton/index.js';
 	import * as Table from '#lib/components/ui/table/index.js';
+	import * as ToggleGroup from '#lib/components/ui/toggle-group/index.js';
 	import CopyButton from '#lib/components/util/CopyButton.svelte';
 	import HistoryChart from '#lib/components/util/HistoryChart.svelte';
 	import KeyCheck from '#lib/components/util/KeyCheck.svelte';
@@ -20,8 +21,10 @@
 		formatDate,
 		formatRelative,
 		refOf,
+		stateDot,
 		stateLabel,
 		stateOf,
+		tiltOf,
 		type LicenseState
 	} from '#lib/license.js';
 	import { PlusIcon, RefreshCwIcon, SearchIcon, StampIcon } from '@lucide/svelte';
@@ -65,19 +68,33 @@
 		stateFilter === 'all' ? matching : matching.filter((l) => stateOf(l) === stateFilter)
 	);
 
-	const states: LicenseState[] = ['active', 'ending', 'expired'];
+	const filters = ['all', 'active', 'ending', 'expired'] as const;
 </script>
 
-<div class="flex flex-col gap-8">
+<div class="flex flex-col gap-6">
+	<div class="flex flex-wrap items-end justify-between gap-4">
+		<div>
+			<h1 class="text-2xl font-black tracking-tight">Licenses</h1>
+			<p class="text-sm text-muted-foreground">
+				Ending soon comes first, then whatever runs out next.
+			</p>
+		</div>
+		{#if products.length > 0}
+			<Button size="lg" onclick={() => (dialog = null)}>
+				<PlusIcon data-icon="inline-start" />Issue license
+			</Button>
+		{/if}
+	</div>
+
 	<KeyCheck {products} onopen={(ref) => (selectedRef = ref)} />
 
 	{#if productsQuery.isPending || licensesQuery.isPending}
 		<div class="flex flex-col gap-2">
-			<Skeleton class="h-8 w-64" />
+			<Skeleton class="h-32 w-full" />
 			<Skeleton class="h-64 w-full" />
 		</div>
 	{:else if products.length === 0}
-		<div class="rounded-2xl border">
+		<div class="rounded-4xl border">
 			<Empty.Root>
 				<Empty.Header>
 					<Empty.Media>
@@ -94,29 +111,53 @@
 			</Empty.Root>
 		</div>
 	{:else}
-		<HistoryChart productId={productFilter === 'all' ? undefined : Number(productFilter)} />
+		<section
+			class="flex flex-wrap gap-2 rounded-4xl border bg-card p-2 shadow-sm"
+			aria-label="Overview"
+		>
+			<ToggleGroup.Root
+				type="single"
+				spacing={1}
+				bind:value={
+					() => stateFilter, (value) => (stateFilter = (value || 'all') as typeof stateFilter)
+				}
+				variant="tile"
+				size="tile"
+				class="grid flex-[1_1_17rem] grid-cols-2 content-start items-stretch"
+				aria-label="Filter by status"
+			>
+				{#each filters as f (f)}
+					<ToggleGroup.Item value={f}>
+						<span class="flex items-center gap-1.5 text-[13px] text-muted-foreground">
+							{#if f !== 'all'}
+								<span class={['size-1.5 rounded-full', stateDot[f]]}></span>
+							{/if}
+							{f === 'all' ? 'All' : stateLabel[f]}
+						</span>
+						<span class="font-mono text-3xl font-medium tracking-tight">
+							{f === 'all' ? matching.length : counts[f]}
+						</span>
+					</ToggleGroup.Item>
+				{/each}
+			</ToggleGroup.Root>
 
-		<section class="flex flex-col gap-3" aria-label="Licenses">
-			<div class="flex flex-wrap items-center gap-2">
-				<Tabs.Root
-					bind:value={
-						() => stateFilter, (value) => (stateFilter = (value || 'all') as typeof stateFilter)
-					}
-					aria-label="Filter by status"
-				>
-					<Tabs.List>
-						<Tabs.Trigger value="all">
-							<span class="font-mono">All {matching.length}</span>
-						</Tabs.Trigger>
-						{#each states as s (s)}
-							<Tabs.Trigger value={s}>
-								<span class="font-mono">{stateLabel[s]} {counts[s]}</span>
-							</Tabs.Trigger>
-						{/each}
-					</Tabs.List>
-				</Tabs.Root>
+			<HistoryChart
+				productId={productFilter === 'all' ? undefined : Number(productFilter)}
+				class="flex-[999_1_26rem] p-3 pb-2"
+			/>
+		</section>
 
-				<div class="flex flex-1 items-center justify-end gap-2">
+		<section
+			class="flex flex-col overflow-hidden rounded-4xl border bg-card shadow-sm"
+			aria-label="Licenses"
+		>
+			<div class="flex flex-wrap items-center justify-between gap-2 border-b py-3 pr-3 pl-5">
+				<p class="text-sm text-muted-foreground">
+					{shown.length} shown, {stateFilter === 'all'
+						? 'most urgent first'
+						: `${stateLabel[stateFilter].toLowerCase()} only`}
+				</p>
+				<div class="flex flex-wrap items-center gap-2">
 					{#if products.length > 1}
 						<Select.Root type="single" bind:value={productFilter}>
 							<Select.Trigger aria-label="Filter by product">
@@ -132,7 +173,7 @@
 							</Select.Content>
 						</Select.Root>
 					{/if}
-					<InputGroup.Root class="max-w-64">
+					<InputGroup.Root class="w-60">
 						<InputGroup.Addon>
 							<SearchIcon />
 						</InputGroup.Addon>
@@ -142,38 +183,33 @@
 							aria-label="Search licenses"
 						/>
 					</InputGroup.Root>
-
-					<Button onclick={() => (dialog = null)}>
-						<PlusIcon data-icon="inline-start" />Issue license
-					</Button>
 				</div>
 			</div>
 
 			{#if shown.length === 0}
-				<div class="rounded-2xl border">
-					<Empty.Root>
-						<Empty.Header>
-							<Empty.Media variant="icon">
-								<StampIcon />
-							</Empty.Media>
-							<Empty.Title>
-								{licenses.length === 0 ? 'No licenses yet' : 'Nothing matches'}
-							</Empty.Title>
-							<Empty.Description>
-								{#if licenses.length === 0}
-									Issue one by hand, or give a product a worker and its paid licenses show up here.
-								{:else}
-									No license fits this search and filter.
-								{/if}
-							</Empty.Description>
-						</Empty.Header>
-					</Empty.Root>
-				</div>
+				<Empty.Root>
+					<Empty.Header>
+						<Empty.Media variant="icon">
+							<StampIcon />
+						</Empty.Media>
+						<Empty.Title>
+							{licenses.length === 0 ? 'No licenses yet' : 'Nothing matches'}
+						</Empty.Title>
+						<Empty.Description>
+							{#if licenses.length === 0}
+								Issue one by hand, or give a product a worker and its paid licenses show up here.
+							{:else}
+								No license fits this search and filter.
+							{/if}
+						</Empty.Description>
+					</Empty.Header>
+				</Empty.Root>
 			{:else}
-				<div class="rounded-2xl border bg-card">
+				<div class="px-3">
 					<Table.Root>
 						<Table.Header>
 							<Table.Row>
+								<Table.Head class="w-0"><span class="sr-only">Seal</span></Table.Head>
 								<Table.Head>Customer</Table.Head>
 								<Table.Head class="max-md:hidden">Product</Table.Head>
 								<Table.Head>Valid until</Table.Head>
@@ -187,6 +223,15 @@
 								{@const status = stateOf(license)}
 
 								<Table.Row class="cursor-pointer" onclick={() => (selectedRef = refOf(license))}>
+									<Table.Cell>
+										<div style:rotate="{tiltOf(license)}deg">
+											<Seal
+												publicKey={product?.public_key}
+												state={status === 'expired' ? 'faded' : 'sealed'}
+												class="size-7"
+											/>
+										</div>
+									</Table.Cell>
 									<Table.Cell>
 										<button
 											type="button"
@@ -209,13 +254,8 @@
 									</Table.Cell>
 									<Table.Cell class="max-md:hidden">
 										<div class="flex items-center gap-2">
-											<Seal
-												publicKey={product?.public_key}
-												state={status === 'expired' ? 'faded' : 'sealed'}
-												class="size-6"
-											/>
 											<span>{product?.name}</span>
-											<span class="text-muted-foreground">{license.plan}</span>
+											<Badge variant="secondary">{license.plan}</Badge>
 										</div>
 									</Table.Cell>
 									<Table.Cell>

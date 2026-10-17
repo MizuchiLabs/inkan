@@ -12,9 +12,25 @@ export const stateLabel: Record<LicenseState, string> = {
 	expired: 'Expired'
 };
 
+// chart-3 is fine, chart-4 needs a look.
+export const stateDot: Record<LicenseState, string> = {
+	active: 'bg-chart-3',
+	ending: 'bg-chart-4',
+	expired: 'bg-muted-foreground/50'
+};
+
 // One subscription can hold several products, so the id alone names no license.
 export function refOf(license: Pick<License, 'product_id' | 'id'>): string {
 	return `${license.product_id}/${license.id}`;
+}
+
+// A turn of a few degrees per license, so a column of seals looks stamped by hand.
+export function tiltOf(license: Pick<License, 'id'>): number {
+	let h = 0x811c9dc5;
+	for (const c of license.id) h = Math.imul(h ^ c.charCodeAt(0), 0x01000193);
+	// Ids a character apart would land close, so the bits get mixed once more.
+	h = Math.imul(h ^ (h >>> 16), 0x45d9f3b);
+	return (((h ^ (h >>> 16)) >>> 0) % 13) - 9;
 }
 
 export function stateOf(license: License, now = Date.now()): LicenseState {

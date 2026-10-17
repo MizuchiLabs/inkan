@@ -207,7 +207,8 @@
 
 	--radius-3xl: calc(var(--radius) * 2.2);
 
-	--radius-4xl: calc(var(--radius) * 2.6);
+	/* Cards and sections. Controls are pills, like the header. */
+	--radius-4xl: 1.25rem;
 
 	--animate-stamp: stamp 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.2) var(--stamp-delay, 0s) both;
 
@@ -273,4 +274,13 @@
 	margin: auto;
 	height: fit-content;
 	translate: none;
+}
+
+/* Side sheets float off the edge with round corners, like the header. */
+[data-slot='sheet-content'][data-side='right'] {
+	inset: 0.75rem 0.75rem 0.75rem auto;
+	height: auto;
+	border-width: 1px;
+	border-radius: var(--radius-4xl);
+	overflow: hidden;
 }

@@ -86,7 +86,7 @@
 						<Seal
 							publicKey={product?.public_key}
 							state={status === 'expired' ? 'faded' : 'sealed'}
-							class="size-12"
+							class="size-14"
 						/>
 					</div>
 					<div class="min-w-0">
@@ -101,7 +101,13 @@
 			</Sheet.Header>
 
 			<div class="flex flex-1 flex-col gap-6 overflow-y-auto px-4 pb-4">
-				<CopyBlock title="License key" text={license.key} what="key" copyLabel="Copy key">
+				<CopyBlock
+					title="License key"
+					text={license.key}
+					what="key"
+					copyLabel="Copy key"
+					seal={product?.public_key}
+				>
 					Signed from the fields below. It is the same key every time, nothing is stored.
 				</CopyBlock>
 

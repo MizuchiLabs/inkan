@@ -2,13 +2,15 @@
 	import { useStats } from '#lib/api/queries.js';
 	import * as Chart from '#lib/components/ui/chart/index.js';
 	import { formatDate } from '#lib/license.js';
+	import { cn } from '#lib/utils.js';
 	import { AreaChart } from 'layerchart';
 
 	type Props = {
 		// Every product when left out.
 		productId?: number;
+		class?: string;
 	};
-	let { productId }: Props = $props();
+	let { productId, class: className }: Props = $props();
 
 	const stats = useStats();
 
@@ -35,12 +37,9 @@
 
 <!-- One day is a dot, not a trend. -->
 {#if days.length > 1}
-	<section
-		class="flex flex-col gap-2 rounded-2xl border bg-card p-4"
-		aria-labelledby="history-title"
-	>
+	<section class={cn('flex min-w-0 flex-col gap-2', className)} aria-labelledby="history-title">
 		<h2 id="history-title" class="text-sm font-medium">Active licenses</h2>
-		<Chart.Container {config} class="aspect-auto h-36 w-full">
+		<Chart.Container {config} class="aspect-auto h-32 w-full">
 			<AreaChart
 				data={days}
 				x="date"
