@@ -16,6 +16,11 @@ A key is a signed string that your app verifies offline with a public key
 built into it. An inkan is the personal seal that makes a document valid in
 Japan.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./.github/screenshots/licenses-dark.png">
+  <img alt="Inkan licenses page with a checked key, active licenses over time and the license list" src="./.github/screenshots/licenses-light.png">
+</picture>
+
 ## Features
 
 - License keys that work offline, a plain string to paste or set as an env
@@ -45,6 +50,19 @@ Japan.
 That is all an app with hand issued keys needs. To sell licenses, let Stripe
 subscriptions and purchases become keys with the worker, see
 [STRIPE.md](STRIPE.md).
+
+## Screenshots
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./.github/screenshots/license-dark.png">
+    <img alt="License details with the signed key, extra claims and a note" src="./.github/screenshots/license-light.png" width="49%">
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./.github/screenshots/products-dark.png">
+    <img alt="Products with their seals, public keys and worker status" src="./.github/screenshots/products-light.png" width="49%">
+  </picture>
+</p>
 
 ## Install
 
