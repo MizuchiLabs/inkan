@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { useStats } from '#lib/api/queries.js';
 	import * as Chart from '#lib/components/ui/chart/index.js';
-	import { formatDate } from '#lib/license.js';
+	import { formatDay } from '#lib/license.js';
 	import { cn } from '#lib/utils.js';
 	import { AreaChart } from 'layerchart';
 
@@ -54,10 +54,7 @@
 				}}
 			>
 				{#snippet tooltip()}
-					<Chart.Tooltip
-						labelFormatter={(day: Date) => formatDate(day.toISOString())}
-						indicator="line"
-					/>
+					<Chart.Tooltip labelFormatter={formatDay} indicator="line" />
 				{/snippet}
 			</AreaChart>
 		</Chart.Container>

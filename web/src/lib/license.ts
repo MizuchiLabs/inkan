@@ -64,6 +64,13 @@ export function formatDate(iso: string): string {
 	return dateFormat.format(new Date(iso));
 }
 
+const dayFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: 'UTC' });
+
+// A stats day is a date in UTC, not an instant, so it reads the same everywhere.
+export function formatDay(day: Date): string {
+	return dayFormat.format(day);
+}
+
 // The day a time falls on here, the way a date input wants it.
 export function localDay(iso: string): string {
 	const at = new Date(iso);
