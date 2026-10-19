@@ -205,93 +205,90 @@
 					</Empty.Header>
 				</Empty.Root>
 			{:else}
-				<div class="px-3">
-					<Table.Root>
-						<Table.Header>
-							<Table.Row>
-								<Table.Head class="w-0"><span class="sr-only">Seal</span></Table.Head>
-								<Table.Head>Customer</Table.Head>
-								<Table.Head class="max-md:hidden">Product</Table.Head>
-								<Table.Head>Valid until</Table.Head>
-								<Table.Head class="max-sm:hidden">Status</Table.Head>
-								<Table.Head class="w-0"><span class="sr-only">Key</span></Table.Head>
-							</Table.Row>
-						</Table.Header>
-						<Table.Body>
-							{#each shown as license (refOf(license))}
-								{@const product = productById.get(license.product_id)}
-								{@const status = stateOf(license)}
+				<Table.Root>
+					<Table.Header>
+						<Table.Row>
+							<Table.Head class="w-0"><span class="sr-only">Seal</span></Table.Head>
+							<Table.Head>Customer</Table.Head>
+							<Table.Head class="max-md:hidden">Product</Table.Head>
+							<Table.Head>Valid until</Table.Head>
+							<Table.Head class="max-sm:hidden">Status</Table.Head>
+							<Table.Head class="w-0"><span class="sr-only">Key</span></Table.Head>
+						</Table.Row>
+					</Table.Header>
+					<Table.Body>
+						{#each shown as license (refOf(license))}
+							{@const product = productById.get(license.product_id)}
+							{@const status = stateOf(license)}
 
-								<Table.Row class="cursor-pointer" onclick={() => (selectedRef = refOf(license))}>
-									<Table.Cell>
-										<div style:rotate="{tiltOf(license)}deg">
-											<Seal
-												publicKey={product?.public_key}
-												state={status === 'expired' ? 'faded' : 'sealed'}
-												class="size-7"
-											/>
-										</div>
-									</Table.Cell>
-									<Table.Cell>
-										<button
-											type="button"
-											class="flex max-w-64 flex-col text-left outline-none focus-visible:underline"
-										>
-											{#if license.customer || license.email}
-												<span class="truncate font-medium">{license.customer || license.email}</span
-												>
-											{:else}
-												<span class="truncate text-muted-foreground">Unknown customer</span>
-											{/if}
-											{#if license.customer_gone}
-												<span class="truncate text-xs text-muted-foreground">
-													{license.customer ? `${license.email}, deleted` : 'Deleted in Stripe'}
+							<Table.Row class="cursor-pointer" onclick={() => (selectedRef = refOf(license))}>
+								<Table.Cell>
+									<div style:rotate="{tiltOf(license)}deg">
+										<Seal
+											publicKey={product?.public_key}
+											state={status === 'expired' ? 'faded' : 'sealed'}
+											class="size-7"
+										/>
+									</div>
+								</Table.Cell>
+								<Table.Cell>
+									<button
+										type="button"
+										class="flex max-w-64 flex-col text-left outline-none focus-visible:underline"
+									>
+										{#if license.customer || license.email}
+											<span class="truncate font-medium">{license.customer || license.email}</span>
+										{:else}
+											<span class="truncate text-muted-foreground">Unknown customer</span>
+										{/if}
+										{#if license.customer_gone}
+											<span class="truncate text-xs text-muted-foreground">
+												{license.customer ? `${license.email}, deleted` : 'Deleted in Stripe'}
+											</span>
+										{:else if license.customer}
+											<span class="truncate text-xs text-muted-foreground">{license.email}</span>
+										{/if}
+									</button>
+								</Table.Cell>
+								<Table.Cell class="max-md:hidden">
+									<div class="flex items-center gap-2">
+										<span>{product?.name}</span>
+										<Badge variant="secondary">{license.plan}</Badge>
+									</div>
+								</Table.Cell>
+								<Table.Cell>
+									<div class="flex items-center gap-2.5">
+										<StatusBadge state={status} compact class="sm:hidden" />
+										{#if license.expires_at}
+											<div class="flex flex-col">
+												<span class="flex items-center gap-1.5">
+													{formatDate(license.expires_at)}
+													{#if license.renews}
+														<RefreshCwIcon
+															class="size-3 text-muted-foreground"
+															aria-label="Renews"
+														/>
+													{/if}
 												</span>
-											{:else if license.customer}
-												<span class="truncate text-xs text-muted-foreground">{license.email}</span>
-											{/if}
-										</button>
-									</Table.Cell>
-									<Table.Cell class="max-md:hidden">
-										<div class="flex items-center gap-2">
-											<span>{product?.name}</span>
-											<Badge variant="secondary">{license.plan}</Badge>
-										</div>
-									</Table.Cell>
-									<Table.Cell>
-										<div class="flex items-center gap-2.5">
-											<StatusBadge state={status} compact class="sm:hidden" />
-											{#if license.expires_at}
-												<div class="flex flex-col">
-													<span class="flex items-center gap-1.5">
-														{formatDate(license.expires_at)}
-														{#if license.renews}
-															<RefreshCwIcon
-																class="size-3 text-muted-foreground"
-																aria-label="Renews"
-															/>
-														{/if}
-													</span>
-													<span class="text-xs text-muted-foreground">
-														{formatRelative(license.expires_at)}
-													</span>
-												</div>
-											{:else}
-												<span class="text-muted-foreground">Never expires</span>
-											{/if}
-										</div>
-									</Table.Cell>
-									<Table.Cell class="max-sm:hidden">
-										<StatusBadge state={status} />
-									</Table.Cell>
-									<Table.Cell>
-										<CopyButton text={license.key} what="key" />
-									</Table.Cell>
-								</Table.Row>
-							{/each}
-						</Table.Body>
-					</Table.Root>
-				</div>
+												<span class="text-xs text-muted-foreground">
+													{formatRelative(license.expires_at)}
+												</span>
+											</div>
+										{:else}
+											<span class="text-muted-foreground">Never expires</span>
+										{/if}
+									</div>
+								</Table.Cell>
+								<Table.Cell class="max-sm:hidden">
+									<StatusBadge state={status} />
+								</Table.Cell>
+								<Table.Cell>
+									<CopyButton text={license.key} what="key" />
+								</Table.Cell>
+							</Table.Row>
+						{/each}
+					</Table.Body>
+				</Table.Root>
 			{/if}
 		</section>
 	{/if}
