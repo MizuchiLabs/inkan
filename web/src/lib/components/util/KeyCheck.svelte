@@ -75,7 +75,7 @@
 				run();
 			}}
 		>
-			<InputGroup.Root class="h-11">
+			<InputGroup.Root>
 				<InputGroup.Addon>
 					<ScanSearchIcon />
 				</InputGroup.Addon>
@@ -96,7 +96,6 @@
 					<InputGroup.Button
 						type="submit"
 						variant="default"
-						size="sm"
 						disabled={check.isPending || key.trim() === ''}
 					>
 						{#if check.isPending}
