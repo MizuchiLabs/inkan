@@ -28,6 +28,7 @@
 		type LicenseState
 	} from '#lib/license.js';
 	import { PlusIcon, RefreshCwIcon, SearchIcon, StampIcon } from '@lucide/svelte';
+	import { PersistedState } from 'runed';
 
 	const productsQuery = useProducts();
 	const licensesQuery = useLicenses();
@@ -38,7 +39,11 @@
 
 	let search = $state('');
 	let productFilter = $state('all');
-	let stateFilter = $state<'all' | LicenseState>('all');
+	const stateFilterState = new PersistedState<'all' | LicenseState>(
+		'inkan:license:state:filter',
+		'all'
+	);
+	const stateFilter = $derived(stateFilterState.current);
 
 	let selectedRef = $state<string>();
 	// The license issued a moment ago. Its seal lands when the sheet opens.
@@ -119,7 +124,8 @@
 				type="single"
 				spacing={1}
 				bind:value={
-					() => stateFilter, (value) => (stateFilter = (value || 'all') as typeof stateFilter)
+					() => stateFilter,
+					(value) => (stateFilterState.current = (value || 'all') as typeof stateFilter)
 				}
 				variant="tile"
 				size="tile"
