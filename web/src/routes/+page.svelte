@@ -67,10 +67,17 @@
 	const counts = $derived.by(() => {
 		const n: Record<LicenseState, number> = { active: 0, ending: 0, expired: 0 };
 		for (const l of matching) n[stateOf(l)]++;
+		// Ending soon is still active, its own tile just narrows it down.
+		n.active += n.ending;
 		return n;
 	});
 	const shown = $derived(
-		stateFilter === 'all' ? matching : matching.filter((l) => stateOf(l) === stateFilter)
+		stateFilter === 'all'
+			? matching
+			: matching.filter((l) => {
+					const state = stateOf(l);
+					return state === stateFilter || (stateFilter === 'active' && state === 'ending');
+				})
 	);
 
 	const filters = ['all', 'active', 'ending', 'expired'] as const;
