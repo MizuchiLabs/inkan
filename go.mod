@@ -3,7 +3,7 @@ module github.com/mizuchilabs/inkan
 go 1.27.3
 
 require (
-	github.com/danielgtaylor/huma/v2 v2.39.1
+	github.com/danielgtaylor/huma/v2 v2.40.0
 	github.com/go-chi/httplog/v3 v3.5.0
 	github.com/mizuchilabs/inkan/license v0.1.0
 	github.com/mizuchilabs/kata v0.2.0
