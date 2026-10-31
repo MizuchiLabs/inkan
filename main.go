@@ -12,6 +12,7 @@ import (
 	"github.com/mizuchilabs/kata/buildinfo"
 	"github.com/mizuchilabs/kata/logx"
 	"github.com/mizuchilabs/kata/sigx"
+	"github.com/mizuchilabs/nushi"
 
 	"github.com/mizuchilabs/inkan/internal/api"
 	"github.com/mizuchilabs/inkan/internal/cmd"
@@ -41,19 +42,9 @@ func main() {
 			},
 			&cli.StringFlag{
 				Name:    "addr",
-				Usage:   "Address to listen on. Anything but localhost needs a password",
+				Usage:   "Address to listen on. Anything but localhost needs a sign in",
 				Value:   "127.0.0.1:3000",
 				Sources: cli.EnvVars("INKAN_ADDR"),
-			},
-			&cli.StringFlag{
-				Name:    "password",
-				Usage:   "Password for the UI and the API. Without one inkan only listens on localhost",
-				Sources: cli.EnvVars("INKAN_PASSWORD"),
-			},
-			&cli.StringFlag{
-				Name:    "api-token",
-				Usage:   "Bearer token for scripts that use the API, at least 32 characters",
-				Sources: cli.EnvVars("INKAN_API_TOKEN"),
 			},
 			&cli.StringFlag{
 				Name:    "data-dir",
@@ -71,15 +62,15 @@ func main() {
 }
 
 func run(ctx context.Context, cmd *cli.Command) error {
+	guard, err := nushi.FromEnv("inkan")
+	if err != nil {
+		return err
+	}
 	q, closeDB, err := db.Open(ctx, cmd.String("data-dir"))
 	if err != nil {
 		return err
 	}
 	defer closeDB()
-	srv, err := api.New(q, cmd.String("password"), cmd.String("api-token"))
-	if err != nil {
-		return err
-	}
 	go mirror.Run(ctx, q)
-	return srv.Start(ctx, cmd.String("addr"))
+	return api.New(q, guard).Start(ctx, cmd.String("addr"))
 }

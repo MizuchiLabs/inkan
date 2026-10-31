@@ -17,7 +17,7 @@
 
 	function submit(event: SubmitEvent) {
 		event.preventDefault();
-		signIn.mutate({ body: { password } }, { onSuccess: () => (password = '') });
+		signIn.mutate(password, { onSuccess: () => (password = '') });
 	}
 </script>
 
@@ -28,31 +28,40 @@
 				<Seal state="blank" class="size-14" />
 			</Empty.Media>
 			<Empty.Title>Sign in</Empty.Title>
-			<Empty.Description>Enter the password to open the ledger.</Empty.Description>
+			<Empty.Description>
+				{session.data.mode === 'oidc'
+					? 'Use your account to open the ledger.'
+					: 'Enter the password to open the ledger.'}
+			</Empty.Description>
 		</Empty.Header>
 		<Empty.Content>
-			<form onsubmit={submit} class="w-full">
-				<Field.Group>
-					<Field.Field data-invalid={signIn.isError ? true : undefined}>
-						<Field.Label for="password">Password</Field.Label>
-						<Input
-							id="password"
-							type="password"
-							autocomplete="current-password"
-							autofocus
-							required
-							bind:value={password}
-							aria-invalid={signIn.isError ? true : undefined}
-						/>
-					</Field.Field>
-					<Button type="submit" disabled={signIn.isPending}>
-						{#if signIn.isPending}
-							<Spinner data-icon="inline-start" />
-						{/if}
-						Sign in
-					</Button>
-				</Field.Group>
-			</form>
+			{#if session.data.mode === 'oidc'}
+				<!-- A page load, the browser goes to the provider and comes back. -->
+				<Button href="/api/session/oidc" data-sveltekit-reload>Sign in</Button>
+			{:else}
+				<form onsubmit={submit} class="w-full">
+					<Field.Group>
+						<Field.Field data-invalid={signIn.isError ? true : undefined}>
+							<Field.Label for="password">Password</Field.Label>
+							<Input
+								id="password"
+								type="password"
+								autocomplete="current-password"
+								autofocus
+								required
+								bind:value={password}
+								aria-invalid={signIn.isError ? true : undefined}
+							/>
+						</Field.Field>
+						<Button type="submit" disabled={signIn.isPending}>
+							{#if signIn.isPending}
+								<Spinner data-icon="inline-start" />
+							{/if}
+							Sign in
+						</Button>
+					</Field.Group>
+				</form>
+			{/if}
 		</Empty.Content>
 	</Empty.Root>
 {:else if !session.isPending}

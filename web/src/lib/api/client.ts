@@ -1,9 +1,10 @@
 import { browser } from '$app/env';
 import { QueryClient } from '@tanstack/svelte-query';
-import { getSessionQueryKey } from './generated/@tanstack/svelte-query.gen';
 import { client } from './generated/client.gen';
 import type { ErrorModel } from './generated/types.gen';
 import { toast } from 'svelte-sonner';
+
+export const sessionKey = ['session'];
 
 // Relative base URL: same-origin in production, routed to the Go backend by
 // the Vite dev proxy in development.
@@ -39,6 +40,6 @@ export const queryClient = new QueryClient({
 
 // A session can run out while the page is open. Asking again brings the sign in back.
 client.interceptors.response.use((response) => {
-	if (response.status === 401) queryClient.invalidateQueries({ queryKey: getSessionQueryKey() });
+	if (response.status === 401) queryClient.invalidateQueries({ queryKey: sessionKey });
 	return response;
 });

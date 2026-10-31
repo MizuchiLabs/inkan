@@ -369,24 +369,6 @@
 				],
 				"type": "object"
 			},
-			"Session": {
-				"additionalProperties": false,
-				"properties": {
-					"protected": { "description": "Whether a password is set", "type": "boolean" },
-					"signed_in": {
-						"description": "Whether this browser may use the API. Always true without a password",
-						"type": "boolean"
-					}
-				},
-				"required": ["protected", "signed_in"],
-				"type": "object"
-			},
-			"SignInInputBody": {
-				"additionalProperties": false,
-				"properties": { "password": { "maxLength": 1024, "minLength": 1, "type": "string" } },
-				"required": ["password"],
-				"type": "object"
-			},
 			"Snapshot": {
 				"additionalProperties": false,
 				"properties": {
@@ -876,75 +858,6 @@
 				},
 				"summary": "Update a license",
 				"tags": ["Licenses"]
-			}
-		},
-		"/api/session": {
-			"delete": {
-				"operationId": "sign-out",
-				"responses": {
-					"204": {
-						"description": "No Content",
-						"headers": { "Set-Cookie": { "schema": { "type": "string" } } }
-					},
-					"default": {
-						"content": {
-							"application/problem+json": {
-								"schema": { "$ref": "#/components/schemas/ErrorModel" }
-							}
-						},
-						"description": "Error"
-					}
-				},
-				"summary": "Sign out",
-				"tags": ["Session"]
-			},
-			"get": {
-				"operationId": "get-session",
-				"parameters": [{ "in": "cookie", "name": "inkan_session", "schema": { "type": "string" } }],
-				"responses": {
-					"200": {
-						"content": {
-							"application/json": { "schema": { "$ref": "#/components/schemas/Session" } }
-						},
-						"description": "OK"
-					},
-					"default": {
-						"content": {
-							"application/problem+json": {
-								"schema": { "$ref": "#/components/schemas/ErrorModel" }
-							}
-						},
-						"description": "Error"
-					}
-				},
-				"summary": "Show whether a sign in is needed",
-				"tags": ["Session"]
-			},
-			"post": {
-				"description": "Sets the session cookie. Five tries a minute are allowed, for all clients together.",
-				"operationId": "sign-in",
-				"requestBody": {
-					"content": {
-						"application/json": { "schema": { "$ref": "#/components/schemas/SignInInputBody" } }
-					},
-					"required": true
-				},
-				"responses": {
-					"204": {
-						"description": "No Content",
-						"headers": { "Set-Cookie": { "schema": { "type": "string" } } }
-					},
-					"default": {
-						"content": {
-							"application/problem+json": {
-								"schema": { "$ref": "#/components/schemas/ErrorModel" }
-							}
-						},
-						"description": "Error"
-					}
-				},
-				"summary": "Sign in with the password",
-				"tags": ["Session"]
 			}
 		},
 		"/api/stats": {

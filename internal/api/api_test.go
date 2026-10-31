@@ -17,6 +17,8 @@ import (
 
 	"github.com/mizuchilabs/inkan/license"
 
+	"github.com/mizuchilabs/nushi"
+
 	"github.com/mizuchilabs/inkan/internal/db"
 )
 
@@ -34,9 +36,7 @@ func newTestServer(t *testing.T) (*httptest.Server, *db.Queries) {
 	q, closeDB, err := db.Open(t.Context(), t.TempDir())
 	require.NoError(t, err)
 	t.Cleanup(closeDB)
-	api, err := New(q, "", "")
-	require.NoError(t, err)
-	srv := httptest.NewServer(api.Handler())
+	srv := httptest.NewServer(New(q, guardFor(t, nushi.Config{})).Handler())
 	t.Cleanup(srv.Close)
 	return srv, q
 }

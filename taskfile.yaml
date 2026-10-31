@@ -9,8 +9,9 @@ tasks:
     desc: Run backend
     env:
       INKAN_DEV_UI: http://localhost:5173
+      INKAN_PASSWORD: dev-password
     cmds:
-      - go run . --password 123
+      - go run .
 
   frontend:
     desc: Run frontend
@@ -40,8 +41,10 @@ tasks:
 
   demo:
     desc: Run the backend on the made up data of task seed
+    env:
+      INKAN_PASSWORD: dev-password
     cmds:
-      - go run . --password 123 --data-dir data/demo
+      - go run . --data-dir data/demo
 
   update:
     desc: Update dependencies

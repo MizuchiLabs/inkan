@@ -74,7 +74,7 @@ docker run -d \
    -v $(pwd)/data:/data \
    -e INKAN_ADDR=:3000 \
    -e INKAN_DATA_DIR=/data \
-   -e INKAN_PASSWORD=change-me \
+   -e INKAN_PASSWORD=change-me-please \
    ghcr.io/mizuchilabs/inkan:latest
 ```
 
@@ -92,7 +92,7 @@ services:
     environment:
       - INKAN_ADDR=:3000
       - INKAN_DATA_DIR=/data
-      - INKAN_PASSWORD=change-me
+      - INKAN_PASSWORD=change-me-please
     restart: unless-stopped
 ```
 
@@ -106,24 +106,30 @@ inkan
 
 Open http://127.0.0.1:3000 and add a product.
 
-Without a password Inkan only listens on localhost and only answers when it
-is asked for as `localhost` or `127.0.0.1`. A container listens on all of its
-addresses, so it needs one. The examples above still publish the port on
-localhost only, put your own proxy or VPN in front to reach it from elsewhere.
-A proxy that asks under another name needs the password too.
+Without a sign in Inkan only listens on localhost and only answers to a local
+name. A container listens on all of its addresses, so it needs a password or
+OIDC. The examples above still publish the port on localhost only, put your
+own proxy or VPN in front to reach it from elsewhere. A proxy that asks under
+another name needs the sign in too.
 
 ## Configuration
 
-| Env Var           | Flag          | Default          | Description                |
-| ----------------- | ------------- | ---------------- | -------------------------- |
-| `INKAN_ADDR`      | `--addr`      | `127.0.0.1:3000` | Address to listen on       |
-| `INKAN_DATA_DIR`  | `--data-dir`  | `data`           | Directory for the database |
-| `INKAN_PASSWORD`  | `--password`  | -                | Password for the UI        |
-| `INKAN_API_TOKEN` | `--api-token` | -                | Bearer token for scripts   |
-| `INKAN_DEBUG`     | `--debug`     | `false`          | Enable debug logging       |
+| Env Var                                                                 | Flag         | Default          | Description                                                      |
+| ----------------------------------------------------------------------- | ------------ | ---------------- | ---------------------------------------------------------------- |
+| `INKAN_ADDR`                                                            | `--addr`     | `127.0.0.1:3000` | Address to listen on                                             |
+| `INKAN_DATA_DIR`                                                        | `--data-dir` | `data`           | Directory for the database                                       |
+| `INKAN_PASSWORD`                                                        | -            | -                | Password for the UI, at least 12 characters                      |
+| `INKAN_OIDC_ISSUER`, `INKAN_OIDC_CLIENT_ID`, `INKAN_OIDC_CLIENT_SECRET` | -            | -                | Sign in through an OIDC provider instead of a password           |
+| `INKAN_OIDC_GROUP`, `INKAN_PUBLIC_URL`                                  | -            | -                | Optional sign in group, and the URL browsers reach Inkan on      |
+| `INKAN_API_TOKEN`                                                       | -            | -                | Bearer token for scripts, at least 32 characters                 |
+| `INKAN_TRUSTED_PROXIES`                                                 | -            | -                | Proxy IPs or ranges, any proxy on a private network without this |
+| `INKAN_DEBUG`                                                           | `--debug`    | `false`          | Enable debug logging                                             |
+
+Sign in comes from [nushi](https://github.com/mizuchilabs/nushi). See there for
+OIDC and for pinning your proxy.
 
 A script that issues or reads licenses sends the token instead of signing in.
-The API is described at `/docs`.
+The API is described at `/api/docs`, once you are signed in.
 
 ```sh
 curl -H "Authorization: Bearer $INKAN_API_TOKEN" http://127.0.0.1:3000/api/licenses

@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -18,87 +17,65 @@ import (
 	"github.com/go-chi/httplog/v3"
 
 	"github.com/mizuchilabs/kata/logx"
+	"github.com/mizuchilabs/nushi"
 
 	"github.com/mizuchilabs/inkan/internal/db"
 	"github.com/mizuchilabs/inkan/web"
 )
 
 type Server struct {
-	api  huma.API
-	mux  *http.ServeMux
-	auth *auth
+	api   huma.API
+	mux   *http.ServeMux
+	guard *nushi.Guard
 }
 
-// New builds the server. With a password the API needs a sign in, without
-// one it is open and Start only listens on this machine.
-func New(q *db.Queries, password, token string) (*Server, error) {
-	a, err := newAuth(password, token)
-	if err != nil {
-		return nil, err
-	}
-	mux := http.NewServeMux()
+// New builds the server. With a sign in the API needs a session, without one
+// it is open and Start only listens on this machine.
+func New(q *db.Queries, guard *nushi.Guard) *Server {
+	routes := http.NewServeMux()
 
 	cfg := huma.DefaultConfig("Inkan API", "1.0.0")
 	cfg.CreateHooks = nil
-	api := humago.New(mux, cfg)
-	api.UseMiddleware(a.require(api))
-	registerSession(api, a)
+	// Under /api, so the sign in covers them too.
+	cfg.DocsPath, cfg.OpenAPIPath, cfg.SchemasPath = "/api/docs", "/api/openapi", "/api/schemas"
+	api := humago.New(routes, cfg)
 	registerProducts(api, q)
 	registerLicenses(api, q)
 	registerCheck(api, q)
 	registerStats(api, q)
 
+	mux := http.NewServeMux()
+	mux.Handle("/api/", guard.Require(routes))
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("ok"))
 	})
 	mux.Handle("/", web.Handler())
-	return &Server{api: api, mux: mux, auth: a}, nil
+	return &Server{api: api, mux: mux, guard: guard}
 }
 
 // Spec builds the OpenAPI description of the API without starting a server.
 func Spec() *huma.OpenAPI {
-	// Only deriving a session key can fail, and no password means no key.
-	s, _ := New(nil, "", "")
-	return s.api.OpenAPI()
+	// Only the settings can fail, and there are none.
+	guard, _ := nushi.New("inkan", nushi.Config{})
+	return New(nil, guard).api.OpenAPI()
 }
 
 func (s *Server) Handler() http.Handler {
-	// Another site must not show inkan in a frame and steer the clicks.
-	unframed := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("X-Frame-Options", "DENY")
-		s.mux.ServeHTTP(w, r)
-	})
-	// Other sites must not write through the browser, signed in or not.
-	guarded := http.NewCrossOriginProtection().Handler(unframed)
-	if s.auth.key != nil {
-		return guarded
-	}
-	// A site can point its own name at this machine and is the same origin
-	// then. Without a password only a local name is let in.
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !local((&url.URL{Host: r.Host}).Hostname()) {
-			http.Error(
-				w,
-				"inkan has no password and only answers to localhost, set INKAN_PASSWORD",
-				http.StatusForbidden,
-			)
-			return
-		}
-		guarded.ServeHTTP(w, r)
-	})
+	return s.guard.Protect(s.mux)
 }
 
-// Start serves on addr until ctx is done. Without a password it only takes
-// an address on this machine.
+// Start serves on addr until ctx is done. Without a sign in it only takes an
+// address on this machine.
 func (s *Server) Start(ctx context.Context, addr string) error {
-	if s.auth.key == nil && !loopback(addr) {
-		return fmt.Errorf("refusing to listen on %s without a password, set INKAN_PASSWORD", addr)
+	ln, err := s.guard.Listen(ctx, addr)
+	if err != nil {
+		return err
 	}
-	return serve(ctx, addr, s.Handler())
+	return serve(ctx, ln, s.Handler())
 }
 
-// serve runs handler on addr with request logging until ctx is done.
-func serve(ctx context.Context, addr string, handler http.Handler) error {
+// serve runs handler on ln with request logging until ctx is done.
+func serve(ctx context.Context, ln net.Listener, handler http.Handler) error {
 	logger := httplog.RequestLogger(slog.Default(), &httplog.Options{
 		RecoverPanics: true,
 		Schema:        httplog.SchemaOTEL.Concise(logx.IsTerminal()),
@@ -111,7 +88,6 @@ func serve(ctx context.Context, addr string, handler http.Handler) error {
 		},
 	})
 	server := &http.Server{
-		Addr:              addr,
 		Handler:           logger(handler),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
@@ -119,11 +95,6 @@ func serve(ctx context.Context, addr string, handler http.Handler) error {
 		IdleTimeout:       120 * time.Second,
 	}
 
-	var lc net.ListenConfig
-	ln, err := lc.Listen(ctx, "tcp", addr)
-	if err != nil {
-		return fmt.Errorf("listen %s: %w", addr, err)
-	}
 	slog.Info("server listening", "url", displayURL(ln.Addr()), "bind_address", ln.Addr().String())
 
 	serverErr := make(chan error, 1)

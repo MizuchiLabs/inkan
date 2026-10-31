@@ -124,17 +124,20 @@ the worker keeps signing with the old key until step 3.
 
 ## The login
 
-- **One password**, from `INKAN_PASSWORD`. Without it Inkan only listens on
-  localhost and only answers to a local host name. A site that points a name
-  of its own at your machine gets nothing.
+- **One sign in**, from [nushi](https://github.com/mizuchilabs/nushi). Either a
+  password of at least 12 characters from `INKAN_PASSWORD`, or OIDC, where your
+  provider decides who gets in and an optional group narrows it down. Without
+  one Inkan only listens on localhost and only answers to a local host name. A
+  site that points a name of its own at your machine gets nothing.
 - **Nothing is stored.** A session is a cookie signed with a key derived from
-  the password with PBKDF2. It lasts 30 days, and a new password ends every
-  session.
+  the password with PBKDF2, or from the OIDC client secret. It lasts 30 days
+  with a password and 24 hours with OIDC. A new password or client secret ends
+  every session.
 - **The cookie** is HttpOnly and SameSite=Strict. It is Secure behind a proxy
-  that reports HTTPS.
-- **Five tries a minute**, for all clients together, so pick a long random
-  password. A flood of wrong tries blocks signing in while it lasts. Sessions
-  that exist keep working.
+  on a private network that reports HTTPS.
+- **Five tries a minute per client, thirty for all together**, and the local
+  network has its own thirty. Pick a long random password. A flood of wrong
+  tries blocks signing in while it lasts. Sessions that exist keep working.
 - **Other sites** cannot write through the browser, signed in or not.
 - **The API token** is optional, from `INKAN_API_TOKEN`. It lets a script use
   the API without a session and has no limit on tries, so it must be at least

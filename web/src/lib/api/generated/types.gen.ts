@@ -279,21 +279,6 @@ export type Product = {
     worker_url: string;
 };
 
-export type Session = {
-    /**
-     * Whether a password is set
-     */
-    protected: boolean;
-    /**
-     * Whether this browser may use the API. Always true without a password
-     */
-    signed_in: boolean;
-};
-
-export type SignInInputBody = {
-    password: string;
-};
-
 export type Snapshot = {
     /**
      * Licenses that had not run out
@@ -681,81 +666,6 @@ export type UpdateLicenseResponses = {
 };
 
 export type UpdateLicenseResponse = UpdateLicenseResponses[keyof UpdateLicenseResponses];
-
-export type SignOutData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/session';
-};
-
-export type SignOutErrors = {
-    /**
-     * Error
-     */
-    default: ErrorModel;
-};
-
-export type SignOutError = SignOutErrors[keyof SignOutErrors];
-
-export type SignOutResponses = {
-    /**
-     * No Content
-     */
-    204: void;
-};
-
-export type SignOutResponse = SignOutResponses[keyof SignOutResponses];
-
-export type GetSessionData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/session';
-};
-
-export type GetSessionErrors = {
-    /**
-     * Error
-     */
-    default: ErrorModel;
-};
-
-export type GetSessionError = GetSessionErrors[keyof GetSessionErrors];
-
-export type GetSessionResponses = {
-    /**
-     * OK
-     */
-    200: Session;
-};
-
-export type GetSessionResponse = GetSessionResponses[keyof GetSessionResponses];
-
-export type SignInData = {
-    body: SignInInputBody;
-    path?: never;
-    query?: never;
-    url: '/api/session';
-};
-
-export type SignInErrors = {
-    /**
-     * Error
-     */
-    default: ErrorModel;
-};
-
-export type SignInError = SignInErrors[keyof SignInErrors];
-
-export type SignInResponses = {
-    /**
-     * No Content
-     */
-    204: void;
-};
-
-export type SignInResponse = SignInResponses[keyof SignInResponses];
 
 export type ListStatsData = {
     body?: never;

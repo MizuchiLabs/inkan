@@ -63,11 +63,11 @@
 					<Sun />
 				{/if}
 			</Button>
-			{#if session.data?.protected}
+			{#if session.data && session.data.mode !== 'none'}
 				<Button
 					variant="ghost"
 					size="icon-sm"
-					onclick={() => signOut.mutate({})}
+					onclick={() => signOut.mutate()}
 					disabled={signOut.isPending}
 					aria-label="Sign out"
 				>

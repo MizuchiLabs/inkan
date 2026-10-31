@@ -1,5 +1,5 @@
 import { createMutation, createQuery } from '@tanstack/svelte-query';
-import { queryClient } from './client';
+import { queryClient, sessionKey } from './client';
 import {
 	checkKeyMutation,
 	createLicenseMutation,
@@ -7,21 +7,24 @@ import {
 	deleteLicenseMutation,
 	deleteProductMutation,
 	dropOldProductKeysMutation,
-	getSessionOptions,
 	listLicensesOptions,
 	listLicensesQueryKey,
 	listProductsOptions,
 	listProductsQueryKey,
 	listStatsOptions,
 	rotateProductKeyMutation,
-	signInMutation,
-	signOutMutation,
 	syncProductMutation,
 	updateLicenseMutation,
 	updateProductMutation
 } from './generated/@tanstack/svelte-query.gen';
+import { client } from './generated/client.gen';
 
 export type { CheckResult, License, LicenseFields, Product } from './generated/types.gen';
+
+// nushi serves the session routes in front of the API, so they are not in the OpenAPI spec.
+export type Session = { mode: 'none' | 'password' | 'oidc'; signed_in: boolean };
+
+const sessionUrl = '/api/session';
 
 // The workers are read in the background, so both lists keep themselves fresh.
 export function useProducts() {
@@ -50,20 +53,38 @@ function refreshAll() {
 }
 
 export function useSession() {
-	return createQuery(() => getSessionOptions());
+	return createQuery(() => ({
+		queryKey: sessionKey,
+		queryFn: async () => {
+			const { data } = await client.get<{ 200: Session }, unknown, true>({
+				url: sessionUrl,
+				throwOnError: true
+			});
+			return data;
+		}
+	}));
 }
 
 // Everything was asked for without a session, so all of it loads again.
 export function useSignIn() {
 	return createMutation(() => ({
-		...signInMutation(),
+		mutationFn: (password: string) =>
+			client.post({
+				url: sessionUrl,
+				body: { password },
+				headers: { 'Content-Type': 'application/json' },
+				throwOnError: true
+			}),
 		onSuccess: () => queryClient.invalidateQueries()
 	}));
 }
 
 // A reload also drops what the cache still holds.
 export function useSignOut() {
-	return createMutation(() => ({ ...signOutMutation(), onSuccess: () => location.reload() }));
+	return createMutation(() => ({
+		mutationFn: () => client.delete({ url: sessionUrl, throwOnError: true }),
+		onSuccess: () => location.reload()
+	}));
 }
 
 export function useCheckKey() {
