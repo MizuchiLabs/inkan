@@ -86,7 +86,7 @@ services:
     image: ghcr.io/mizuchilabs/inkan:latest
     container_name: inkan
     ports:
-      - "127.0.0.1:3000:3000"
+      - '127.0.0.1:3000:3000'
     volumes:
       - ./data:/data
     environment:
@@ -127,6 +127,8 @@ another name needs the sign in too.
 
 Sign in comes from [nushi](https://github.com/mizuchilabs/nushi). See there for
 OIDC and for pinning your proxy.
+
+OIDC callback url will be `https://inkan.example.com/api/session/oidc/callback`
 
 A script that issues or reads licenses sends the token instead of signing in.
 The API is described at `/api/docs`, once you are signed in.
