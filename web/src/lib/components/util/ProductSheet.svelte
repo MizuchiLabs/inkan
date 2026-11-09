@@ -15,7 +15,7 @@
 	import * as Tabs from '#lib/components/ui/tabs/index.js';
 	import { Textarea } from '#lib/components/ui/textarea/index.js';
 	import { render } from '#lib/mail.js';
-	import { RotateCwIcon } from '@lucide/svelte';
+	import { PlusIcon, RotateCwIcon, XIcon } from '@lucide/svelte';
 	import { Debounced } from 'runed';
 	import { tick } from 'svelte';
 	import { toast } from 'svelte-sonner';
@@ -42,6 +42,17 @@
 	// The key action that waits for a yes.
 	let confirming = $state<'rotate' | 'drop'>();
 
+	// prod_a=team,prod_b as one row per Stripe product.
+	function stripeRows(list: string) {
+		return list
+			.split(',')
+			.filter(Boolean)
+			.map((entry) => {
+				const [id = '', plan = ''] = entry.split('=');
+				return { id, plan };
+			});
+	}
+
 	// The sheet is mounted per use, so the form is a snapshot of the product.
 	function initial() {
 		return {
@@ -50,7 +61,7 @@
 			plan: product?.plan ?? '',
 			privateKey: '',
 			workerUrl: product?.worker_url ?? '',
-			providerProduct: product?.provider_product ?? '',
+			stripeProducts: stripeRows(product?.provider_product ?? ''),
 			graceDays: product?.grace_days ?? 14,
 			maxKeyDays: product?.max_key_days ?? 0,
 			mailFrom: product?.mail_from ?? '',
@@ -148,6 +159,12 @@
 		confirming = undefined;
 	}
 
+	async function addStripeProduct() {
+		form.stripeProducts.push({ id: '', plan: '' });
+		await tick();
+		document.getElementById(`stripe-product-${form.stripeProducts.length - 1}`)?.focus();
+	}
+
 	// A hidden tab cannot show what is wrong with its fields, so the form
 	// checks itself and opens the tab of the first one first.
 	async function save(event: SubmitEvent & { currentTarget: HTMLFormElement }) {
@@ -168,7 +185,8 @@
 						name: form.name,
 						plan: form.plan,
 						worker_url: form.workerUrl,
-						provider_product: form.providerProduct,
+						// The server drops empty rows, empty plans and spaces.
+						provider_product: form.stripeProducts.map(({ id, plan }) => `${id}=${plan}`).join(','),
 						grace_days: form.graceDays,
 						max_key_days: form.maxKeyDays,
 						mail_from: form.mailFrom,
@@ -246,7 +264,7 @@
 		<Field.Label for="product-plan">Plan</Field.Label>
 		<Input id="product-plan" bind:value={form.plan} required placeholder="pro" />
 		<Field.Description>
-			Goes to manual licenses, and the worker gives it to Stripe prices that set none.
+			Goes to manual licenses, and to the keys of Stripe products that have no plan of their own.
 		</Field.Description>
 	</Field.Field>
 {/snippet}
@@ -356,17 +374,56 @@
 									</Field.Description>
 								</Field.Field>
 
-								<Field.Field>
-									<Field.Label for="product-stripe-product">Stripe product id</Field.Label>
-									<Input
-										id="product-stripe-product"
-										bind:value={form.providerProduct}
-										placeholder="prod_..."
-										autocomplete="off"
-									/>
+								<Field.Field aria-labelledby="product-stripe-products">
+									<Field.Title id="product-stripe-products">Stripe products</Field.Title>
+									<div class="flex flex-col gap-4 sm:gap-2">
+										{#each form.stripeProducts as row, i (row)}
+											<!-- A phone gives the id a line of its own. -->
+											<div class="flex flex-wrap items-center gap-2">
+												<Input
+													id={`stripe-product-${i}`}
+													aria-label="Stripe product id"
+													bind:value={row.id}
+													pattern="\s*[^\s,=]+\s*"
+													required={!!row.plan.trim()}
+													placeholder="prod_..."
+													autocomplete="off"
+													spellcheck={false}
+													class="basis-full sm:flex-1 sm:basis-0"
+												/>
+												<Input
+													aria-label={`Plan of ${row.id || 'this product'}`}
+													bind:value={row.plan}
+													pattern="[^,=]+"
+													placeholder={form.plan || 'plan'}
+													autocomplete="off"
+													class="flex-1 sm:w-40 sm:flex-none"
+												/>
+												<Button
+													variant="ghost"
+													size="icon"
+													aria-label={`Remove ${row.id || 'this product'}`}
+													onclick={() => form.stripeProducts.splice(i, 1)}
+												>
+													<XIcon />
+												</Button>
+											</div>
+										{/each}
+										<Button
+											variant="outline"
+											size="sm"
+											class="self-start"
+											onclick={addStripeProduct}
+										>
+											<PlusIcon data-icon="inline-start" />
+											Add a product
+										</Button>
+									</div>
 									<Field.Description>
-										Every subscription and one time purchase of this product becomes a license. Give
-										a price the metadata <code class="font-mono">plan</code> to set its plan.
+										Every subscription and one time purchase of these becomes a license with the
+										plan next to it. An empty plan is the plan of the product. The quantity bought
+										is the seats. Metadata on the Stripe product like
+										<code class="font-mono">meta_tier=gold</code> adds a claim to the key.
 									</Field.Description>
 								</Field.Field>
 

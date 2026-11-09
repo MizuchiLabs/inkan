@@ -25,7 +25,7 @@ const env: Env = {
 	INKAN_PREFIX: 'MYAPP',
 	INKAN_PRIVATE_KEY: privateB64,
 	INKAN_STRIPE_KEY: 'sk_test',
-	INKAN_STRIPE_PRODUCT: 'prod_app',
+	INKAN_STRIPE_PRODUCT: 'prod_app=team,prod_lifetime=lifetime,prod_plain',
 	INKAN_PLAN: 'pro',
 	INKAN_WORKER_TOKEN: 'a-long-token-only-the-dashboard-knows',
 	INKAN_STRIPE_WEBHOOK_SECRET: 'whsec_test',
@@ -40,7 +40,7 @@ const periodStart = 1_797_000_000;
 const periodEnd = 4_000_000_000;
 const grace = 14 * 86400;
 const item = {
-	price: { product: 'prod_app', metadata: { plan: 'team' } },
+	price: { product: 'prod_app' },
 	current_period_start: periodStart,
 	current_period_end: periodEnd
 };
@@ -60,7 +60,7 @@ const subscriptions: Record<string, object> = {
 		customer: { email: 'm@acme.io' },
 		items: {
 			data: [
-				{ ...item, price: { product: 'prod_app' }, current_period_start: periodEnd - 30 * 86400 }
+				{ ...item, price: { product: 'prod_plain' }, current_period_start: periodEnd - 30 * 86400 }
 			]
 		}
 	},
@@ -95,12 +95,7 @@ const sessions: Record<string, object> = {
 		customer_details: { email: 'buyer@acme.io', name: 'Buyer' },
 		payment_intent: { latest_charge: { refunded: false } },
 		line_items: {
-			data: [
-				{
-					quantity: 3,
-					price: { product: 'prod_app', metadata: { plan: 'lifetime', quantity: 'seats' } }
-				}
-			]
+			data: [{ quantity: 3, price: { product: 'prod_lifetime' } }]
 		}
 	},
 	cs_pending: {
@@ -111,12 +106,20 @@ const sessions: Record<string, object> = {
 	}
 };
 
+// The metadata of the products at Stripe.
+const products: Record<string, Record<string, string>> = {
+	prod_app: { meta_tier: 'gold' },
+	prod_lifetime: {},
+	prod_plain: {}
+};
+
 type Sent = { url: string; headers: Record<string, string>; body: Record<string, any> };
 
-// Stands in for Stripe and the mail service. Returns what Stripe was asked and
-// what was mailed.
+// Stands in for Stripe and the mail service. Returns what Stripe was asked
+// about licenses and about products, and what was mailed.
 function fakeFetch(t: TestContext) {
 	const asked: string[] = [];
+	const looked: string[] = [];
 	const mails: Sent[] = [];
 	const state = { mailDown: false };
 	t.mock.method(globalThis, 'fetch', async (input: string | URL, init?: RequestInit) => {
@@ -128,11 +131,22 @@ function fakeFetch(t: TestContext) {
 			return Response.json({ id: 'mail_1' });
 		}
 
-		asked.push(url.pathname);
 		assert.match(headers['Stripe-Version'], /^\d{4}-\d{2}-\d{2}\./, 'the API version is pinned');
 		const failure = (status: number, message: string) =>
 			Response.json({ error: { message } }, { status });
 		if (headers.Authorization === 'Bearer sk_bad') return failure(401, 'Invalid API Key provided');
+		const id = url.pathname.split('/').at(-1)!;
+		if (url.pathname.startsWith('/v1/products/')) {
+			looked.push(id);
+			if (id === 'prod_locked')
+				return failure(
+					403,
+					'Having the rak_product_read permission would allow this request to continue'
+				);
+			const metadata = products[id];
+			return metadata ? Response.json({ id, metadata }) : failure(404, 'No such product');
+		}
+		asked.push(url.pathname);
 
 		const after = url.searchParams.get('starting_after');
 		if (url.pathname === '/v1/subscriptions') {
@@ -153,14 +167,13 @@ function fakeFetch(t: TestContext) {
 			return Response.json({ has_more: false, data: Object.values(sessions) });
 		}
 
-		const id = url.pathname.split('/').at(-1)!;
 		if (id === 'sub_down') return new Response('', { status: 500 });
 		const found = url.pathname.startsWith('/v1/checkout/sessions/')
 			? sessions[id]
 			: (subscriptions[id] ?? (id.startsWith('sub_ok') ? paidSub(id) : undefined));
 		return found ? Response.json(found) : failure(404, 'No such object');
 	});
-	return { asked, mails, state };
+	return { asked, looked, mails, state };
 }
 
 function call(
@@ -278,8 +291,8 @@ for (const c of cases) {
 	test(`license: ${c.name}`, () => {
 		const decide = () =>
 			c.kind === 'session'
-				? sessionLicense(c.object, c.product, c.now)
-				: subscriptionLicense(c.object, c.product, c.now);
+				? sessionLicense(c.object, c.settings, c.now)
+				: subscriptionLicense(c.object, c.settings, c.now);
 		if (c.error) {
 			assert.throws(decide, c.error === 'not_owed' ? NotOwed : OtherProduct);
 			return;
@@ -317,17 +330,21 @@ const paidUntil: [string, object, number][] = [
 for (const [name, fields, want] of paidUntil) {
 	test(`paid until: ${name}`, () => {
 		const sub = { id: 'sub_1', status: '', items: { data: [item] }, ...fields };
-		const product = { id: 'prod_app', plan: 'pro', grace_days: 14, max_key_days: 0 };
+		const settings = {
+			products: [{ id: 'prod_app', plan: 'pro', metadata: {} }],
+			grace_days: 14,
+			max_key_days: 0
+		};
 		if (want === 0) {
-			assert.throws(() => subscriptionLicense(sub, product, 0), NotOwed);
+			assert.throws(() => subscriptionLicense(sub, settings, 0), NotOwed);
 			return;
 		}
-		assert.equal(subscriptionLicense(sub, product, 0).expires_at, want + grace);
+		assert.equal(subscriptionLicense(sub, settings, 0).expires_at, want + grace);
 	});
 }
 
 test('refresh trades a key for the one that is owed now', async (t) => {
-	const { asked } = fakeFetch(t);
+	const { asked, looked } = fakeFetch(t);
 
 	// The key of last period, already run out.
 	const old = await keyFor('sub_ok_refresh', { email: 'old@acme.io' });
@@ -336,12 +353,18 @@ test('refresh trades a key for the one that is owed now', async (t) => {
 	const key = await response.text();
 	const claims = await claimsOf(key);
 	assert.equal(claims.exp, periodEnd + grace);
-	assert.equal(claims.plan, 'team', 'the plan follows the price');
+	assert.equal(claims.plan, 'team', 'the plan follows the product');
+	assert.deepEqual(claims.meta, { tier: 'gold', seats: '1' }, 'claims from the product metadata');
 	assert.equal(claims.email, 'ops@acme.io');
 	assert.equal(claims.id, 'sub_ok_refresh');
 
 	assert.equal(await (await post('/refresh', key)).text(), key, 'nothing new was paid');
 	assert.equal(asked.length, 1, 'a key that keeps asking does not keep asking Stripe');
+
+	const monthly = await claimsOf(
+		await (await post('/refresh', await keyFor('sub_monthly'))).text()
+	);
+	assert.equal(monthly.plan, 'pro', 'a product without a plan of its own gets the default');
 
 	const bought = await claimsOf(await (await post('/refresh', await keyFor('cs_1'))).text());
 	assert.equal(bought.exp, 0, 'a one time purchase never expires');
@@ -392,6 +415,11 @@ test('refresh trades a key for the one that is owed now', async (t) => {
 	);
 	assert.equal((await post('/refresh', await keyFor('sub_down'))).status, 502);
 	assert.equal(asked.length, before + 1, 'an outage is asked about again');
+	assert.deepEqual(
+		looked.toSorted(),
+		['prod_app', 'prod_lifetime', 'prod_plain'],
+		'the products are looked up once for all their licenses'
+	);
 });
 
 // After a rotation the worker signs with the new key. The keys that are out
@@ -590,6 +618,33 @@ test('licenses hands the dashboard what the worker hands out', async (t) => {
 		{ licenses: [], skipped: ['purchase'], next: null, product: undefined },
 		'a key without access to Checkout still lists its subscriptions'
 	);
+
+	const locked = { ...env, INKAN_STRIPE_PRODUCT: 'prod_app,prod_locked' };
+	const forbidden = await get('', auth, locked);
+	assert.equal(forbidden.status, 502);
+	assert.match(
+		await forbidden.text(),
+		/rak_product_read/,
+		'a key that cannot read products says so'
+	);
+	assert.equal(
+		(await call('POST', '/refresh', await keyFor('sub_ok_locked'), {}, locked)).status,
+		502
+	);
+
+	const typo = { ...env, INKAN_STRIPE_PRODUCT: 'prod_app,prod_typo' };
+	const unknown = await get('', auth, typo);
+	assert.equal(unknown.status, 502);
+	assert.match(await unknown.text(), /no product prod_typo/, 'a product Stripe does not know');
+	assert.equal(
+		(await call('POST', '/refresh', await keyFor('sub_ok_typo'), {}, typo)).status,
+		502,
+		'a typo in the settings does not make a paid license look gone'
+	);
+
+	const none = await get('', auth, { ...env, INKAN_STRIPE_PRODUCT: ' , =' });
+	assert.equal(none.status, 502);
+	assert.match(await none.text(), /lists no product/, 'a list without a product');
 
 	const bad = await get('', auth, { ...env, INKAN_STRIPE_KEY: 'sk_bad' });
 	assert.equal(bad.status, 502);

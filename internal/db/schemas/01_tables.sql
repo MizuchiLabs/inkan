@@ -2,7 +2,7 @@ CREATE TABLE products (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL UNIQUE,
   prefix TEXT NOT NULL UNIQUE, -- app name signed into the keys and their visible prefix, uppercase letters and digits
-  plan TEXT NOT NULL, -- default for manual licenses, the worker gives it to prices without plan metadata
+  plan TEXT NOT NULL, -- default for manual licenses, the worker gives it to Stripe products without a plan
   private_key TEXT NOT NULL, -- base64 Ed25519, signs every key of this product
   old_public_keys TEXT NOT NULL DEFAULT '', -- hex, comma separated, newest first. From before a rotation, their keys still verify
   -- The worker hands out the paid licenses, inkan reads them from it.
@@ -11,7 +11,7 @@ CREATE TABLE products (
   -- Settings of the worker. Only kept here so worker env can print them.
   grace_days INTEGER NOT NULL DEFAULT 14, -- added to the paid period of a license
   max_key_days INTEGER NOT NULL DEFAULT 0, -- longest life of a paid key, 0 has no limit, apps refresh for the next one
-  provider_product TEXT NOT NULL DEFAULT '', -- product id at Stripe, its subscriptions and purchases are licenses
+  provider_product TEXT NOT NULL DEFAULT '', -- Stripe products like prod_a=team,prod_b, their subscriptions and purchases are licenses
   mail_from TEXT NOT NULL DEFAULT '', -- an address or "Name <address>"
   mail_reply_to TEXT NOT NULL DEFAULT '', -- a bare address, where an answer to the key mail goes
   mail_logo TEXT NOT NULL DEFAULT '', -- https url, shown in the key mail

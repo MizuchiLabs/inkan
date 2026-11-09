@@ -246,7 +246,7 @@ export type Product = {
      */
     old_public_keys: Array<string>;
     /**
-     * Default for manual licenses. The worker gives it to prices without plan metadata
+     * Default for manual licenses. The worker gives it to Stripe products without a plan of their own
      */
     plan: string;
     /**
@@ -254,7 +254,7 @@ export type Product = {
      */
     prefix: string;
     /**
-     * Worker setting. Stripe product id, its subscriptions and purchases are licenses
+     * Worker setting. Stripe products, comma separated, their subscriptions and purchases are licenses. prod_x=team gives the keys of prod_x the plan team
      */
     provider_product: string;
     /**
@@ -333,7 +333,7 @@ export type UpdateProductInputBody = {
     name: string;
     plan: string;
     /**
-     * Stripe product id for the worker
+     * Stripe products for the worker, like prod_a=team,prod_b. One without a plan gets the plan of the product
      */
     provider_product?: string;
     /**

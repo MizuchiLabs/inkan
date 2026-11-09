@@ -22,7 +22,11 @@ import (
 	"github.com/mizuchilabs/inkan/internal/db"
 )
 
-const token = "a-long-token-only-the-dashboard-knows"
+const (
+	token = "a-long-token-only-the-dashboard-knows"
+	// What the worker of worker/test/pages.json runs with.
+	stripeProducts = "prod_app=team,prod_lifetime=lifetime,prod_plain"
+)
 
 // fakeWorker answers with the pages the real worker gives in its own tests,
 // see worker/test/pages.json. That file is what the two sides agree on.
@@ -96,7 +100,12 @@ func newProduct(t *testing.T, q *db.Queries, workerURL string) *db.Product {
 	require.NoError(t, err)
 	assert.False(t, Connected(p))
 	p, err = q.UpdateProduct(ctx, &db.UpdateProductParams{
-		Name: p.Name, Plan: p.Plan, GraceDays: p.GraceDays, ProviderProduct: "prod_app", WorkerUrl: workerURL, ID: p.ID,
+		Name:            p.Name,
+		Plan:            p.Plan,
+		GraceDays:       p.GraceDays,
+		ProviderProduct: stripeProducts,
+		WorkerUrl:       workerURL,
+		ID:              p.ID,
 	})
 	require.NoError(t, err)
 	assert.True(t, Connected(p))
@@ -321,7 +330,7 @@ func TestSyncNoticesOtherSettings(t *testing.T) {
 	assert.True(t, has(t, q, p, "sub_stale"), "a worker on another Stripe product drops nothing here")
 
 	for i := range w.pages {
-		w.pages[i].Product.ProviderProduct = "prod_app"
+		w.pages[i].Product.ProviderProduct = stripeProducts
 		w.pages[i].Product.GraceDays = 7
 		w.pages[i].Product.MaxKeyDays = 30
 	}

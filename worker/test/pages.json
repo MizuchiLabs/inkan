@@ -8,7 +8,7 @@
 			"plan": "pro",
 			"grace_days": 14,
 			"max_key_days": 0,
-			"provider_product": "prod_app",
+			"provider_product": "prod_app=team,prod_lifetime=lifetime,prod_plain",
 			"mail_template": ""
 		},
 		"licenses": [
@@ -19,13 +19,16 @@
 				"customer": "Acme",
 				"customer_gone": false,
 				"plan": "team",
-				"meta": {},
+				"meta": {
+					"tier": "gold",
+					"seats": "1"
+				},
 				"fingerprint": "",
 				"expires_at": 4001209600,
 				"status": "active",
 				"renews": true,
 				"created_at": 1700000000,
-				"key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oidGV-hbSIs-ImVtY-WlsIj-oib3B-zQGFj-bWUua-W8iLC-JleHA-iOjQw-MDEyM-Dk2MD-AsIml-kIjoi-c3ViX-29rXz-EifZ0-PgU5D-BiaQA-q/qtz-K7mA4-OWx0q-CPm9S-UqZSH-dbE2A-wlgvW-kBzSV-iT+Tn-xfswp-aHdMw-JINzI-oZfk1-OmosF-JVAQ"
+				"key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oidGV-hbSIs-ImVtY-WlsIj-oib3B-zQGFj-bWUua-W8iLC-JleHA-iOjQw-MDEyM-Dk2MD-AsIml-kIjoi-c3ViX-29rXz-EiLCJ-tZXRh-Ijp7I-nNlYX-RzIjo-iMSIs-InRpZ-XIiOi-Jnb2x-kIn19-q+ONw-W6QW+-6FlTm-rbXrT-kDWIf-zd4MR-MMtAw-GbisO-OEHad-b/XWH-uZtFg-yIspH-N8W9h-6x0ez-2ad+E-VpeqY-+88iD-w"
 			}
 		],
 		"skipped": [],
@@ -40,7 +43,7 @@
 			"plan": "pro",
 			"grace_days": 14,
 			"max_key_days": 0,
-			"provider_product": "prod_app",
+			"provider_product": "prod_app=team,prod_lifetime=lifetime,prod_plain",
 			"mail_template": ""
 		},
 		"licenses": [
@@ -51,13 +54,16 @@
 				"customer": "",
 				"customer_gone": true,
 				"plan": "team",
-				"meta": {},
+				"meta": {
+					"tier": "gold",
+					"seats": "1"
+				},
 				"fingerprint": "machine-1",
 				"expires_at": 4000209600,
 				"status": "canceled",
 				"renews": false,
 				"created_at": 1700000000,
-				"key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oidGV-hbSIs-ImVtY-WlsIj-oiIiw-iZXhw-Ijo0M-DAwMj-A5NjA-wLCJp-ZCI6I-nN1Yl-9kZWx-ldGVk-IiwiZ-nAiOi-JtYWN-oaW5l-LTEif-dBL8K-zJjrD-csnmO-3FlAR-EFbBh-AtJOF-g1esL-1yrXC-6cf8O-IsO5y-ykKNf-k+rlF-gT32O-aPcKB-8wNj5-EA08N-VXwfw-4"
+				"key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oidGV-hbSIs-ImVtY-WlsIj-oiIiw-iZXhw-Ijo0M-DAwMj-A5NjA-wLCJp-ZCI6I-nN1Yl-9kZWx-ldGVk-IiwiZ-nAiOi-JtYWN-oaW5l-LTEiL-CJtZX-RhIjp-7InNl-YXRzI-joiMS-IsInR-pZXIi-OiJnb-2xkIn-19/Y+-qGYhP-Wz+vk-c4zSH-6knew-fOThX-3Yb+E-EomSV-icPxz-vzPLg-RKDDf-fEPeM-CMp9e-Z0E1H-i+VZd-+eXg8-BHVy9-KBA"
 			}
 		],
 		"skipped": [],
@@ -72,7 +78,7 @@
 			"plan": "pro",
 			"grace_days": 14,
 			"max_key_days": 0,
-			"provider_product": "prod_app",
+			"provider_product": "prod_app=team,prod_lifetime=lifetime,prod_plain",
 			"mail_template": ""
 		},
 		"licenses": [

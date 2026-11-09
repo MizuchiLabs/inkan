@@ -38,9 +38,9 @@ license is owed now.
    When the provider no longer knows who the customer was, keep the email of
    the key that came in.
 
-Answer from memory for a few minutes per license, also for one that is not
+Answer from memory for half a minute per license, also for one that is not
 there. A key that leaks must not be a way to spend the rate limit of the
-provider.
+provider, and a change at the provider must not wait long.
 
 ## `POST /webhook`
 
@@ -80,7 +80,7 @@ fewer licenses than the limit, or none, and still have a `next`.
     "plan": "pro",
     "grace_days": 14,
     "max_key_days": 0,
-    "provider_product": "prod_…",
+    "provider_product": "prod_…=pro,prod_…=enterprise",
     "mail_template": ""
   },
   "licenses": [

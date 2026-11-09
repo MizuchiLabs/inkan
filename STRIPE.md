@@ -7,26 +7,32 @@ need none of this.
 
 ## What becomes a license
 
-- **Stripe.** Give the worker a Stripe API key and a Stripe product id. Every
-  subscription and one time purchase of that product is a license. Stripe
-  stays the source of truth, the worker only reads. Once an hour the
+- **Stripe.** Give the worker a Stripe API key and the Stripe products it
+  sells. Every subscription and one time purchase of them is a license.
+  Stripe stays the source of truth, the worker only reads. Once an hour the
   dashboard reads the list from the worker, Sync now on the Products page
   reads it right away. One read goes through every subscription and purchase
   of the Stripe account.
+- **Plans.** Each Stripe product can have a plan of its own. Pro and
+  Enterprise products give `pro` and `enterprise` keys. Set the plan next to
+  each Stripe product under Edit on the Products page. A Stripe product
+  without one gets the plan of the product. All prices of a Stripe product,
+  monthly or yearly, give the same plan. An upgrade to another product keeps
+  the subscription, so the next refresh brings a key of the new plan.
 - **One time purchases.** A paid Checkout session in payment mode is a license
-  that never expires. Give the price the metadata `days=365` and it lasts a
-  year. A refunded purchase gets a key that ran out when it was bought. The
-  Stripe key needs read access to Checkout sessions, payment intents and
-  charges for this, without it only subscriptions are licenses.
+  that never expires. Give the Stripe product the metadata `days=365` and its
+  purchases last a year. A refunded purchase gets a key that ran out when it
+  was bought. The Stripe key needs read access to Checkout sessions, payment
+  intents and charges for this, without it only subscriptions are licenses.
 - **Expiry.** A paid key is valid until the paid period ends, plus the grace
   days of the product. A subscription that falls behind on a payment keeps its
   last key and gets no new one.
-- **Plans.** One product can have many plans. Give a Stripe price the metadata
-  `plan=team` and its subscribers get `team` keys. Prices without it get the
-  plan of the product.
-- **Seats and features.** Price metadata that starts with `meta_` is signed
-  into the key, `meta_tier=gold` becomes the claim `tier=gold`. The metadata
-  `quantity=seats` puts the bought quantity into the claim `seats`.
+- **Seats and features.** The quantity bought is signed into the key as the
+  claim `seats`. Metadata of the Stripe product that starts with `meta_` is
+  signed into the key too, `meta_tier=gold` becomes the claim `tier=gold`.
+  Only `meta_seats` is left out, the seats are always the quantity.
+  Metadata on prices is not read, the Stripe dashboard locks a price once it
+  has been used.
 - **Machines.** The metadata `fingerprint` on a subscription or a Checkout
   session binds its key to that machine. A Checkout session your site creates
   can carry the fingerprint the app shows. What the app does with it is in
@@ -83,14 +89,29 @@ steps for Cloudflare Workers, Scaleway Functions and any host that runs Node.
 Then enter where the worker runs under Edit on the Products page. Its
 licenses show up on the Licenses page.
 
+The Stripe key is best a restricted key. Read access to these is all the
+worker needs, it never writes to Stripe.
+
+| Read access to    | For                                                 |
+| ----------------- | --------------------------------------------------- |
+| Products          | The metadata of the products, `meta_…` and `days`   |
+| Subscriptions     | Subscriptions are licenses                          |
+| Customers         | The email and the name of a license                 |
+| Checkout Sessions | One time purchases, leave it out if you sell none   |
+| Payment Intents   | Whether a one time purchase was refunded            |
+| Charges           | Whether a one time purchase was refunded            |
+
+A key without Products makes the worker fail with Stripe's own words on the
+Products page, the apps keep the keys they have.
+
 | Env Var                       | Default    | Description                                    |
 | ----------------------------- | ---------- | ---------------------------------------------- |
 | `INKAN_PREFIX`                | -          | Key prefix of the product                      |
 | `INKAN_PRIVATE_KEY`           | -          | Signing key of the product                     |
 | `INKAN_OLD_PUBLIC_KEYS`       | -          | Public keys from before a rotation, to refresh |
-| `INKAN_STRIPE_KEY`            | -          | API key that reads subscriptions and customers |
-| `INKAN_STRIPE_PRODUCT`        | -          | Its subscriptions and purchases are licenses   |
-| `INKAN_PLAN`                  | -          | Plan for prices that set none                  |
+| `INKAN_STRIPE_KEY`            | -          | Restricted key with the read access above      |
+| `INKAN_STRIPE_PRODUCT`        | -          | Stripe products like `prod_a=team,prod_b`      |
+| `INKAN_PLAN`                  | -          | Plan for Stripe products that set none         |
 | `INKAN_GRACE_DAYS`            | `14`       | Days a key outlives its paid period            |
 | `INKAN_MAX_KEY_DAYS`          | `0`        | Longest life of a key in days, 0 has no limit  |
 | `INKAN_WORKER_TOKEN`          | -          | Lets the dashboard read the licenses           |
@@ -169,11 +190,13 @@ accent are part of its design.
 - **Refunds.** Cancel a refunded subscription right away and its next key ends
   with the cancellation. A refunded purchase gets an expired key. An app that
   refreshes picks that up, see max key days above.
-- **Stripe is asked about a license every five minutes at most** by one
+- **Stripe is asked about a license every 30 seconds at most** by one
   running worker, also about a license that is gone. A key that leaks is no
-  easy way to spend your Stripe rate limit. A platform that runs many copies
-  of the worker gives each its own memory, so there it is a brake and no hard
-  limit.
+  easy way to spend your Stripe rate limit. A change in Stripe, like new
+  seats, reaches an app that refreshes within those 30 seconds. The metadata
+  of the Stripe products is asked for as often, once for all their licenses.
+  A platform that runs many copies of the worker gives each its own memory,
+  so there it is a brake and no hard limit.
 - **Errors.** An app only accepts an answer that verifies as one of its keys.
   When a refresh fails the app keeps the key it has.
 

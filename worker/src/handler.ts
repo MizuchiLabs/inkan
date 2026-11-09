@@ -23,9 +23,10 @@ import {
 	NotOwed,
 	OtherProduct,
 	owed,
+	productMetadata,
 	type License,
 	type Page,
-	type Product
+	type Settings
 } from './stripe.ts';
 
 export type Env = SendEnv & {
@@ -35,6 +36,7 @@ export type Env = SendEnv & {
 	// their keys too and answers with one of the private key above.
 	INKAN_OLD_PUBLIC_KEYS?: string;
 	INKAN_STRIPE_KEY: string;
+	// Like prod_a=team,prod_b, a product without a plan gets INKAN_PLAN.
 	INKAN_STRIPE_PRODUCT: string;
 	INKAN_PLAN?: string;
 	INKAN_GRACE_DAYS?: string;
@@ -57,9 +59,10 @@ export type Env = SendEnv & {
 const webhookTolerance = 5 * 60;
 // A renewal only sends a key when its period is longer than a month.
 const shortPeriod = 32 * 86400;
-// How long refresh answers from memory. A leaked key must not be a way to
-// spend the Stripe rate limit.
-const cacheFor = 5 * 60_000;
+// How long a key or the metadata of a product is answered from memory. A
+// leaked key must not be a way to spend the Stripe rate limit, and a change
+// in Stripe, like new seats, must reach every copy of the worker soon.
+const cacheFor = 30_000;
 const rememberEvents = 72 * 3_600_000;
 // The token is guessed without a limit on tries, so it has to be long.
 const minTokenLength = 32;
@@ -68,6 +71,7 @@ const minTokenLength = 32;
 // empty key is a license that was not there.
 const keys = new Map<string, { key: string; at: number }>();
 const events = new Map<string, number>();
+const products = new Map<string, { metadata: Record<string, string>; at: number }>();
 
 /** The settings a worker cannot run without and does not have. */
 export function missing(env: Env): string[] {
@@ -245,9 +249,9 @@ async function licenses(request: Request, env: Env): Promise<Response> {
 
 	const query = new URL(request.url).searchParams;
 	const limit = Math.min(Math.max(whole(query.get('limit'), 50), 1), 100);
-	const settings = product(env);
-	let page: Page;
+	let settings: Settings, page: Page;
 	try {
+		settings = await settingsOf(env);
 		page = await list(env.INKAN_STRIPE_KEY, settings, query.get('cursor') ?? '', limit, now());
 	} catch (err) {
 		console.error('licenses: Stripe could not be read', err);
@@ -262,10 +266,10 @@ async function licenses(request: Request, env: Env): Promise<Response> {
 			prefix: env.INKAN_PREFIX,
 			public_key: publicKeyHex(env.INKAN_PRIVATE_KEY),
 			old_public_keys: oldPublicKeys(env),
-			plan: settings.plan,
+			plan: env.INKAN_PLAN ?? '',
 			grace_days: settings.grace_days,
 			max_key_days: settings.max_key_days,
-			provider_product: settings.id,
+			provider_product: env.INKAN_STRIPE_PRODUCT,
 			mail_template: await templateHash()
 		},
 		licenses: await Promise.all(
@@ -276,7 +280,7 @@ async function licenses(request: Request, env: Env): Promise<Response> {
 				customer: license.customer,
 				customer_gone: license.customer_gone,
 				plan: license.plan,
-				meta: license.meta ?? {},
+				meta: license.meta,
 				fingerprint: license.fingerprint,
 				expires_at: license.expires_at,
 				status: license.status,
@@ -298,7 +302,7 @@ async function sign(
 	id: string,
 	lastEmail = ''
 ): Promise<{ key: string; claims: Claims; period: number }> {
-	const license = await owed(env.INKAN_STRIPE_KEY, id, product(env), now());
+	const license = await owed(env.INKAN_STRIPE_KEY, id, settingsOf(env), now());
 	const claims = claimsOf(env, license, lastEmail);
 	const key = await issue(claims, await importPrivateKey(env.INKAN_PRIVATE_KEY));
 	keys.set(id, { key, at: Date.now() });
@@ -313,7 +317,7 @@ function claimsOf(env: Env, license: License, lastEmail = ''): Claims {
 		exp: license.expires_at,
 		id: license.id,
 		fp: license.fingerprint,
-		meta: license.meta ?? {}
+		meta: license.meta
 	};
 }
 
@@ -324,10 +328,24 @@ function oldPublicKeys(env: Env): string[] {
 		.filter(Boolean);
 }
 
-function product(env: Env): Product {
+// Product metadata is remembered like a key, all licenses of the product share it.
+async function settingsOf(env: Env): Promise<Settings> {
+	const listed = env.INKAN_STRIPE_PRODUCT.split(',')
+		.map((entry) => entry.split('=').map((part) => part.trim()))
+		.filter(([id]) => id);
+	if (!listed.length) throw new Error('INKAN_STRIPE_PRODUCT lists no product');
+	const found = await Promise.all(
+		listed.map(async ([id = '', plan = '']) => {
+			let known = products.get(id);
+			if (!known || Date.now() - known.at >= cacheFor) {
+				known = { metadata: await productMetadata(env.INKAN_STRIPE_KEY, id), at: Date.now() };
+				products.set(id, known);
+			}
+			return { id, plan: plan || (env.INKAN_PLAN ?? ''), metadata: known.metadata };
+		})
+	);
 	return {
-		id: env.INKAN_STRIPE_PRODUCT,
-		plan: env.INKAN_PLAN ?? '',
+		products: found,
 		grace_days: whole(env.INKAN_GRACE_DAYS, 14),
 		max_key_days: whole(env.INKAN_MAX_KEY_DAYS, 0)
 	};

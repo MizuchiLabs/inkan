@@ -154,9 +154,11 @@ func envFile(p *db.Product) string {
 	// what the product does not have yet are written as comments, so the file
 	// shows what is left to fill in.
 	b.WriteString("\n")
-	b.WriteString("# Stripe. A restricted key that reads subscriptions and customers is enough. One time\n")
-	b.WriteString("# purchases also need Checkout sessions, payment intents and charges.\n")
+	b.WriteString("# Stripe. A restricted key that reads products, subscriptions and customers is enough.\n")
+	b.WriteString("# One time purchases also need Checkout sessions, payment intents and charges.\n")
 	b.WriteString("# INKAN_STRIPE_KEY=rk_live_...\n")
+	b.WriteString("# The products are comma separated. prod_...=team gives their keys the plan team,\n")
+	b.WriteString("# the others get INKAN_PLAN.\n")
 	writeSetting(&b, "INKAN_STRIPE_PRODUCT", p.ProviderProduct, "prod_...")
 
 	b.WriteString("\n")

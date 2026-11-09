@@ -37,15 +37,14 @@ them as they are.
 
 | Setting                       |                                                           |
 | ----------------------------- | --------------------------------------------------------- |
-| `INKAN_STRIPE_KEY`            | A restricted key that reads subscriptions and customers   |
-| `INKAN_STRIPE_PRODUCT`        | The Stripe product id, when the product has none set yet  |
+| `INKAN_STRIPE_KEY`            | A restricted key, what it reads is below                  |
+| `INKAN_STRIPE_PRODUCT`        | The Stripe products, when the product has none set yet    |
 | `INKAN_STRIPE_WEBHOOK_SECRET` | Signing secret of the webhook endpoint, for the key mails |
 | `RESEND_API_KEY`              | Sends the mails through [Resend](https://resend.com)      |
 | `INKAN_SCW_SECRET_KEY`        | Or through Scaleway Transactional Email                   |
 | `INKAN_SCW_PROJECT_ID`        | Project of the Scaleway key                               |
 
-One time purchases also need read access to Checkout sessions, payment intents
-and charges.
+[STRIPE.md](../STRIPE.md#the-worker) lists what the restricted key reads.
 
 For the key mails, add a webhook endpoint in Stripe for
 `https://<worker>/webhook` that sends `invoice.paid`,

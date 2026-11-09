@@ -311,7 +311,7 @@
 						"type": "array"
 					},
 					"plan": {
-						"description": "Default for manual licenses. The worker gives it to prices without plan metadata",
+						"description": "Default for manual licenses. The worker gives it to Stripe products without a plan of their own",
 						"type": "string"
 					},
 					"prefix": {
@@ -319,7 +319,7 @@
 						"type": "string"
 					},
 					"provider_product": {
-						"description": "Worker setting. Stripe product id, its subscriptions and purchases are licenses",
+						"description": "Worker setting. Stripe products, comma separated, their subscriptions and purchases are licenses. prod_x=team gives the keys of prod_x the plan team",
 						"type": "string"
 					},
 					"public_key": {
@@ -441,8 +441,8 @@
 					"name": { "maxLength": 64, "minLength": 1, "type": "string" },
 					"plan": { "maxLength": 32, "minLength": 1, "type": "string" },
 					"provider_product": {
-						"description": "Stripe product id for the worker",
-						"maxLength": 128,
+						"description": "Stripe products for the worker, like prod_a=team,prod_b. One without a plan gets the plan of the product",
+						"maxLength": 1024,
 						"type": "string"
 					},
 					"worker_url": {

@@ -7,10 +7,12 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -25,14 +27,14 @@ type Product struct {
 	ID              int64      `json:"id"`
 	Name            string     `json:"name"`
 	Prefix          string     `json:"prefix"           doc:"Visible key prefix and the app name the product verifies against"`
-	Plan            string     `json:"plan"             doc:"Default for manual licenses. The worker gives it to prices without plan metadata"`
+	Plan            string     `json:"plan"             doc:"Default for manual licenses. The worker gives it to Stripe products without a plan of their own"`
 	PublicKey       string     `json:"public_key"       doc:"Hex Ed25519 public key to build into the product"`
-	OldPublicKeys   []string   `json:"old_public_keys"  doc:"Public keys from before a rotation, newest first. The product carries them next to public_key until their keys have run out" nullable:"false"`
+	OldPublicKeys   []string   `json:"old_public_keys"  doc:"Public keys from before a rotation, newest first. The product carries them next to public_key until their keys have run out"                          nullable:"false"`
 	WorkerURL       string     `json:"worker_url"       doc:"Where the worker of the product runs. Its paid licenses are mirrored from there"`
 	WorkerConnected bool       `json:"worker_connected" doc:"Whether a worker url is stored"`
 	GraceDays       int64      `json:"grace_days"       doc:"Worker setting. Days a paid license stays valid past its paid period"`
 	MaxKeyDays      int64      `json:"max_key_days"     doc:"Worker setting. Longest life of a paid key in days, 0 has no limit. Apps refresh for the next one"`
-	ProviderProduct string     `json:"provider_product" doc:"Worker setting. Stripe product id, its subscriptions and purchases are licenses"`
+	ProviderProduct string     `json:"provider_product" doc:"Worker setting. Stripe products, comma separated, their subscriptions and purchases are licenses. prod_x=team gives the keys of prod_x the plan team"`
 	MailFrom        string     `json:"mail_from"        doc:"Worker setting. Sender of the key mails"`
 	MailReplyTo     string     `json:"mail_reply_to"    doc:"Worker setting. Where an answer to the key mail goes, empty is the sender"`
 	MailLogo        string     `json:"mail_logo"        doc:"Worker setting. https url of a logo for the dark header of the key mail"`
@@ -77,7 +79,7 @@ type UpdateProductInput struct {
 		WorkerURL       string `json:"worker_url,omitempty"       pattern:"^(https?://.+)?$"       maxLength:"512" doc:"Where the worker runs. Empty disconnects it"`
 		GraceDays       int64  `json:"grace_days"                 minimum:"0"                      maximum:"365"`
 		MaxKeyDays      int64  `json:"max_key_days,omitempty"         minimum:"0"                      maximum:"3650"`
-		ProviderProduct string `json:"provider_product,omitempty"                                  maxLength:"128" doc:"Stripe product id for the worker"`
+		ProviderProduct string `json:"provider_product,omitempty"                                  maxLength:"1024" doc:"Stripe products for the worker, like prod_a=team,prod_b. One without a plan gets the plan of the product"`
 		MailFrom        string `json:"mail_from,omitempty"                                         maxLength:"256" doc:"An address or \"Name <address>\""`
 		MailReplyTo     string `json:"mail_reply_to,omitempty"    pattern:"^([^\\s<>@]+@[^\\s<>@]+)?$" maxLength:"256" doc:"A bare address for the answers to the key mail, for a sender that reads none"`
 		MailLogo        string `json:"mail_logo,omitempty"        pattern:"^(https://.+)?$"        maxLength:"512" doc:"https url of a logo for the dark header of the key mail"`
@@ -212,12 +214,16 @@ func (h *productHandlers) update(ctx context.Context, in *UpdateProductInput) (*
 	if in.Body.MailTemplate != "" && !keyPlaceholder.MatchString(in.Body.MailTemplate) {
 		return nil, huma.Error422UnprocessableEntity("the mail template shows no {{key}}")
 	}
+	stripe, err := stripeProducts(in.Body.ProviderProduct)
+	if err != nil {
+		return nil, huma.Error422UnprocessableEntity(err.Error())
+	}
 	p, err := h.q.UpdateProduct(ctx, &db.UpdateProductParams{
 		Name:            in.Body.Name,
 		Plan:            in.Body.Plan,
 		GraceDays:       in.Body.GraceDays,
 		MaxKeyDays:      in.Body.MaxKeyDays,
-		ProviderProduct: strings.TrimSpace(in.Body.ProviderProduct),
+		ProviderProduct: stripe,
 		WorkerUrl:       strings.TrimSpace(in.Body.WorkerURL),
 		MailFrom:        strings.TrimSpace(in.Body.MailFrom),
 		MailReplyTo:     in.Body.MailReplyTo,
@@ -239,6 +245,33 @@ func (h *productHandlers) update(ctx context.Context, in *UpdateProductInput) (*
 	}
 
 	return h.synced(ctx, p)
+}
+
+// stripeProducts writes a list like "prod_a=team, prod_b" the way the worker reports it.
+func stripeProducts(list string) (string, error) {
+	var out []string
+	seen := map[string]bool{}
+	for entry := range strings.SplitSeq(list, ",") {
+		id, plan, _ := strings.Cut(entry, "=")
+		id, plan = strings.TrimSpace(id), strings.TrimSpace(plan)
+		switch {
+		case id == "" && plan == "":
+			continue
+		case id == "" || strings.ContainsFunc(id, unicode.IsSpace) || strings.Contains(plan, "=") ||
+			strings.ContainsFunc(plan, unicode.IsControl):
+			return "", fmt.Errorf("%q is no Stripe product id with an optional =plan", strings.TrimSpace(entry))
+		case len(plan) > 32:
+			return "", fmt.Errorf("the plan of %s is longer than 32 characters", id)
+		case seen[id]:
+			return "", fmt.Errorf("the Stripe product %s is listed twice", id)
+		}
+		seen[id] = true
+		if plan != "" {
+			id += "=" + plan
+		}
+		out = append(out, id)
+	}
+	return strings.Join(out, ","), nil
 }
 
 func (h *productHandlers) rotate(ctx context.Context, in *ProductPath) (*ProductOutput, error) {

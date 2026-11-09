@@ -204,9 +204,15 @@ func TestProductWorker(t *testing.T) {
 
 	path := fmt.Sprintf("/api/products/%d", p.ID)
 	settings := map[string]any{
-		"name": "App", "plan": "team", "grace_days": 7, "max_key_days": 30, "provider_product": "prod_app",
-		"worker_url": worker.URL, "mail_from": "Keys <keys@example.com>", "mail_accent": "#c2410c",
-		"mail_reply_to": "support@example.com",
+		"name":             "App",
+		"plan":             "team",
+		"grace_days":       7,
+		"max_key_days":     30,
+		"provider_product": " prod_app , prod_ent= enterprise,",
+		"worker_url":       worker.URL,
+		"mail_from":        "Keys <keys@example.com>",
+		"mail_accent":      "#c2410c",
+		"mail_reply_to":    "support@example.com",
 	}
 	var saved Product
 	require.Equal(t, http.StatusOK, call(t, srv, http.MethodPut, path, settings, &saved))
@@ -214,6 +220,7 @@ func TestProductWorker(t *testing.T) {
 	assert.Equal(t, "support@example.com", saved.MailReplyTo)
 	assert.Equal(t, "team", saved.Plan)
 	assert.Equal(t, int64(30), saved.MaxKeyDays)
+	assert.Equal(t, "prod_app,prod_ent=enterprise", saved.ProviderProduct, "written the way the worker reports it")
 	assert.Contains(t, saved.SyncError, "Invalid API Key provided", "a failed sync is not a failed update")
 	assert.Equal(t, http.StatusBadGateway, call(t, srv, http.MethodPost, path+"/sync", nil, nil))
 
@@ -229,6 +236,11 @@ func TestProductWorker(t *testing.T) {
 	settings["worker_url"] = "ftp://worker.example.com"
 	assert.Equal(t, http.StatusUnprocessableEntity, call(t, srv, http.MethodPut, path, settings, nil))
 	settings["worker_url"] = worker.URL
+	for _, list := range []string{"prod_app,prod_app=team", "=team", "prod app", "prod_app=a=b", "prod_app=te\nam"} {
+		settings["provider_product"] = list
+		assert.Equal(t, http.StatusUnprocessableEntity, call(t, srv, http.MethodPut, path, settings, nil), list)
+	}
+	settings["provider_product"] = "prod_app"
 	settings["mail_reply_to"] = "support@example.com\r\nBcc: all@example.com"
 	assert.Equal(
 		t,

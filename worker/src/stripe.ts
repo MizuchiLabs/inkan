@@ -1,9 +1,17 @@
 // Reads subscriptions and one time purchases from Stripe and decides what
 // license each one is owed. This is the one place that decides it.
 
-export type Product = {
+/** A Stripe product whose subscriptions and purchases are licenses. */
+type Product = {
 	id: string;
+	/** The plan its keys get. */
 	plan: string;
+	/** Its metadata at Stripe. meta_ names become claims, days limits a purchase. */
+	metadata: Record<string, string>;
+};
+
+export type Settings = {
+	products: Product[];
 	grace_days: number;
 	max_key_days: number;
 };
@@ -17,7 +25,7 @@ export type License = {
 	/** The customer was deleted at Stripe, email and name are lost there. */
 	customer_gone: boolean;
 	plan: string;
-	meta: Record<string, string> | null;
+	meta: Record<string, string>;
 	/** The machine the key is bound to, from the metadata of the subscription or session. */
 	fingerprint: string;
 	expires_at: number;
@@ -40,7 +48,7 @@ export class OtherProduct extends Error {}
 export class NotFound extends Error {}
 export class Forbidden extends Error {}
 
-type Price = { product: string; metadata?: Record<string, string> | null };
+type Price = { product: string };
 
 type Subscription = {
 	id: string;
@@ -80,9 +88,8 @@ type List<T> = { data: T[]; has_more: boolean };
 const apiVersion = '2025-03-31.basil';
 const day = 86400;
 
-export function subscriptionLicense(sub: Subscription, product: Product, now: number): License {
-	const item = sub.items.data.find((it) => it.price.product === product.id);
-	if (!item) throw new OtherProduct();
+export function subscriptionLicense(sub: Subscription, settings: Settings, now: number): License {
+	const [item, product] = bought(sub.items.data, settings.products);
 	const start = item.current_period_start || sub.current_period_start || 0;
 	let paid = item.current_period_end || sub.current_period_end || 0;
 	const period = paid - start;
@@ -111,11 +118,11 @@ export function subscriptionLicense(sub: Subscription, product: Product, now: nu
 		email: sub.metadata?.email || sub.customer?.email || '',
 		customer: sub.metadata?.org || sub.customer?.name || '',
 		customer_gone: sub.customer?.deleted === true,
-		plan: item.price.metadata?.plan || product.plan,
-		meta: metaOf(item.price.metadata, item.quantity),
+		plan: product.plan,
+		meta: metaOf(product.metadata, item.quantity),
 		fingerprint: sub.metadata?.fingerprint ?? '',
 		// The grace keeps the old key alive until the renewed one is in place.
-		expires_at: capped(paid + product.grace_days * day, product.max_key_days, now),
+		expires_at: capped(paid + settings.grace_days * day, settings.max_key_days, now),
 		period,
 		status: sub.status,
 		renews: active && !sub.cancel_at_period_end,
@@ -123,19 +130,19 @@ export function subscriptionLicense(sub: Subscription, product: Product, now: nu
 	};
 }
 
-export function sessionLicense(session: Session, product: Product, now: number): License {
-	const item = session.line_items?.data.find((it) => it.price.product === product.id);
+export function sessionLicense(session: Session, settings: Settings, now: number): License {
 	// A session in subscription mode is covered by its subscription.
-	if (!item || session.mode !== 'payment') throw new OtherProduct();
+	if (session.mode !== 'payment') throw new OtherProduct();
+	const [item, product] = bought(session.line_items?.data ?? [], settings.products);
 	if (session.payment_status === 'unpaid') throw new NotOwed();
 
 	const created = session.created ?? 0;
-	const text = item.price.metadata?.days ?? '';
+	const text = product.metadata.days ?? '';
 	const days = /^\d+$/.test(text) ? Number(text) : 0;
 	const refunded = session.payment_intent?.latest_charge?.refunded === true;
 	let expires = 0;
-	if (refunded) expires = created + product.grace_days * day;
-	else if (days > 0) expires = created + (days + product.grace_days) * day;
+	if (refunded) expires = created + settings.grace_days * day;
+	else if (days > 0) expires = created + (days + settings.grace_days) * day;
 
 	return {
 		id: session.id,
@@ -143,10 +150,10 @@ export function sessionLicense(session: Session, product: Product, now: number):
 		email: session.metadata?.email || session.customer_details?.email || '',
 		customer: session.metadata?.org || session.customer_details?.name || '',
 		customer_gone: false,
-		plan: item.price.metadata?.plan || product.plan,
-		meta: metaOf(item.price.metadata, item.quantity),
+		plan: product.plan,
+		meta: metaOf(product.metadata, item.quantity),
 		fingerprint: session.metadata?.fingerprint ?? '',
-		expires_at: capped(expires, product.max_key_days, now),
+		expires_at: capped(expires, settings.max_key_days, now),
 		period: 0,
 		status: refunded ? 'refunded' : 'paid',
 		renews: false,
@@ -154,19 +161,23 @@ export function sessionLicense(session: Session, product: Product, now: number):
 	};
 }
 
-// meta_seats=5 becomes the claim seats=5, quantity=seats puts the bought
-// quantity into the claim seats.
-function metaOf(
-	priceMeta: Record<string, string> | null | undefined,
-	quantity = 0
-): Record<string, string> | null {
+// Only the first item of a listed product counts.
+function bought<T extends { price: Price }>(items: T[], products: Product[]): [T, Product] {
+	for (const item of items) {
+		const product = products.find((p) => p.id === item.price.product);
+		if (product) return [item, product];
+	}
+	throw new OtherProduct();
+}
+
+// meta_tier=gold on the product becomes the claim tier=gold, the quantity is the seats.
+function metaOf(metadata: Record<string, string>, quantity?: number): Record<string, string> {
 	const out: Record<string, string> = {};
-	for (const [name, value] of Object.entries(priceMeta ?? {})) {
+	for (const [name, value] of Object.entries(metadata)) {
 		if (name.startsWith('meta_') && name.length > 5) out[name.slice(5)] = value;
 	}
-	const seats = priceMeta?.quantity;
-	if (seats) out[seats] = String(Math.max(quantity, 1));
-	return Object.keys(out).length > 0 ? out : null;
+	out.seats = String(quantity || 1);
+	return out;
 }
 
 // The limit only moves every half of the max key days, so a license gets the
@@ -182,20 +193,38 @@ function capped(expires: number, maxKeyDays: number, now: number): number {
 export async function owed(
 	stripeKey: string,
 	id: string,
-	product: Product,
+	settings: Promise<Settings>,
 	now: number
 ): Promise<License> {
 	if (id.startsWith('cs_')) {
 		const query = 'expand[]=line_items&expand[]=payment_intent.latest_charge';
 		const path = `/v1/checkout/sessions/${encodeURIComponent(id)}?${query}`;
-		return sessionLicense(await get<Session>(stripeKey, path), product, now);
+		const [session, s] = await Promise.all([get<Session>(stripeKey, path), settings]);
+		return sessionLicense(session, s, now);
 	}
 	const path = `/v1/subscriptions/${encodeURIComponent(id)}?expand[]=customer`;
-	return subscriptionLicense(await get<Subscription>(stripeKey, path), product, now);
+	const [sub, s] = await Promise.all([get<Subscription>(stripeKey, path), settings]);
+	return subscriptionLicense(sub, s, now);
+}
+
+// Stripe cannot expand the product on a list of subscriptions, so it is read on its own.
+export async function productMetadata(
+	stripeKey: string,
+	id: string
+): Promise<Record<string, string>> {
+	try {
+		const path = `/v1/products/${encodeURIComponent(id)}`;
+		const product = await get<{ metadata?: Record<string, string> | null }>(stripeKey, path);
+		return product.metadata ?? {};
+	} catch (err) {
+		// A typo in the settings must not look like a license that is gone.
+		if (err instanceof NotFound) throw new Error(`stripe: there is no product ${id}`);
+		throw err;
+	}
 }
 
 /**
- * Reads one page of the licenses of a product, with one call to Stripe. The
+ * Reads one page of the licenses of the products, with one call to Stripe. The
  * subscriptions come first, then the one time purchases. cursor is the next of
  * the page before, empty for the first one.
  *
@@ -204,7 +233,7 @@ export async function owed(
  */
 export async function list(
 	stripeKey: string,
-	product: Product,
+	settings: Settings,
 	cursor: string,
 	limit: number,
 	now: number
@@ -219,7 +248,7 @@ export async function list(
 		query.append('expand[]', 'data.customer');
 		const page = await get<List<Subscription>>(stripeKey, '/v1/subscriptions?' + query);
 		return {
-			licenses: decided(page.data, (sub) => subscriptionLicense(sub, product, now)),
+			licenses: decided(page.data, (sub) => subscriptionLicense(sub, settings, now)),
 			skipped: [],
 			next: more(page) ? 's:' + page.data.at(-1)!.id : 'p:'
 		};
@@ -237,7 +266,7 @@ export async function list(
 		throw err;
 	}
 	return {
-		licenses: decided(page.data, (session) => sessionLicense(session, product, now)),
+		licenses: decided(page.data, (session) => sessionLicense(session, settings, now)),
 		skipped: [],
 		next: more(page) ? 'p:' + page.data.at(-1)!.id : null
 	};

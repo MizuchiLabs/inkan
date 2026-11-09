@@ -110,10 +110,10 @@ the worker keeps signing with the old key until step 3.
   secret, with `inkan backup` for the database or `inkan keys` for the
   signing keys alone. It holds no Stripe key and no secret of a mail service.
 - **The worker** gets the private key, a Stripe key and the key of a mail
-  service through its environment. A restricted Stripe key that reads
-  subscriptions and customers is enough. One time purchases also need
-  Checkout sessions, payment intents and charges. `inkan worker export`
-  writes the private key into `worker.env`, treat the file like one.
+  service through its environment. A restricted Stripe key that only reads
+  is enough, [STRIPE.md](STRIPE.md#the-worker) lists what it reads.
+  `inkan worker export` writes the private key into `worker.env`, treat the
+  file like one.
 - **The webhook** only takes events with a valid Stripe signature that are at
   most five minutes old.
 - **Refresh** only looks up keys with a valid signature of the product, by
