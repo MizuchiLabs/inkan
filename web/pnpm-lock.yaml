@@ -238,7 +238,7 @@ importers:
         version: 0.38.0(@sveltejs/kit@3.1.1(@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.3(@typescript-eslint/types@8.72.1))(vite@8.3.6(jiti@2.7.0)))(svelte@5.57.3(@typescript-eslint/types@8.72.1))(typescript@6.0.3)(vite@8.3.6(jiti@2.7.0)))(svelte@5.57.3(@typescript-eslint/types@8.72.1))
       shadcn-svelte:
         specifier: ^1.7.0
-        version: 1.7.2(svelte@5.57.3(@typescript-eslint/types@8.72.1))
+        version: 1.8.0(svelte@5.57.3(@typescript-eslint/types@8.72.1))
       svelte:
         specifier: ^5.57.2
         version: 5.57.3(@typescript-eslint/types@8.72.1)
@@ -2171,8 +2171,8 @@ packages:
     engines: {node: '>=10'}
     hasBin: true
 
-  shadcn-svelte@1.7.2:
-    resolution: {integrity: sha512-VcFgfCupRK58kVuNrobWz+Smv0wryxW1bNZYvrMqYbm7gOfTEIb/Jy7C6y0N8Ry3/d0oAzvTRPzFu2V8u0nhMA==}
+  shadcn-svelte@1.8.0:
+    resolution: {integrity: sha512-B9EEH85xYUdLP12Dyf6raqMbtOGLeg47wnSd7+dTCmWibO6jHZg85alBo0pQsJkAiQ8IolNU/5RBjyOxNl//HQ==}
     hasBin: true
     peerDependencies:
       svelte: ^5.0.0
@@ -3986,12 +3986,12 @@ snapshots:
 
   semver@7.8.5: {}
 
-  shadcn-svelte@1.7.2(svelte@5.57.3(@typescript-eslint/types@8.72.1)):
+  shadcn-svelte@1.8.0(svelte@5.57.3(@typescript-eslint/types@8.72.1)):
     dependencies:
       cn: 0.3.3
       commander: 14.0.3
       node-fetch-native: 1.6.7
-      postcss: 8.5.31
+      postcss: 8.5.32
       svelte: 5.57.3(@typescript-eslint/types@8.72.1)
 
   shebang-command@2.0.0:
