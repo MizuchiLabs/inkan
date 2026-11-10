@@ -30,8 +30,8 @@ github.com/mizuchilabs/inkan/license v0.1.0 h1:rMft18RwV0BC4Zgi+ku5WjhVYyuvTT5GU
 github.com/mizuchilabs/inkan/license v0.1.0/go.mod h1:2kuxX41PqVb0fOLO/Y0Zqwt52MhKglDvmj7rwtgH1fU=
 github.com/mizuchilabs/kata v0.2.0 h1:5gni6L0hXOdwFwcoOKJ3EQARzWvk2lSH0BdRnyGQHKg=
 github.com/mizuchilabs/kata v0.2.0/go.mod h1:5/eGNufksiZuM8gc6QpVkNzNvmvfWj69L0WnpMnbRHI=
-github.com/mizuchilabs/nushi v0.2.2 h1:n/aeV/2Qvl0b5rvknytgkFZaHg9MxK9zN0LlFTZdHXY=
-github.com/mizuchilabs/nushi v0.2.2/go.mod h1:A43pmNcWAqvdslfIpt79ZE3UZgpoeigmPYFf0BzhGyo=
+github.com/mizuchilabs/nushi v0.3.0 h1:+Y64tntJ5hrrcd3ROAIDu0fCAjiNKYboyTWhV1AdsNs=
+github.com/mizuchilabs/nushi v0.3.0/go.mod h1:daf+H4K/qMRNaoq3kTiWf7cVUY4rd0vMmIsB+CJa7eY=
 github.com/mizuchilabs/sqlite-schema-diff v0.3.5 h1:E/ub3pZd5OUB+wTwUU9R8KH5NVymjUEa37J9u39S72Y=
 github.com/mizuchilabs/sqlite-schema-diff v0.3.5/go.mod h1:tdorQ8DQIQAjLwx1pJYK8+qR/cQp4rWItHe3MeJ18NM=
 github.com/ncruces/go-strftime v1.1.0 h1:vtPmPWMkb539RGV9WpWT9EwJGvrOCKvMNI4obWL47Hk=
