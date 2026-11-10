@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { useSession, useSignIn } from '#lib/api/queries.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Empty from '#lib/components/ui/empty/index.js';
@@ -14,6 +15,9 @@
 	const signIn = useSignIn();
 
 	let password = $state('');
+	const signInUrl = $derived(
+		`/api/session/oidc?next=${encodeURIComponent(page.url.pathname + page.url.search + page.url.hash)}`
+	);
 
 	function submit(event: SubmitEvent) {
 		event.preventDefault();
@@ -37,7 +41,7 @@
 		<Empty.Content>
 			{#if session.data.mode === 'oidc'}
 				<!-- A page load, the browser goes to the provider and comes back. -->
-				<Button href="/api/session/oidc" data-sveltekit-reload>Sign in</Button>
+				<Button href={signInUrl} data-sveltekit-reload>Sign in</Button>
 			{:else}
 				<form onsubmit={submit} class="w-full">
 					<Field.Group>
