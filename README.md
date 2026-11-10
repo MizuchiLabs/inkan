@@ -126,7 +126,7 @@ another name needs the sign in too.
 | `INKAN_DEBUG`                                                           | `--debug`    | `false`          | Enable debug logging                                             |
 
 Sign in comes from [nushi](https://github.com/mizuchilabs/nushi). See there for
-OIDC and for pinning your proxy.
+OIDC, for secrets from files and for pinning your proxy.
 
 OIDC callback url will be `https://inkan.example.com/api/session/oidc/callback`
 
