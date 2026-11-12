@@ -14,7 +14,7 @@ const refreshEvery = 24 * time.Hour
 // without a restart. Either someone hands the app a new key, or the app
 // fetches it from a worker:
 //
-//	lic := license.NewKeeper("MYAPP", publicKey, "")
+//	lic := license.NewKeeper("MYAPP", publicKey)
 //	_, err := lic.Set(os.Getenv("MYAPP_LICENSE_KEY"))
 //	go lic.Renew(ctx, "https://keys.example.com/refresh", save, nil)
 //
@@ -34,11 +34,11 @@ type held struct {
 }
 
 // NewKeeper returns a Keeper without a key. app, publicKeys and fingerprint
-// are the ones [Verify] takes, fingerprint is "" for an app that does not
-// bind keys to machines. A Keeper without a public key holds no key,
+// are the ones [Verify] takes, an app that does not bind keys to machines
+// leaves the fingerprint out. A Keeper without a public key holds no key,
 // [Keeper.Set] says so with [ErrNoPublicKey].
-func NewKeeper(app, publicKeys, fingerprint string) *Keeper {
-	return &Keeper{app: app, publicKeys: publicKeys, fingerprint: fingerprint}
+func NewKeeper(app, publicKeys string, fingerprint ...string) *Keeper {
+	return &Keeper{app: app, publicKeys: publicKeys, fingerprint: first(fingerprint)}
 }
 
 // Set swaps in rawKey and returns its claims like [Verify] does. An expired

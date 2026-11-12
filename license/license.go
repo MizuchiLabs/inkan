@@ -143,13 +143,14 @@ func chunkKey(encoded string) string {
 //
 // app must match the signed Claims.App exactly (case-sensitive), and the
 // key must carry the matching uppercase prefix, e.g. a key issued with
-// Issue("myapp", ...) verifies with Verify(key, "myapp", publicKeys, "").
+// Issue("myapp", ...) verifies with Verify(key, "myapp", publicKeys).
 //
-// fingerprint names this machine, in whatever way the app picks, like a hash
-// of /etc/machine-id or an install id it keeps in its data dir. A key bound to
-// another machine returns its claims alongside [ErrBound]. A key that is bound
-// to nothing verifies on every machine. An app that does not bind keys passes
-// "", then nothing is compared.
+// fingerprint is optional and names this machine, in whatever way the app
+// picks, like a hash of /etc/machine-id or an install id it keeps in its data
+// dir. A key bound to another machine returns its claims alongside
+// [ErrBound]. A key that is bound to nothing verifies on every machine. An
+// app that does not bind keys leaves it out, then nothing is compared. Only
+// the first one counts.
 //
 // An expired key returns the parsed claims alongside ErrExpired, so
 // callers can show plan or email details in expiry messages.
@@ -173,12 +174,19 @@ func chunkKey(encoded string) string {
 // comma-separated keys may be given, a license signed by any of them
 // verifies. That is how a signing key is rotated: ship the new key next to
 // the old one, then drop the old one once its licenses have run out.
-func Verify(rawKey, app, publicKeys, fingerprint string) (*Claims, error) {
+func Verify(rawKey, app, publicKeys string, fingerprint ...string) (*Claims, error) {
 	pubs, err := decodePubKeys(publicKeys)
 	if err != nil {
 		return nil, err
 	}
-	return VerifyWith(rawKey, app, fingerprint, pubs...)
+	return VerifyWith(rawKey, app, first(fingerprint), pubs...)
+}
+
+func first(fingerprint []string) string {
+	if len(fingerprint) == 0 {
+		return ""
+	}
+	return fingerprint[0]
 }
 
 // VerifyWith is Verify against public keys that are already decoded, for
