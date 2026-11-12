@@ -391,3 +391,61 @@ func TestSyncAfterRotation(t *testing.T) {
 	}
 	assert.Empty(t, sync())
 }
+
+// A worker owns the paid rows only. What was issued by hand stays as it is.
+func TestSyncLeavesHandIssuedRowsAlone(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	q, closeDB, err := db.Open(ctx, t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(closeDB)
+	w, url := newWorker(t)
+	p := newProduct(t, q, url)
+
+	byHand, err := q.CreateLicense(ctx, &db.CreateLicenseParams{
+		ID: "lic_manual", ProductID: p.ID, Email: "a@x.io", Customer: "Acme", Plan: "pro",
+		ExpiresAt: 4_000_000_000, Meta: `{"seats":"2"}`, Fingerprint: "machine-9", Note: "by hand",
+	})
+	require.NoError(t, err)
+	stale(t, q, p, "sub_kept", "a@x.io")
+	unchanged := func() {
+		t.Helper()
+		now, err := q.GetLicense(ctx, &db.GetLicenseParams{ProductID: p.ID, ID: "lic_manual"})
+		require.NoError(t, err)
+		assert.Equal(t, byHand, now, "the hand issued row is as it was")
+	}
+
+	_, err = Sync(ctx, q, p)
+	require.NoError(t, err)
+	unchanged()
+
+	refused := func(why string) {
+		t.Helper()
+		stale(t, q, p, "sub_kept", "a@x.io")
+		_, err := Sync(ctx, q, p)
+		require.ErrorContains(t, err, "hand issued", why)
+		unchanged()
+		assert.True(t, has(t, q, p, "sub_kept"), "a refused sync drops nothing")
+		all, err := q.ListLicenses(ctx, &db.ListLicensesParams{Limit: -1})
+		require.NoError(t, err)
+		for _, l := range all {
+			assert.True(t, l.Source != "manual" || l.ID == "lic_manual", "no hand issued row came from the worker: %s", l.ID)
+		}
+	}
+
+	// Whoever answers at the worker url must not get a key signed by the dashboard.
+	for i := range w.pages {
+		w.pages[i].Product.Provider = "manual"
+	}
+	refused("a worker that calls itself manual would make hand issued rows")
+	for i := range w.pages {
+		w.pages[i].Product.Provider = "stripe"
+	}
+
+	mine := w.pages[0].Licenses[0]
+	w.pages[0].Licenses[0].ID = "lic_manual"
+	w.pages[0].Licenses[0].Plan = "enterprise"
+	w.pages[0].Licenses[0].ExpiresAt = 0
+	refused("a worker that lists a hand issued id would rewrite its row")
+	w.pages[0].Licenses[0] = mine
+}

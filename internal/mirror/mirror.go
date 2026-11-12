@@ -152,6 +152,10 @@ func pull(ctx context.Context, q *db.Queries, p *db.Product) (n int, notice stri
 		if runs.Prefix != p.Prefix || !ours {
 			return 0, "", errors.New("this worker signs for another product, check the worker url")
 		}
+		// The dashboard signs every row that says manual, so a worker must never write one.
+		if runs.Provider == "manual" || slices.ContainsFunc(pg.Licenses, handIssued) {
+			return 0, "", errors.New("this worker lists hand issued licenses, it is not a worker of inkan. Check the worker url")
+		}
 		if slices.Contains(pg.Skipped, "purchase") {
 			purchases = false
 		}
@@ -182,6 +186,10 @@ func pull(ctx context.Context, q *db.Queries, p *db.Product) (n int, notice stri
 		Purchases: purchases,
 	})
 	return n, notice, err
+}
+
+func handIssued(l listed) bool {
+	return strings.HasPrefix(l.ID, "lic_")
 }
 
 func fetch(ctx context.Context, p *db.Product, cursor string) (*page, error) {
