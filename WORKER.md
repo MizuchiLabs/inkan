@@ -15,7 +15,9 @@ The endpoints can still change before inkan 1.0. The worker that
 
 A worker signs keys the way [FORMAT.md](FORMAT.md) says. Sign the same license
 into the same bytes as long as nothing about it changes, then an app that
-refreshes can tell that it already has the current key.
+refreshes can tell that it already has the current key. A worker that cuts
+its keys short, like the reference with max key days, moves the cut once a
+day.
 
 ## `POST /refresh`
 
@@ -132,7 +134,7 @@ fewer licenses than the limit, or none, and still have a `next`.
 | `customer_gone`   | The provider deleted the customer, `email` and `customer` are empty   |
 | `plan`, `meta`    | As signed into the key                                                |
 | `fingerprint`     | The machine the key is bound to, as signed into the key, empty is none |
-| `expires_at`      | Unix seconds, 0 never expires                                         |
+| `expires_at`      | When the license ends, unix seconds, 0 never. The `key` may end sooner |
 | `status`          | Status at the provider, like `active`, `canceled`, `paid`, `refunded` |
 | `renews`          | Whether the provider will bill another period                         |
 | `created_at`      | Unix seconds                                                          |

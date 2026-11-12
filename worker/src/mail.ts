@@ -19,26 +19,25 @@ const placeholder = /\{\{\s*(\w+)\s*\}\}/g;
 /**
  * The mail for a key. A template is html with {{key}}, {{name}}, {{plan}},
  * {{email}}, {{expires}}, {{footer}} and {{company}} in it, its title is the
- * subject.
+ * subject. ends is when the license ends, 0 is never. Under max key days the
+ * key itself runs out before that and the app fetches the next one.
  */
 export function render(
 	key: string,
 	claims: Claims,
 	brand: Brand,
-	template = ''
+	template = '',
+	ends = claims.exp
 ): { subject: string; text: string; html: string } {
 	const name = brand.name || claims.app;
 	const footer = brand.footer ?? '';
 	const company = brand.company ?? '';
-	const expires =
-		claims.exp === 0
-			? ''
-			: new Date(claims.exp * 1000).toLocaleDateString('en-GB', {
-					day: 'numeric',
-					month: 'long',
-					year: 'numeric',
-					timeZone: 'UTC'
-				});
+	const expires = date(ends);
+	// Only worth a line when the key is cut short of the license.
+	const renews =
+		claims.exp !== ends
+			? `${name} renews this key by itself while it is online. Without a connection the key works until ${date(claims.exp)}.`
+			: '';
 	// These end up in the markup, so only what is known to be harmless gets in.
 	const accent = /^#[0-9a-fA-F]{6}$/.test(brand.accent ?? '') ? brand.accent! : defaultAccent;
 	const logo = brand.logo?.startsWith('https://') ? brand.logo : '';
@@ -47,6 +46,7 @@ export function render(
 		`Here is the ${name} license for ${claims.email}. Paste the key into the app to activate it, ` +
 		`and keep this mail in case you need it again.\n\n${key}\n\nPlan: ${claims.plan}\n`;
 	text += (expires ? `Valid until: ${expires}` : 'It never expires.') + '\n';
+	if (renews) text += `${renews}\n`;
 	if (footer) text += `\n${footer}\n`;
 	text += `\n--\nYou are getting this mail because a license for ${name} was paid for with this address.\n`;
 	if (company) text += `${company}\n`;
@@ -133,6 +133,7 @@ export function render(
       <td class="text" align="right" valign="top" style="padding:12px 0 0 16px; font-size:14px; line-height:20px; font-weight:600; color:#1c1f2e;">${expires || 'Never expires'}</td>
     </tr>
     </table>
+    ${renews ? `<p class="soft" style="margin:16px 0 0; font-size:13px; line-height:20px; color:#5b6072;">${escape(renews)}</p>` : ''}
     ${footer ? `<p class="soft rule" style="margin:24px 0 0; padding:20px 0 0; border-top:1px solid #e6e8ef; font-size:15px; line-height:23px; color:#5b6072;">${linked(footer, s.text)}</p>` : ''}
   </td></tr>
   <tr><td class="foot pad" bgcolor="#f8f9fc" style="background:#f8f9fc; border:1px solid #dcdfe8; border-radius:0 0 10px 10px; padding:20px 32px 22px;">
@@ -146,6 +147,17 @@ export function render(
 </html>
 `;
 	return { subject: oneLine(`Your ${name} license key`), text, html };
+}
+
+// A day like 16 October 2096, empty for 0.
+function date(unix: number): string {
+	if (unix === 0) return '';
+	return new Date(unix * 1000).toLocaleDateString('en-GB', {
+		day: 'numeric',
+		month: 'long',
+		year: 'numeric',
+		timeZone: 'UTC'
+	});
 }
 
 // One pass, so a value that holds a placeholder is not filled in again.

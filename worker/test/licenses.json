@@ -17,7 +17,7 @@
       "grace_days": 14, "max_key_days": 0},
     "now": 1790000000,
     "want": {"id": "sub_1", "email": "ops@acme.io", "customer": "Acme Inc", "plan": "team",
-      "meta": {"seats": "5", "tier": "gold"}, "fingerprint": "machine-1", "expires_at": 1801209600, "period": 3000000,
+      "meta": {"seats": "5", "tier": "gold"}, "fingerprint": "machine-1", "expires_at": 1801209600, "key_expires_at": 1801209600, "period": 3000000,
       "status": "active", "renews": true, "created_at": 1700000000}
   },
   {
@@ -34,7 +34,7 @@
     ], "grace_days": 14, "max_key_days": 0},
     "now": 1790000000,
     "want": {"id": "sub_8", "email": "a@x.io", "customer": "", "plan": "enterprise",
-      "meta": {"seats": "2", "tier": "platinum"}, "expires_at": 1801209600, "period": 3000000,
+      "meta": {"seats": "2", "tier": "platinum"}, "expires_at": 1801209600, "key_expires_at": 1801209600, "period": 3000000,
       "status": "active", "renews": true, "created_at": 1700000000}
   },
   {
@@ -48,7 +48,7 @@
     "settings": {"products": [{"id": "prod_app", "plan": "pro", "metadata": {}}], "grace_days": 14, "max_key_days": 0},
     "now": 1790000000,
     "want": {"id": "sub_2", "email": "a@x.io", "customer": "", "plan": "pro", "meta": {"seats": "1"},
-      "expires_at": 1798209600, "period": 3000000, "status": "past_due", "renews": false, "created_at": 1700000000}
+      "expires_at": 1798209600, "key_expires_at": 1798209600, "period": 3000000, "status": "past_due", "renews": false, "created_at": 1700000000}
   },
   {
     "name": "canceled mid period",
@@ -62,7 +62,7 @@
     "settings": {"products": [{"id": "prod_app", "plan": "pro", "metadata": {}}], "grace_days": 0, "max_key_days": 0},
     "now": 1790000000,
     "want": {"id": "sub_3", "email": "a@x.io", "customer": "", "plan": "pro", "meta": {"seats": "1"},
-      "expires_at": 1798000000, "period": 3000000, "status": "canceled", "renews": false, "created_at": 1700000000}
+      "expires_at": 1798000000, "key_expires_at": 1798000000, "period": 3000000, "status": "canceled", "renews": false, "created_at": 1700000000}
   },
   {
     "name": "first payment open",
@@ -97,7 +97,20 @@
     "settings": {"products": [{"id": "prod_app", "plan": "pro", "metadata": {}}], "grace_days": 14, "max_key_days": 30},
     "now": 1790000000,
     "want": {"id": "sub_6", "email": "a@x.io", "customer": "", "plan": "pro", "meta": {"seats": "1"},
-      "expires_at": 1792368000, "period": 3000000, "status": "active", "renews": true, "created_at": 1700000000}
+      "expires_at": 1801209600, "key_expires_at": 1792627200, "period": 3000000, "status": "active", "renews": true, "created_at": 1700000000}
+  },
+  {
+    "name": "one key day lasts 24 to 48 hours",
+    "kind": "subscription",
+    "object": {
+      "id": "sub_6", "status": "active", "created": 1700000000, "customer": {"email": "a@x.io"},
+      "items": {"data": [{"price": {"product": "prod_app"},
+        "current_period_start": 1797000000, "current_period_end": 1800000000}]}
+    },
+    "settings": {"products": [{"id": "prod_app", "plan": "pro", "metadata": {}}], "grace_days": 14, "max_key_days": 1},
+    "now": 1790000000,
+    "want": {"id": "sub_6", "email": "a@x.io", "customer": "", "plan": "pro", "meta": {"seats": "1"},
+      "expires_at": 1801209600, "key_expires_at": 1790121600, "period": 3000000, "status": "active", "renews": true, "created_at": 1700000000}
   },
   {
     "name": "key days leave a shorter expiry alone",
@@ -111,7 +124,7 @@
     "settings": {"products": [{"id": "prod_app", "plan": "pro", "metadata": {}}], "grace_days": 0, "max_key_days": 30},
     "now": 1790000000,
     "want": {"id": "sub_7", "email": "a@x.io", "customer": "", "plan": "pro", "meta": {"seats": "1"},
-      "expires_at": 1790500000, "period": 3000000, "status": "canceled", "renews": false, "created_at": 1700000000}
+      "expires_at": 1790500000, "key_expires_at": 1790500000, "period": 3000000, "status": "canceled", "renews": false, "created_at": 1700000000}
   },
   {
     "name": "one time purchase never expires",
@@ -128,7 +141,7 @@
     "settings": {"products": [{"id": "prod_app", "plan": "lifetime", "metadata": {}}], "grace_days": 14, "max_key_days": 0},
     "now": 1790000000,
     "want": {"id": "cs_1", "email": "buyer@acme.io", "customer": "Acme", "plan": "lifetime", "meta": {"seats": "1"},
-      "expires_at": 0, "period": 0, "status": "paid", "renews": false, "created_at": 1780000000}
+      "expires_at": 0, "key_expires_at": 0, "period": 0, "status": "paid", "renews": false, "created_at": 1780000000}
   },
   {
     "name": "one time purchase with days",
@@ -144,7 +157,7 @@
     "settings": {"products": [{"id": "prod_app", "plan": "pro", "metadata": {"days": "365"}}], "grace_days": 14, "max_key_days": 0},
     "now": 1790000000,
     "want": {"id": "cs_2", "email": "ops@acme.io", "customer": "Acme Inc", "plan": "pro", "meta": {"seats": "3"},
-      "fingerprint": "machine-1", "expires_at": 1812745600, "period": 0, "status": "paid", "renews": false, "created_at": 1780000000}
+      "fingerprint": "machine-1", "expires_at": 1812745600, "key_expires_at": 1812745600, "period": 0, "status": "paid", "renews": false, "created_at": 1780000000}
   },
   {
     "name": "refunded purchase ran out when it was bought",
@@ -158,7 +171,7 @@
     "settings": {"products": [{"id": "prod_app", "plan": "pro", "metadata": {}}], "grace_days": 14, "max_key_days": 0},
     "now": 1790000000,
     "want": {"id": "cs_3", "email": "buyer@acme.io", "customer": "", "plan": "pro", "meta": {"seats": "1"},
-      "expires_at": 1781209600, "period": 0, "status": "refunded", "renews": false, "created_at": 1780000000}
+      "expires_at": 1781209600, "key_expires_at": 1781209600, "period": 0, "status": "refunded", "renews": false, "created_at": 1780000000}
   },
   {
     "name": "free purchase has no payment",
@@ -172,7 +185,7 @@
     "settings": {"products": [{"id": "prod_app", "plan": "pro", "metadata": {}}], "grace_days": 14, "max_key_days": 30},
     "now": 1790000000,
     "want": {"id": "cs_4", "email": "buyer@acme.io", "customer": "Acme", "plan": "pro", "meta": {"seats": "1"},
-      "expires_at": 1792368000, "period": 0, "status": "paid", "renews": false, "created_at": 1780000000}
+      "expires_at": 0, "key_expires_at": 1792627200, "period": 0, "status": "paid", "renews": false, "created_at": 1780000000}
   },
   {
     "name": "purchase not paid yet",

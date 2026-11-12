@@ -144,11 +144,11 @@ An app that stays up refreshes on a schedule. The keepers of the Go package,
    the row.
 4. Without a key there is nothing to refresh. Look again in a minute.
 
-Half of the time left is what makes max key days work. A worker with that
-limit hands out keys that live between half and all of those days, and it has
-the next key ready once the held one is down to half of them. Half of what is
-left always lands in that time. Once a day alone lets a key of a day or two
-run out.
+Half of the time left is for keys near their end. A worker with max key days
+hands out keys that live that many days from the refresh, so a daily refresh
+always has a fresh one. A key of a day or two, or one whose license is about
+to end, would run out between two daily tries. Half of what is left always
+lands before that.
 
 ## Sign
 

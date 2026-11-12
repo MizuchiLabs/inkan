@@ -248,7 +248,8 @@ about the paid ones.
 - **Licenses.** A license is a row: who, which plan, until when, plus optional
   extra claims. A manual key is signed from the row on demand. Change a signed
   field and the key changes with it. A paid license shows the key its worker
-  hands out.
+  hands out. With [max key days](STRIPE.md#what-becomes-a-license) that key
+  is a new one every day.
 - **History.** Once a day the active licenses are counted per product and
   plan. The Licenses page shows how they moved.
 - **Check.** Paste any key on the Licenses page. Inkan verifies it the way the

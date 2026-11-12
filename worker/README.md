@@ -77,7 +77,7 @@ into `src/template.ts`. Build the worker after that. Any other html works
 too: put it into `src/template.ts` with `{{key}}`, `{{name}}`, `{{plan}}`,
 `{{email}}`, `{{expires}}`, `{{footer}}` and `{{company}}` in it. The worker
 fills the placeholders in, and the `<title>` is the subject. `{{expires}}` is
-a date like 16 October 2096, or Never. The footer and
+when the license ends, a date like 16 October 2096, or Never. The footer and
 the company details come from the settings, as for the built-in mail. A mail
 without `{{key}}` is not used. The logo and accent settings only shape the
 built-in mail.

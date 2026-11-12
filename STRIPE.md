@@ -78,15 +78,14 @@ like one and delete them once the worker has them.
   session binds its key to that machine. A Checkout session your site creates
   can carry the fingerprint the app shows. What the app does with it is in
   [the README](README.md#use-the-keys-in-your-app).
-- **Max key days.** The longest a paid key lives before the app has to fetch a new
-  one. It is the closest thing to taking a key back. A signed key works until
-  it expires. Without a limit that is the end of the paid period plus the
-  grace days, whatever happens in between. With one every paid key is cut
+- **Max key days.** How long a paid key lives before the app has to fetch a
+  new one. It is the closest thing to taking a key back. A signed key works
+  until it expires. Without a limit that is the end of the paid period plus
+  the grace days, whatever happens in between. With one every paid key is cut
   short, so the app has to refresh and the next key says what Stripe says
-  now. A key lasts between half and all of those days. That is what ends a
-  license after a refund, a chargeback or an immediate cancellation, and what
-  stops an old key from keeping a plan or seats the customer no longer pays
-  for.
+  now. That is what ends a license after a refund, a chargeback or an
+  immediate cancellation, and what stops an old key from keeping a plan or
+  seats the customer no longer pays for.
 
   | Product                                        | Max key days |
   | ---------------------------------------------- | ------------ |
@@ -96,10 +95,11 @@ like one and delete them once the worker has them.
   | One time purchases with refunds, app is online | `30`         |
   | Strict, the app is always online               | `14`         |
 
-  Half of the days is how long the app may stay offline, so 30 allows two
-  weeks. All of them is the longest a refunded key keeps working in an app
-  that is kept from refreshing. An app that does refresh picks up a change
-  within a day, with a limit or not.
+  A key lives that many days from when it is fetched, and up to a day more.
+  So with 30 an app that refreshes daily may stay offline for 29 days, and a
+  refunded key stops within 31. The license itself does not get shorter. The
+  mail and the dashboard show when the license ends, only the key in hand
+  runs out sooner. The key of such a license changes once a day.
 
 ## The worker
 
@@ -139,7 +139,7 @@ Products page, the apps keep the keys they have.
 | `INKAN_STRIPE_KEY`            | -          | Restricted key with the read access above      |
 | `INKAN_STRIPE_PRODUCT`        | -          | Stripe products like `prod_a=team,prod_b`      |
 | `INKAN_GRACE_DAYS`            | `14`       | Days a key outlives its paid period            |
-| `INKAN_MAX_KEY_DAYS`          | `0`        | Longest life of a key in days, 0 has no limit  |
+| `INKAN_MAX_KEY_DAYS`          | `0`        | Days a key lives before a refresh, 0 no limit  |
 | `INKAN_STRIPE_WEBHOOK_SECRET` | -          | Signing secret of the webhook endpoint         |
 | `INKAN_MAIL_FROM`             | -          | Sender of the key mails                        |
 | `INKAN_MAIL_REPLY_TO`         | the sender | Address an answer to the key mail goes to      |
@@ -204,7 +204,8 @@ from the settings, the logo and the accent are part of its design.
   an app that is online refreshes on its own.
 - **Refresh.** The answer is the key the subscription is owed now. After a
   renewal that is a new key with a later expiry. If nothing new was paid it is
-  the same key again, so an old key never stops working as a ticket.
+  the same key again, so an old key never stops working as a ticket. With max
+  key days the key is a new one every day.
 - **Hand issued keys.** A key with a `lic_…` id, or none, always comes back as
   it is.
 - **Deleted customers.** Stripe cancels their subscriptions and forgets who

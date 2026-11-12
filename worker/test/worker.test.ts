@@ -655,6 +655,34 @@ test('licenses hands the dashboard what the worker hands out', async (t) => {
 	);
 });
 
+// Max key days cut the key, not the license. The dashboard and the mail show
+// when the license ends.
+test('a capped key does not change when the license ends', async (t) => {
+	fakeFetch(t);
+	const capped = { ...env, INKAN_MAX_KEY_DAYS: '30' };
+	const auth = { Authorization: 'Bearer ' + env.INKAN_WORKER_TOKEN };
+	const response = await call('GET', '/licenses?cursor=p%3A', undefined, auth, capped);
+	assert.equal(response.status, 200);
+	const page = (await response.json()) as {
+		product: { public_key: string };
+		licenses: { id: string; expires_at: number; key: string }[];
+	};
+	const bought = page.licenses.find((license) => license.id === 'cs_1')!;
+	assert.equal(bought.expires_at, 0, 'a one time purchase still never expires');
+	const claims = await verify(bought.key, 'MYAPP', page.product.public_key);
+	const day = 86400;
+	const left = claims.exp - Date.now() / 1000;
+	assert.ok(left >= 30 * day && left < 31 * day, 'its key lasts 30 days and less than a day more');
+	assert.equal(claims.exp % day, 0, 'the cut is at the end of a day, so the key is the same all day');
+
+	const mail = render(bought.key, { ...claims, id: 'cs_1', fp: '', meta: {} }, {}, '', 0);
+	assert.match(mail.text, /It never expires\./);
+	assert.match(mail.text, /renews this key by itself while it is online/);
+	assert.ok(mail.html.includes('Never expires') && mail.html.includes('renews this key'));
+	const plain = render(bought.key, { ...claims, exp: 0, id: 'cs_1', fp: '', meta: {} }, {});
+	assert.doesNotMatch(plain.text, /renews this key/, 'a key without a cut says nothing of it');
+});
+
 test('a worker says what it is missing', async () => {
 	const bare = { ...env, RESEND_API_KEY: undefined };
 	const webhook = await call('POST', '/webhook', '{}', {}, bare);

@@ -44,7 +44,7 @@ built-in mail back.
 | `name`       | `{{name}}`    | `INKAN_PRODUCT_NAME` or the prefix   |
 | `plan`       | `{{plan}}`    | The plan of the license              |
 | `email`      | `{{email}}`   | Who the license is for               |
-| `expires`    | `{{expires}}` | 16 October 2096, or Never            |
+| `expires`    | `{{expires}}` | End of the license, or Never         |
 | `footer`     | `{{footer}}`  | `INKAN_MAIL_FOOTER`, may be empty    |
 | `company`    | `{{company}}` | `INKAN_MAIL_COMPANY`, may be empty   |
 

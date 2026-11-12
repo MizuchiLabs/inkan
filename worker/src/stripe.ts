@@ -28,7 +28,10 @@ export type License = {
 	meta: Record<string, string>;
 	/** The machine the key is bound to, from the metadata of the subscription or session. */
 	fingerprint: string;
+	/** When the license ends, 0 is never. */
 	expires_at: number;
+	/** When its key runs out. Earlier than the license under max key days, the app refreshes for the next one. */
+	key_expires_at: number;
 	/** Seconds one billing period lasts, 0 for a one time purchase. */
 	period: number;
 	status: string;
@@ -112,6 +115,8 @@ export function subscriptionLicense(sub: Subscription, settings: Settings, now: 
 	if (paid === 0) throw new NotOwed();
 
 	const active = sub.status === 'active' || sub.status === 'trialing';
+	// The grace keeps the old key alive until the renewed one is in place.
+	const ends = paid + settings.grace_days * day;
 	return {
 		id: sub.id,
 		kind: 'subscription',
@@ -121,8 +126,8 @@ export function subscriptionLicense(sub: Subscription, settings: Settings, now: 
 		plan: product.plan,
 		meta: metaOf(product.metadata, item.quantity),
 		fingerprint: sub.metadata?.fingerprint ?? '',
-		// The grace keeps the old key alive until the renewed one is in place.
-		expires_at: capped(paid + settings.grace_days * day, settings.max_key_days, now),
+		expires_at: ends,
+		key_expires_at: capped(ends, settings.max_key_days, now),
 		period,
 		status: sub.status,
 		renews: active && !sub.cancel_at_period_end,
@@ -153,7 +158,8 @@ export function sessionLicense(session: Session, settings: Settings, now: number
 		plan: product.plan,
 		meta: metaOf(product.metadata, item.quantity),
 		fingerprint: session.metadata?.fingerprint ?? '',
-		expires_at: capped(expires, settings.max_key_days, now),
+		expires_at: expires,
+		key_expires_at: capped(expires, settings.max_key_days, now),
 		period: 0,
 		status: refunded ? 'refunded' : 'paid',
 		renews: false,
@@ -180,12 +186,11 @@ function metaOf(metadata: Record<string, string>, quantity?: number): Record<str
 	return out;
 }
 
-// The limit only moves every half of the max key days, so a license gets the
-// same key for that long. A fresh key lives between half and all of them.
+// A key lives at least the max key days from now and less than a day more.
+// The limit sits at the end of a UTC day, so a license gets the same key all day.
 function capped(expires: number, maxKeyDays: number, now: number): number {
 	if (maxKeyDays <= 0) return expires;
-	const step = Math.trunc((maxKeyDays * day) / 2);
-	const limit = (Math.trunc(now / step) + 2) * step;
+	const limit = (Math.floor(now / day) + maxKeyDays + 1) * day;
 	return expires === 0 ? limit : Math.min(expires, limit);
 }
 

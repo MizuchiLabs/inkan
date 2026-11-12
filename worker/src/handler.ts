@@ -200,9 +200,9 @@ async function webhook(request: Request, env: Env, send: Send): Promise<Response
 	}
 	if (!id || (event.id && events.has(event.id))) return text('', 200);
 
-	let key: string, claims: Claims, period: number;
+	let key: string, claims: Claims, period: number, ends: number;
 	try {
-		({ key, claims, period } = await sign(env, id));
+		({ key, claims, period, ends } = await sign(env, id));
 	} catch (err) {
 		if (err instanceof OtherProduct) return text('', 200);
 		// A slow payment method completes the session first and pays later.
@@ -224,7 +224,7 @@ async function webhook(request: Request, env: Env, send: Send): Promise<Response
 			from: env.INKAN_MAIL_FROM!,
 			replyTo: env.INKAN_MAIL_REPLY_TO?.trim() || undefined,
 			to: claims.email,
-			...mail(env, key, claims)
+			...mail(env, key, claims, ends)
 		});
 	} catch (err) {
 		console.error('webhook: sending the key failed', id, err);
@@ -316,12 +316,12 @@ async function sign(
 	env: Env,
 	id: string,
 	lastEmail = ''
-): Promise<{ key: string; claims: Claims; period: number }> {
+): Promise<{ key: string; claims: Claims; period: number; ends: number }> {
 	const license = await owed(env.INKAN_STRIPE_KEY, id, settingsOf(env), now());
 	const claims = claimsOf(env, license, lastEmail);
 	const key = await issue(claims, await importPrivateKey(env.INKAN_PRIVATE_KEY));
 	keys.set(id, { key, at: Date.now() });
-	return { key, claims, period: license.period };
+	return { key, claims, period: license.period, ends: license.expires_at };
 }
 
 function claimsOf(env: Env, license: License, lastEmail = ''): Claims {
@@ -329,7 +329,7 @@ function claimsOf(env: Env, license: License, lastEmail = ''): Claims {
 		app: env.INKAN_PREFIX,
 		plan: license.plan,
 		email: license.email || lastEmail,
-		exp: license.expires_at,
+		exp: license.key_expires_at,
 		id: license.id,
 		fp: license.fingerprint,
 		meta: license.meta
@@ -366,7 +366,8 @@ async function settingsOf(env: Env): Promise<Settings> {
 	};
 }
 
-function mail(env: Env, key: string, claims: Claims) {
+// ends is when the license ends. The key can run out before that, see max key days.
+function mail(env: Env, key: string, claims: Claims, ends: number) {
 	const brand = {
 		name: env.INKAN_PRODUCT_NAME,
 		logo: env.INKAN_MAIL_LOGO,
@@ -374,7 +375,7 @@ function mail(env: Env, key: string, claims: Claims) {
 		footer: env.INKAN_MAIL_FOOTER,
 		company: env.INKAN_MAIL_COMPANY
 	};
-	return render(key, claims, brand, template);
+	return render(key, claims, brand, template, ends);
 }
 
 // signed checks a Stripe-Signature header, t=<unix>,v1=<hex>. The signature
