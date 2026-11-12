@@ -190,7 +190,7 @@ func TestSync(t *testing.T) {
 
 	runs := LastReport(p)
 	require.NotNil(t, runs, "what the worker runs with is kept for the UI")
-	assert.Equal(t, "prod_app=team,prod_lifetime=lifetime,prod_plain", runs.ProviderProduct)
+	assert.Equal(t, "prod_app=team,prod_lifetime=lifetime,prod_plain=pro", runs.ProviderProduct)
 	assert.Equal(t, int64(14), runs.GraceDays)
 	require.NotNil(t, runs.Mail, "this worker mails keys")
 	assert.Equal(t, "Keys <keys@example.com>", runs.Mail.From)

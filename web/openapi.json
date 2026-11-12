@@ -360,7 +360,7 @@
 						"type": "string"
 					},
 					"provider_product": {
-						"description": "The products at the provider, like prod_a=team,prod_b",
+						"description": "The products at the provider with the plan each gives, like prod_a=team,prod_b=pro",
 						"type": "string"
 					},
 					"public_key": {

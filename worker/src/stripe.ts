@@ -1,10 +1,14 @@
 // Reads subscriptions and one time purchases from Stripe and decides what
 // license each one is owed. This is the one place that decides it.
+//
+// What a key says comes from Stripe metadata: plan, days and meta_ names. The
+// product sets them for everyone who buys it. The same names on one
+// subscription or Checkout session win, for the customer who gets it another way.
 
 /** A Stripe product whose subscriptions and purchases are licenses. */
 type Product = {
 	id: string;
-	/** The plan its keys get. */
+	/** The plan its keys get, from its metadata or the default of the worker. */
 	plan: string;
 	/** Its metadata at Stripe. meta_ names become claims, days limits a purchase. */
 	metadata: Record<string, string>;
@@ -123,8 +127,8 @@ export function subscriptionLicense(sub: Subscription, settings: Settings, now: 
 		email: sub.metadata?.email || sub.customer?.email || '',
 		customer: sub.metadata?.org || sub.customer?.name || '',
 		customer_gone: sub.customer?.deleted === true,
-		plan: product.plan,
-		meta: metaOf(product.metadata, item.quantity),
+		plan: sub.metadata?.plan?.trim() || product.plan,
+		meta: metaOf(item.quantity, product.metadata, sub.metadata),
 		fingerprint: sub.metadata?.fingerprint ?? '',
 		expires_at: ends,
 		key_expires_at: capped(ends, settings.max_key_days, now),
@@ -142,7 +146,7 @@ export function sessionLicense(session: Session, settings: Settings, now: number
 	if (session.payment_status === 'unpaid') throw new NotOwed();
 
 	const created = session.created ?? 0;
-	const text = product.metadata.days ?? '';
+	const text = session.metadata?.days ?? product.metadata.days ?? '';
 	const days = /^\d+$/.test(text) ? Number(text) : 0;
 	const refunded = session.payment_intent?.latest_charge?.refunded === true;
 	let expires = 0;
@@ -155,8 +159,8 @@ export function sessionLicense(session: Session, settings: Settings, now: number
 		email: session.metadata?.email || session.customer_details?.email || '',
 		customer: session.metadata?.org || session.customer_details?.name || '',
 		customer_gone: false,
-		plan: product.plan,
-		meta: metaOf(product.metadata, item.quantity),
+		plan: session.metadata?.plan?.trim() || product.plan,
+		meta: metaOf(item.quantity, product.metadata, session.metadata),
 		fingerprint: session.metadata?.fingerprint ?? '',
 		expires_at: expires,
 		key_expires_at: capped(expires, settings.max_key_days, now),
@@ -176,11 +180,17 @@ function bought<T extends { price: Price }>(items: T[], products: Product[]): [T
 	throw new OtherProduct();
 }
 
-// meta_tier=gold on the product becomes the claim tier=gold, the quantity is the seats.
-function metaOf(metadata: Record<string, string>, quantity?: number): Record<string, string> {
+// meta_tier=gold becomes the claim tier=gold. A later source wins, so the
+// subscription or session overrides the product. The quantity is always the seats.
+function metaOf(
+	quantity: number | undefined,
+	...sources: (Record<string, string> | null | undefined)[]
+): Record<string, string> {
 	const out: Record<string, string> = {};
-	for (const [name, value] of Object.entries(metadata)) {
-		if (name.startsWith('meta_') && name.length > 5) out[name.slice(5)] = value;
+	for (const metadata of sources) {
+		for (const [name, value] of Object.entries(metadata ?? {})) {
+			if (name.startsWith('meta_') && name.length > 5) out[name.slice(5)] = value;
+		}
 	}
 	out.seats = String(quantity || 1);
 	return out;

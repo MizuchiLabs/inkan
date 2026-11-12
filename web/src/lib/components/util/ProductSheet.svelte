@@ -55,7 +55,7 @@
 
 	// What the worker said at its last sync. Its settings live in its env alone.
 	const runs = $derived(product?.worker_report);
-	// prod_a=team,prod_b as one line per Stripe product.
+	// prod_a=team,prod_b=pro as one line per Stripe product.
 	const stripeProducts = $derived(
 		(runs?.provider_product ?? '')
 			.split(',')
@@ -63,7 +63,7 @@
 			.filter(Boolean)
 			.map((entry) => {
 				const [id = '', plan = ''] = entry.split('=');
-				return { id: id.trim(), plan: plan.trim() || runs?.plan || '' };
+				return { id: id.trim(), plan: plan.trim() };
 			})
 	);
 
@@ -308,7 +308,7 @@
 												{#each stripeProducts as stripe (stripe.id)}
 													<span class="wrap-break-word">
 														<span class="font-mono text-xs">{stripe.id}</span>
-														gives the plan {stripe.plan}
+														{stripe.plan ? `gives the plan ${stripe.plan}` : 'has no plan'}
 													</span>
 												{/each}
 											</dd>
@@ -349,7 +349,8 @@
 											{#if product.synced_at}
 												As the worker reported it {formatRelativeTime(product.synced_at)}.
 											{/if}
-											These are set in the worker.env of the worker. Change them there and deploy it again.
+											The plans come from the metadata of the Stripe products. The rest is set in the
+											worker.env of the worker, change it there and deploy it again.
 										</Field.Description>
 									{:else}
 										<Field.Description>

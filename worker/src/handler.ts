@@ -36,7 +36,8 @@ export type Env = SendEnv & {
 	// their keys too and answers with one of the private key above.
 	INKAN_OLD_PUBLIC_KEYS?: string;
 	INKAN_STRIPE_KEY: string;
-	// Like prod_a=team,prod_b, a product without a plan gets INKAN_PLAN.
+	// Stripe product ids like prod_a,prod_b. What their keys say is set in the
+	// metadata of each at Stripe. A product without a plan there gets INKAN_PLAN.
 	INKAN_STRIPE_PRODUCT: string;
 	INKAN_PLAN?: string;
 	INKAN_GRACE_DAYS?: string;
@@ -277,7 +278,8 @@ async function licenses(request: Request, env: Env, mails: boolean): Promise<Res
 			name: env.INKAN_PRODUCT_NAME ?? '',
 			grace_days: settings.grace_days,
 			max_key_days: settings.max_key_days,
-			provider_product: env.INKAN_STRIPE_PRODUCT,
+			// Each product with the plan it gives, as Stripe has it right now.
+			provider_product: settings.products.map(({ id, plan }) => `${id}=${plan}`).join(','),
 			// The settings live here alone, so the dashboard shows what is reported.
 			mail: mails
 				? {
@@ -359,17 +361,28 @@ function oldPublicKeys(env: Env): string[] {
 // Product metadata is remembered like a key, all licenses of the product share it.
 async function settingsOf(env: Env): Promise<Settings> {
 	const listed = env.INKAN_STRIPE_PRODUCT.split(',')
-		.map((entry) => entry.split('=').map((part) => part.trim()))
-		.filter(([id]) => id);
+		.map((id) => id.trim())
+		.filter(Boolean);
 	if (!listed.length) throw new Error('INKAN_STRIPE_PRODUCT lists no product');
+	const old = listed.find((id) => id.includes('='));
+	if (old) {
+		const [id, plan] = old.split('=');
+		throw new Error(
+			`INKAN_STRIPE_PRODUCT takes ids only. Set plan=${plan} in the metadata of ${id} at Stripe`
+		);
+	}
 	const found = await Promise.all(
-		listed.map(async ([id = '', plan = '']) => {
+		listed.map(async (id) => {
 			let known = products.get(id);
 			if (!known || Date.now() - known.at >= cacheFor) {
 				known = { metadata: await productMetadata(env.INKAN_STRIPE_KEY, id), at: Date.now() };
 				products.set(id, known);
 			}
-			return { id, plan: plan || (env.INKAN_PLAN ?? ''), metadata: known.metadata };
+			return {
+				id,
+				plan: known.metadata.plan?.trim() || (env.INKAN_PLAN ?? ''),
+				metadata: known.metadata
+			};
 		})
 	);
 	return {

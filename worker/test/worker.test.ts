@@ -25,7 +25,7 @@ const env: Env = {
 	INKAN_PREFIX: 'MYAPP',
 	INKAN_PRIVATE_KEY: privateB64,
 	INKAN_STRIPE_KEY: 'sk_test',
-	INKAN_STRIPE_PRODUCT: 'prod_app=team,prod_lifetime=lifetime,prod_plain',
+	INKAN_STRIPE_PRODUCT: 'prod_app, prod_lifetime,prod_plain',
 	INKAN_PLAN: 'pro',
 	INKAN_WORKER_TOKEN: 'a-long-token-only-the-dashboard-knows',
 	INKAN_STRIPE_WEBHOOK_SECRET: 'whsec_test',
@@ -108,8 +108,8 @@ const sessions: Record<string, object> = {
 
 // The metadata of the products at Stripe.
 const products: Record<string, Record<string, string>> = {
-	prod_app: { meta_tier: 'gold' },
-	prod_lifetime: {},
+	prod_app: { plan: 'team', meta_tier: 'gold' },
+	prod_lifetime: { plan: 'lifetime' },
 	prod_plain: {}
 };
 
@@ -653,9 +653,17 @@ test('licenses hands the dashboard what the worker hands out', async (t) => {
 		'a typo in the settings does not make a paid license look gone'
 	);
 
-	const none = await get('', auth, { ...env, INKAN_STRIPE_PRODUCT: ' , =' });
+	const none = await get('', auth, { ...env, INKAN_STRIPE_PRODUCT: ' , ' });
 	assert.equal(none.status, 502);
 	assert.match(await none.text(), /lists no product/, 'a list without a product');
+
+	const old = await get('', auth, { ...env, INKAN_STRIPE_PRODUCT: 'prod_app=team' });
+	assert.equal(old.status, 502);
+	assert.match(
+		await old.text(),
+		/Set plan=team in the metadata of prod_app/,
+		'a plan in the list says where it belongs now'
+	);
 
 	const bad = await get('', auth, { ...env, INKAN_STRIPE_KEY: 'sk_bad' });
 	assert.equal(bad.status, 502);

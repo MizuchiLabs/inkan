@@ -38,6 +38,35 @@
       "status": "active", "renews": true, "created_at": 1700000000}
   },
   {
+    "name": "the subscription overrides the plan and a claim for one customer",
+    "kind": "subscription",
+    "object": {
+      "id": "sub_vip", "status": "active", "created": 1700000000, "customer": {"email": "a@x.io"},
+      "metadata": {"plan": "enterprise", "meta_tier": "platinum", "meta_support": "phone", "meta_seats": "99"},
+      "items": {"data": [{"quantity": 2, "price": {"product": "prod_app"},
+        "current_period_start": 1797000000, "current_period_end": 1800000000}]}
+    },
+    "settings": {"products": [{"id": "prod_app", "plan": "team", "metadata": {"meta_tier": "gold", "meta_region": "eu"}}], "grace_days": 14, "max_key_days": 0},
+    "now": 1790000000,
+    "want": {"id": "sub_vip", "email": "a@x.io", "customer": "", "plan": "enterprise",
+      "meta": {"region": "eu", "seats": "2", "support": "phone", "tier": "platinum"},
+      "expires_at": 1801209600, "key_expires_at": 1801209600, "period": 3000000, "status": "active", "renews": true, "created_at": 1700000000}
+  },
+  {
+    "name": "the session overrides the plan and the days for one customer",
+    "kind": "session",
+    "object": {
+      "id": "cs_vip", "mode": "payment", "payment_status": "paid", "created": 1780000000,
+      "customer_details": {"email": "buyer@acme.io", "name": "Acme"},
+      "metadata": {"plan": "partner", "days": "30"},
+      "line_items": {"data": [{"price": {"product": "prod_app"}}]}
+    },
+    "settings": {"products": [{"id": "prod_app", "plan": "pro", "metadata": {"days": "365"}}], "grace_days": 14, "max_key_days": 0},
+    "now": 1790000000,
+    "want": {"id": "cs_vip", "email": "buyer@acme.io", "customer": "Acme", "plan": "partner", "meta": {"seats": "1"},
+      "expires_at": 1783801600, "key_expires_at": 1783801600, "period": 0, "status": "paid", "renews": false, "created_at": 1780000000}
+  },
+  {
     "name": "renewal not paid yet",
     "kind": "subscription",
     "object": {

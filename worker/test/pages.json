@@ -9,7 +9,7 @@
 			"name": "My <App>",
 			"grace_days": 14,
 			"max_key_days": 0,
-			"provider_product": "prod_app=team,prod_lifetime=lifetime,prod_plain",
+			"provider_product": "prod_app=team,prod_lifetime=lifetime,prod_plain=pro",
 			"mail": {
 				"from": "Keys <keys@example.com>",
 				"reply_to": "support@example.com",
@@ -53,7 +53,7 @@
 			"name": "My <App>",
 			"grace_days": 14,
 			"max_key_days": 0,
-			"provider_product": "prod_app=team,prod_lifetime=lifetime,prod_plain",
+			"provider_product": "prod_app=team,prod_lifetime=lifetime,prod_plain=pro",
 			"mail": {
 				"from": "Keys <keys@example.com>",
 				"reply_to": "support@example.com",
@@ -97,7 +97,7 @@
 			"name": "My <App>",
 			"grace_days": 14,
 			"max_key_days": 0,
-			"provider_product": "prod_app=team,prod_lifetime=lifetime,prod_plain",
+			"provider_product": "prod_app=team,prod_lifetime=lifetime,prod_plain=pro",
 			"mail": {
 				"from": "Keys <keys@example.com>",
 				"reply_to": "support@example.com",

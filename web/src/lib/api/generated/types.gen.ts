@@ -285,7 +285,7 @@ export type Report = {
      */
     provider: string;
     /**
-     * The products at the provider, like prod_a=team,prod_b
+     * The products at the provider with the plan each gives, like prod_a=team,prod_b=pro
      */
     provider_product: string;
     /**

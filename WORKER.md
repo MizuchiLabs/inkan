@@ -86,7 +86,7 @@ fewer licenses than the limit, or none, and still have a `next`.
     "name": "My App",
     "grace_days": 14,
     "max_key_days": 0,
-    "provider_product": "prod_…=pro,prod_…=enterprise",
+    "provider_product": "prod_a=pro,prod_b=enterprise",
     "mail": {
       "from": "My App <licenses@example.com>",
       "reply_to": "",
@@ -125,6 +125,7 @@ fewer licenses than the limit, or none, and still have a `next`.
 | `provider`        | Who is asked what is paid, never `manual`. Shown as the source        |
 | `old_public_keys` | Hex keys from before a rotation that a refresh still takes            |
 | `plan`, `name`    | The plan and the name of the product the worker was exported with     |
+| `provider_product` | What is sold at the provider, each with the plan it gives right now  |
 | `mail`            | How the key mail is set up, `null` when the worker sends none         |
 | `mail.custom`     | The worker was built with a mail of its own                           |
 | `id`              | Id at the provider, never `lic_…`. The key carries it as its `id`     |

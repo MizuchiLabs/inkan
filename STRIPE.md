@@ -53,31 +53,42 @@ like one and delete them once the worker has them.
   dashboard reads the list from the worker, Sync now on the Products page
   reads it right away. One read goes through every subscription and purchase
   of the Stripe account.
-- **Plans.** Each Stripe product can have a plan of its own. Pro and
-  Enterprise products give `pro` and `enterprise` keys. Set the plan next to
-  each Stripe product in `INKAN_STRIPE_PRODUCT`, like
-  `prod_a=pro,prod_b=enterprise`. A Stripe product without one gets the plan
-  of the product. All prices of a Stripe product,
-  monthly or yearly, give the same plan. An upgrade to another product keeps
-  the subscription, so the next refresh brings a key of the new plan.
-- **One time purchases.** A paid Checkout session in payment mode is a license
-  that never expires. Give the Stripe product the metadata `days=365` and its
-  purchases last a year. A refunded purchase gets a key that ran out when it
-  was bought. The Stripe key needs read access to Checkout sessions, payment
-  intents and charges for this, without it only subscriptions are licenses.
-- **Expiry.** A paid key is valid until the paid period ends, plus the grace
-  days of the product. A subscription that falls behind on a payment keeps its
-  last key and gets no new one.
-- **Seats and features.** The quantity bought is signed into the key as the
-  claim `seats`. Metadata of the Stripe product that starts with `meta_` is
-  signed into the key too, `meta_tier=gold` becomes the claim `tier=gold`.
-  Only `meta_seats` is left out, the seats are always the quantity.
+- **Metadata is the one source.** What a key says is set in Stripe metadata
+  with three names. Put them on the Stripe product and they hold for everyone
+  who buys it.
+
+  | Metadata      | In the key                                              |
+  | ------------- | ------------------------------------------------------- |
+  | `plan=team`   | The plan. Without it the key gets the plan of the product in inkan |
+  | `meta_…`      | An extra claim, `meta_tier=gold` becomes `tier=gold`    |
+  | `days=365`    | A one time purchase lasts that long, without it forever |
+
+  All prices of a Stripe product, monthly or yearly, give the same key.
   Metadata on prices is not read, the Stripe dashboard locks a price once it
-  has been used.
+  has been used. An upgrade to another product keeps the subscription, so the
+  next refresh brings a key of the new plan.
+- **One customer, another deal.** The same three names on a single
+  subscription or Checkout session win over the product. A customer who gets
+  enterprise features on a team price is `plan=enterprise` on that
+  subscription. Nobody else is touched, and the next refresh brings the new
+  key. Only your Stripe account can edit a subscription. A Checkout session
+  gets its metadata from the code that creates it, so never copy what a
+  buyer typed into it.
+- **One time purchases.** A paid Checkout session in payment mode is a
+  license. A refunded purchase gets a key that ran out when it was bought.
+  The Stripe key needs read access to Checkout sessions, payment intents and
+  charges for this, without it only subscriptions are licenses.
+- **Expiry.** A paid key is valid until the paid period ends, plus the grace
+  days of the worker. A subscription that falls behind on a payment keeps its
+  last key and gets no new one.
+- **Seats.** The quantity bought is signed into the key as the claim `seats`.
+  It is always the quantity, `meta_seats` is left out.
 - **Machines.** The metadata `fingerprint` on a subscription or a Checkout
   session binds its key to that machine. A Checkout session your site creates
   can carry the fingerprint the app shows. What the app does with it is in
   [the README](README.md#use-the-keys-in-your-app).
+- **What the plan means is up to your app.** Inkan carries the plan and the
+  claims as plain words. It does not know what `team` or `tier=gold` allow.
 - **Max key days.** How long a paid key lives before the app has to fetch a
   new one. It is the closest thing to taking a key back. A signed key works
   until it expires. Without a limit that is the end of the paid period plus
@@ -118,7 +129,7 @@ worker needs, it never writes to Stripe.
 
 | Read access to    | For                                                 |
 | ----------------- | --------------------------------------------------- |
-| Products          | The metadata of the products, `meta_…` and `days`   |
+| Products          | The metadata of the products: `plan`, `meta_…`, `days` |
 | Subscriptions     | Subscriptions are licenses                          |
 | Customers         | The email and the name of a license                 |
 | Checkout Sessions | One time purchases, leave it out if you sell none   |
@@ -134,10 +145,10 @@ Products page, the apps keep the keys they have.
 | `INKAN_PRIVATE_KEY`           | -          | Signing key of the product                     |
 | `INKAN_OLD_PUBLIC_KEYS`       | -          | Public keys from before a rotation, to refresh |
 | `INKAN_WORKER_TOKEN`          | -          | Lets the dashboard read the licenses           |
-| `INKAN_PLAN`                  | -          | Plan for Stripe products that set none         |
+| `INKAN_PLAN`                  | -          | Plan for Stripe products without `plan`        |
 | `INKAN_PRODUCT_NAME`          | the prefix | How the key mail calls the product             |
 | `INKAN_STRIPE_KEY`            | -          | Restricted key with the read access above      |
-| `INKAN_STRIPE_PRODUCT`        | -          | Stripe products like `prod_a=team,prod_b`      |
+| `INKAN_STRIPE_PRODUCT`        | -          | Stripe product ids like `prod_a,prod_b`        |
 | `INKAN_GRACE_DAYS`            | `14`       | Days a key outlives its paid period            |
 | `INKAN_MAX_KEY_DAYS`          | `0`        | Days a key lives before a refresh, 0 no limit  |
 | `INKAN_STRIPE_WEBHOOK_SECRET` | -          | Signing secret of the webhook endpoint         |
