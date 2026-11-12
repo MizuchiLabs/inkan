@@ -207,12 +207,15 @@ func writeDir(dir string, files []exported) error {
 // writeTar leaves worker.env out. Unpacking would replace the one that is filled in.
 func writeTar(w io.Writer, folder string, files []exported) error {
 	tw := tar.NewWriter(w)
+	// A tar holds whole seconds and the writer rounds to the nearest one. Rounded
+	// up, tar on the host warns about a file from the future.
+	now := time.Now().Truncate(time.Second)
 	for _, f := range files {
 		err := tw.WriteHeader(&tar.Header{
 			Name:    path.Join(folder, f.name),
 			Mode:    int64(f.mode),
 			Size:    int64(len(f.body)),
-			ModTime: time.Now(),
+			ModTime: now,
 		})
 		if err != nil {
 			return err

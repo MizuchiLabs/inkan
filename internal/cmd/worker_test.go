@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -130,6 +131,7 @@ func TestWriteTar(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "inkan-worker-x/"+f.name, h.Name, "unpacking makes the folder")
 		assert.Equal(t, int64(f.mode), h.Mode, "the mode travels with the file")
+		assert.False(t, h.ModTime.After(time.Now()), "tar warns about a file from the future")
 		body, err := io.ReadAll(tr)
 		require.NoError(t, err)
 		assert.Equal(t, f.body, string(body))
