@@ -120,7 +120,8 @@
 				{
 					onSuccess: (saved) => {
 						onclose();
-						if (saved.sync_error) toast.warning(`Saved. ${saved.sync_error}`);
+						const off = saved.sync_error || saved.sync_notice;
+						if (off) toast.warning(`Saved. ${off}`);
 						else toast.success('Saved the product');
 					}
 				}
@@ -348,6 +349,9 @@
 										<Field.Description>
 											{#if product.synced_at}
 												As the worker reported it {formatRelativeTime(product.synced_at)}.
+											{/if}
+											{#if product.sync_error}
+												It could not be read since, so this may be out of date.
 											{/if}
 											The plans come from the metadata of the Stripe products. The rest is set in the
 											worker.env of the worker, change it there and deploy it again.

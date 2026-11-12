@@ -19,7 +19,14 @@
 	import Seal from '#lib/components/util/Seal.svelte';
 	import { formatRelativeTime } from '#lib/license.js';
 	import { cn } from '#lib/utils.js';
-	import { CircleAlertIcon, PencilIcon, PlusIcon, RefreshCwIcon, TrashIcon } from '@lucide/svelte';
+	import {
+		CircleAlertIcon,
+		InfoIcon,
+		PencilIcon,
+		PlusIcon,
+		RefreshCwIcon,
+		TrashIcon
+	} from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
 
 	const productsQuery = useProducts();
@@ -66,7 +73,7 @@
 </svelte:head>
 
 <div class="flex flex-col gap-6">
-	<div class="flex items-end justify-between gap-4">
+	<div class="flex flex-wrap items-end justify-between gap-4">
 		<div>
 			<h1 class="text-2xl font-black tracking-tight">Products</h1>
 			<p class="text-sm text-muted-foreground">
@@ -120,11 +127,6 @@
 									>
 									<Badge variant="secondary">{count} {count === 1 ? 'license' : 'licenses'}</Badge>
 									<Badge variant="secondary">plan {product.plan}</Badge>
-									{#if product.worker_report}
-										<Badge variant="secondary">
-											{product.worker_report.grace_days} grace days
-										</Badge>
-									{/if}
 								</div>
 							</div>
 						</div>
@@ -168,6 +170,12 @@
 									<CircleAlertIcon />
 									<Alert.Title>The worker needs a look</Alert.Title>
 									<Alert.Description>{product.sync_error}</Alert.Description>
+								</Alert.Root>
+							{:else if product.sync_notice}
+								<Alert.Root>
+									<InfoIcon />
+									<Alert.Title>The worker runs on an older export</Alert.Title>
+									<Alert.Description>{product.sync_notice}</Alert.Description>
 								</Alert.Root>
 							{/if}
 						</div>

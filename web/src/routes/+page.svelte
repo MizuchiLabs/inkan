@@ -267,6 +267,12 @@
 									<div class="flex items-center gap-2">
 										<span>{product?.name}</span>
 										<Badge variant="secondary">{license.plan}</Badge>
+										<!-- Paid ones name where they come from, the rest were issued by hand. -->
+										{#if license.source !== 'manual'}
+											<Badge variant="outline">
+												{license.source.charAt(0).toUpperCase() + license.source.slice(1)}
+											</Badge>
+										{/if}
 									</div>
 								</Table.Cell>
 								<Table.Cell>

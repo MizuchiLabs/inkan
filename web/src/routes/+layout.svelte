@@ -25,7 +25,7 @@
 		<SessionGate>
 			<div class="flex min-h-screen flex-col">
 				<AppHeader />
-				<main class="mx-auto mb-16 w-full max-w-5xl flex-1 px-4 sm:px-6">
+				<main class="mx-auto mb-8 w-full max-w-5xl flex-1 px-4 sm:px-6">
 					{@render children?.()}
 				</main>
 				<AppFooter />

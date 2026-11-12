@@ -81,7 +81,7 @@
 				</InputGroup.Addon>
 				<InputGroup.Input
 					bind:value={key}
-					placeholder="Paste a license key anywhere to check it"
+					placeholder="Paste a license key"
 					aria-label="License key"
 					autocomplete="off"
 					spellcheck={false}
@@ -110,7 +110,7 @@
 		<div class="px-1" aria-live="polite">
 			{#if !result}
 				<p class="text-sm text-muted-foreground">
-					If it verifies, the seal of its product lands on the left.
+					Paste it anywhere on this page. If it verifies, the seal of its product lands on the left.
 				</p>
 			{:else if result.state === 'invalid'}
 				<p class="font-bold">Not a valid key</p>
