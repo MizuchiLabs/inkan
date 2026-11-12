@@ -57,6 +57,8 @@ test("refresh only returns a key of this app", async () => {
     "/renewed": [200, good.key + "\n"],
     "/expired": [200, expired.key],
     "/hostile": [200, "MYAPP-AAAAA"],
+    // Only the first 16 kB are read, the x is never seen.
+    "/long": [200, good.key + " ".repeat(20_000) + "x"],
     "/gone": [404, "no license behind this key"],
   };
   const server = createServer((req, res) => {
@@ -74,6 +76,7 @@ test("refresh only returns a key of this app", async () => {
       await refresh(url("/expired"), expired.key, "MYAPP", vectors.public_key),
       expired.key,
     );
+    assert.equal(await refresh(url("/long"), expired.key, "MYAPP", vectors.public_key), good.key);
     await assert.rejects(
       refresh(url("/hostile"), expired.key, "MYAPP", vectors.public_key),
       LicenseError,

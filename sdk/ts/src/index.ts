@@ -60,6 +60,12 @@ export class LicenseError extends Error {
 
 const wireVersion = 1;
 const signatureSize = 64;
+// A refresh answers with one key, far below this.
+const maxAnswer = 16 << 10;
+// Unicode White_Space, the zero width space and the byte order mark. Spelled
+// out, \s is another list.
+const spaces =
+  /[\t-\r \u0085\u00a0\u1680\u2000-\u200b\u2028\u2029\u202f\u205f\u3000\ufeff]/g;
 const minute = 60;
 const day = 86_400;
 
@@ -68,7 +74,7 @@ const day = 86_400;
  * stray spaces, the quotes of an env file. verify does it by itself.
  */
 export function clean(key: string): string {
-  return key.replace(/\s+/g, "").replace(/^["']+|["']+$/g, "");
+  return key.replace(spaces, "").replace(/^["']+|["']+$/g, "");
 }
 
 /**
@@ -87,7 +93,8 @@ export async function verify(
 ): Promise<Claims> {
   const keys = await Promise.all(publicKeys.split(",").map((hex) => importPublicKey(hex.trim())));
 
-  const prefix = app.toUpperCase() + "-";
+  // Only a to z, languages disagree on the uppercase of the rest.
+  const prefix = app.replace(/[a-z]/g, (letter) => letter.toUpperCase()) + "-";
   const cleaned = clean(key);
   if (!cleaned.startsWith(prefix)) throw new LicenseError("format");
   const raw = decodeBase64(cleaned.slice(prefix.length).replaceAll("-", ""));
@@ -133,7 +140,7 @@ export async function refresh(
     body: clean(key),
     signal: AbortSignal.timeout(15_000),
   });
-  const answer = (await response.text()).trim();
+  const answer = (await readCapped(response)).trim();
   if (!response.ok) {
     throw new Error(`refreshing license: ${response.status}: ${answer.slice(0, 200)}`);
   }
@@ -297,6 +304,21 @@ export class Keeper {
   }
 }
 
+async function readCapped(response: Response): Promise<string> {
+  const reader = response.body?.getReader();
+  if (!reader) return "";
+  const decoder = new TextDecoder();
+  let text = "";
+  for (let size = 0; size < maxAnswer; ) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    text += decoder.decode(value.subarray(0, maxAnswer - size), { stream: true });
+    size += value.length;
+  }
+  await reader.cancel().catch(() => {});
+  return text;
+}
+
 function ranOut(claims: Claims, now: number): boolean {
   return claims.exp !== 0 && now > claims.exp;
 }
@@ -313,10 +335,20 @@ function decodeBase64(text: string): Uint8Array<ArrayBuffer> | null {
   return Uint8Array.from(atob(text), (char) => char.charCodeAt(0));
 }
 
+const loneSurrogate = /\p{Cs}/u;
+
 function parseClaims(payload: Uint8Array): Claims {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(new TextDecoder().decode(payload));
+    // No patching up: broken UTF-8 throws and a byte order mark stays, which is no JSON.
+    const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(payload);
+    parsed = JSON.parse(text, (name, value) => {
+      // Half a surrogate pair from a \u escape. Go cannot hold one in a string.
+      if (loneSurrogate.test(name) || (typeof value === "string" && loneSurrogate.test(value))) {
+        throw new LicenseError("format");
+      }
+      return value;
+    });
   } catch {
     throw new LicenseError("format");
   }
@@ -336,7 +368,12 @@ function parseClaims(payload: Uint8Array): Claims {
     email: field("email", "string", ""),
     exp: field("exp", "number", 0),
   };
-  if (!Number.isInteger(claims.exp)) throw new LicenseError("format");
+  // Judged by its value, JavaScript cannot see how the number was written.
+  if (!Number.isInteger(claims.exp) || Math.abs(claims.exp) > Number.MAX_SAFE_INTEGER) {
+    throw new LicenseError("format");
+  }
+  // Turns -0 into 0.
+  claims.exp += 0;
   const id = field("id", "string", "");
   if (id) claims.id = id;
   const fp = field("fp", "string", "");

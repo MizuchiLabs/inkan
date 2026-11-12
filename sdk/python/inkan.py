@@ -34,6 +34,14 @@ _WIRE_VERSION = 1
 _SIGNATURE_SIZE = 64
 _MINUTE = 60
 _DAY = 86_400
+# The largest whole number every language reads the same.
+_MAX_EXP = 2**53 - 1
+# Unicode White_Space, the zero width space and the byte order mark. Spelled
+# out, str.split and \s are other lists.
+_SPACES = re.compile(
+    "[\t-\r \u0085\u00a0\u1680\u2000-\u200b\u2028\u2029\u202f\u205f\u3000\ufeff]"
+)
+_LOWER = re.compile("[a-z]")
 _T = TypeVar("_T")
 _MESSAGES = {
     "format": "license format is invalid",
@@ -79,7 +87,7 @@ def clean(key: str) -> str:
     """Strips what a key picks up on its way: the line breaks of a mail
     client, stray spaces, the quotes of an env file. verify does it by itself.
     """
-    return "".join(key.split()).strip("\"'")
+    return _SPACES.sub("", key).strip("\"'")
 
 
 def verify(
@@ -105,7 +113,8 @@ def verify(
     """
     keys = [_public_key(part.strip()) for part in public_keys.split(",")]
 
-    prefix = app.upper() + "-"
+    # Only a to z, languages disagree on the uppercase of the rest.
+    prefix = _LOWER.sub(lambda letter: letter.group().upper(), app) + "-"
     cleaned = clean(key)
     if not cleaned.startswith(prefix):
         raise LicenseError("format")
@@ -341,10 +350,33 @@ def _decode(text: str) -> bytes | None:
         return None
 
 
+def _no_constant(name: str) -> object:
+    # NaN and Infinity are no JSON, json.loads takes them all the same.
+    raise ValueError(name)
+
+
+def _exp(value: object) -> int:
+    """exp is judged by its value as a float, the only way JavaScript can read
+    it. So 4.1e9 is fine, 1.5 and anything from 2**53 on are not.
+    """
+    if value is None:
+        return 0
+    if not isinstance(value, float) or not value.is_integer() or abs(value) > _MAX_EXP:
+        raise LicenseError("format")
+    return int(value)
+
+
 def _parse(payload: bytes) -> Claims:
     try:
-        loaded = cast(object, json.loads(payload.decode(errors="replace")))
-    except ValueError:
+        # Every number as a float, Python has a limit on the digits of an int.
+        loaded = cast(
+            object,
+            json.loads(payload.decode(), parse_int=float, parse_constant=_no_constant),
+        )
+        # Half a surrogate pair from a \u escape cannot be encoded. Go cannot
+        # hold one in a string, so it is no valid payload.
+        _ = json.dumps(loaded, ensure_ascii=False).encode()
+    except (ValueError, RecursionError):
         raise LicenseError("format") from None
     if not isinstance(loaded, dict):
         raise LicenseError("format")
@@ -354,8 +386,7 @@ def _parse(payload: bytes) -> Claims:
         value = fields.get(name)
         if value is None:
             return zero
-        # bool is an int in Python, a key must not pass with "exp": true.
-        if not isinstance(value, kind) or isinstance(value, bool):
+        if not isinstance(value, kind):
             raise LicenseError("format")
         return value
 
@@ -372,7 +403,7 @@ def _parse(payload: bytes) -> Claims:
         app=get("app", str, ""),
         plan=get("plan", str, ""),
         email=get("email", str, ""),
-        exp=get("exp", int, 0),
+        exp=_exp(fields.get("exp")),
         id=get("id", str, ""),
         fp=get("fp", str, ""),
         meta=meta,
