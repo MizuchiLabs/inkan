@@ -84,6 +84,19 @@ func (q *Queries) DeleteLicense(ctx context.Context, arg *DeleteLicenseParams) (
 	return result.RowsAffected()
 }
 
+const deleteProviderLicenses = `-- name: DeleteProviderLicenses :exec
+DELETE FROM licenses
+WHERE
+  product_id = ?
+  AND source != 'manual'
+`
+
+// A product without a worker has no paid licenses to show.
+func (q *Queries) DeleteProviderLicenses(ctx context.Context, productID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteProviderLicenses, productID)
+	return err
+}
+
 const deleteSnapshots = `-- name: DeleteSnapshots :exec
 DELETE FROM snapshots
 WHERE

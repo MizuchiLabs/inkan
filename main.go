@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 
 	_ "modernc.org/sqlite"
 
@@ -71,6 +72,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return err
 	}
 	defer closeDB()
-	go mirror.Run(ctx, q)
+	// A sync that is still writing must end before the database closes.
+	var syncing sync.WaitGroup
+	defer syncing.Wait()
+	syncing.Go(func() { mirror.Run(ctx, q) })
 	return api.New(q, guard).Start(ctx, cmd.String("addr"))
 }

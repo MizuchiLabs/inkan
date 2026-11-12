@@ -161,7 +161,8 @@ What the dashboard does with it:
 - It shows the rest of `product` as it is. Those settings live in the worker
   alone.
 - It keeps a row per license and drops the rows a full read no longer lists.
-  It keeps the purchases when `skipped` names them.
+  It keeps the purchases when `skipped` names them. A product whose worker
+  url is cleared loses its rows.
 - It keeps the last `email` and `customer` it saw for a deleted customer. The
   `key` of that license carries no email then.
 

@@ -32,6 +32,8 @@ const (
 	syncEvery = time.Hour
 	// The most a worker hands out, fewer pages are fewer calls to Stripe.
 	pageSize = 100
+	// A million licenses. A worker that never ends its list must not keep a sync going.
+	maxPages = 10_000
 )
 
 // A redirect could take the token to plain http or another host.
@@ -129,8 +131,12 @@ func Connected(p *db.Product) bool {
 // many there are. The outcome is recorded on the product, so the UI can show it.
 func Sync(ctx context.Context, q *db.Queries, p *db.Product) (int, error) {
 	n, runs, err := pull(ctx, q, p)
+	if errors.Is(err, context.DeadlineExceeded) {
+		err = errors.New("worker: reading it took too long, the next sync tries again")
+	}
 	if err != nil {
-		if dbErr := q.SetProductSyncError(ctx, &db.SetProductSyncErrorParams{
+		// ctx may be the reason it failed, the outcome is still worth keeping.
+		if dbErr := q.SetProductSyncError(context.WithoutCancel(ctx), &db.SetProductSyncErrorParams{
 			SyncError: err.Error(),
 			ID:        p.ID,
 		}); dbErr != nil {
@@ -204,6 +210,9 @@ func pull(ctx context.Context, q *db.Queries, p *db.Product) (n int, runs *Repor
 		cursor = *pg.Next
 		if asked[cursor] {
 			return 0, nil, errors.New("worker: its pages go in a circle")
+		}
+		if len(asked) >= maxPages {
+			return 0, nil, errors.New("worker: its list of licenses does not end")
 		}
 	}
 
@@ -375,8 +384,10 @@ func store(ctx context.Context, q *db.Queries, p *db.Product, provider string, l
 // so it ends on the last count of the day.
 func snapshot(ctx context.Context, q *db.Queries) error {
 	day := time.Now().UTC().Format(time.DateOnly)
-	if err := q.DeleteSnapshots(ctx, day); err != nil {
-		return err
-	}
-	return q.TakeSnapshot(ctx, day)
+	return q.InTx(ctx, func(q *db.Queries) error {
+		if err := q.DeleteSnapshots(ctx, day); err != nil {
+			return err
+		}
+		return q.TakeSnapshot(ctx, day)
+	})
 }

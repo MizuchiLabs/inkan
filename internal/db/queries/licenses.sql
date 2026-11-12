@@ -94,6 +94,13 @@ WHERE
     OR kind != 'purchase'
   );
 
+-- A product without a worker has no paid licenses to show.
+-- name: DeleteProviderLicenses :exec
+DELETE FROM licenses
+WHERE
+  product_id = ?
+  AND source != 'manual';
+
 -- name: DeleteSnapshots :exec
 DELETE FROM snapshots
 WHERE

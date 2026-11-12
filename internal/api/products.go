@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+	"modernc.org/sqlite"
 
 	"github.com/mizuchilabs/inkan/license"
 
@@ -71,6 +72,13 @@ type SyncOutput struct {
 		Licenses int `json:"licenses" doc:"Paid licenses the worker hands out"`
 	}
 }
+
+const (
+	// A sync inside a request has to answer before the server gives up on writing.
+	syncTimeout = 45 * time.Second
+	// SQLITE_CONSTRAINT_UNIQUE, the driver exports no name for it.
+	sqliteUnique = 2067
+)
 
 type productHandlers struct {
 	q *db.Queries
@@ -203,6 +211,11 @@ func (h *productHandlers) update(ctx context.Context, in *UpdateProductInput) (*
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to update product")
 	}
+	if !mirror.Connected(p) {
+		if err := h.q.DeleteProviderLicenses(ctx, p.ID); err != nil {
+			return nil, huma.Error500InternalServerError("failed to drop the licenses of the worker")
+		}
+	}
 
 	return h.synced(ctx, p)
 }
@@ -254,6 +267,8 @@ func (h *productHandlers) setKeys(
 // shows up as sync_error.
 func (h *productHandlers) synced(ctx context.Context, p *db.Product) (*ProductOutput, error) {
 	if mirror.Connected(p) {
+		ctx, cancel := context.WithTimeout(ctx, syncTimeout)
+		defer cancel()
 		_, _ = mirror.Sync(ctx, h.q, p)
 		var err error
 		if p, err = h.get(ctx, p.ID); err != nil {
@@ -278,6 +293,8 @@ func (h *productHandlers) sync(ctx context.Context, in *ProductPath) (*SyncOutpu
 	if !mirror.Connected(p) {
 		return nil, huma.Error409Conflict("the product has no worker")
 	}
+	ctx, cancel := context.WithTimeout(ctx, syncTimeout)
+	defer cancel()
 	n, err := mirror.Sync(ctx, h.q, p)
 	if err != nil {
 		return nil, huma.Error502BadGateway(err.Error())
@@ -327,5 +344,6 @@ func publicKey(priv ed25519.PrivateKey) ed25519.PublicKey {
 }
 
 func isUnique(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed")
+	e, ok := errors.AsType[*sqlite.Error](err)
+	return ok && e.Code() == sqliteUnique
 }

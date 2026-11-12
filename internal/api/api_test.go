@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json/v2"
@@ -224,9 +225,20 @@ func TestProductWorker(t *testing.T) {
 		settings["worker_url"] = url
 		assert.Equal(t, http.StatusUnprocessableEntity, call(t, srv, http.MethodPut, path, settings, nil), url)
 	}
+	require.NoError(t, q.UpsertProviderLicense(t.Context(), &db.UpsertProviderLicenseParams{
+		ID: "sub_1", ProductID: p.ID, Source: "stripe", Kind: "subscription", Email: "a@x.io", Plan: "pro", Meta: "{}",
+	}))
+	_, err = q.CreateLicense(t.Context(), &db.CreateLicenseParams{
+		ID: "lic_1", ProductID: p.ID, Email: "a@x.io", Plan: "pro", Meta: "{}",
+	})
+	require.NoError(t, err)
 	settings["worker_url"] = ""
 	require.Equal(t, http.StatusOK, call(t, srv, http.MethodPut, path, settings, &saved))
 	assert.False(t, saved.WorkerConnected, "an empty url disconnects the worker")
+	_, err = q.GetLicense(t.Context(), &db.GetLicenseParams{ProductID: p.ID, ID: "sub_1"})
+	require.ErrorIs(t, err, sql.ErrNoRows, "without a worker its licenses would stay forever")
+	_, err = q.GetLicense(t.Context(), &db.GetLicenseParams{ProductID: p.ID, ID: "lic_1"})
+	require.NoError(t, err, "hand issued licenses are not the worker's")
 	assert.Equal(t, http.StatusConflict, call(t, srv, http.MethodPost, path+"/sync", nil, nil))
 	assert.Equal(t, http.StatusNotFound, call(t, srv, http.MethodPut, "/api/products/999", settings, nil))
 }
