@@ -6,6 +6,8 @@ export type Mail = {
 	// A bare address, an answer goes to the sender without one.
 	replyTo?: string;
 	to: string;
+	// The same key within a day sends one mail, where the service can do that.
+	idempotencyKey?: string;
 	subject: string;
 	text: string;
 	html: string;
@@ -34,7 +36,10 @@ function resend(apiKey: string): Send {
 		post(
 			'resend',
 			'https://api.resend.com/emails',
-			{ Authorization: 'Bearer ' + apiKey },
+			{
+				Authorization: 'Bearer ' + apiKey,
+				...(mail.idempotencyKey && { 'Idempotency-Key': mail.idempotencyKey })
+			},
 			{
 				from: mail.from,
 				reply_to: mail.replyTo,

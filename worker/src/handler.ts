@@ -64,6 +64,8 @@ const shortPeriod = 32 * 86400;
 // in Stripe, like new seats, must reach every copy of the worker soon.
 const cacheFor = 30_000;
 const rememberEvents = 72 * 3_600_000;
+// From here on a new key first sweeps the ones that are too old to be used.
+const maxRemembered = 1000;
 // The token is guessed without a limit on tries, so it has to be long.
 const minTokenLength = 32;
 
@@ -145,7 +147,7 @@ async function refresh(request: Request, env: Env): Promise<Response> {
 			({ key } = await sign(env, claims.id, claims.email));
 		} catch (err) {
 			if (err instanceof NotFound || err instanceof OtherProduct || err instanceof NotOwed) {
-				keys.set(claims.id, { key: '', at: Date.now() });
+				remember(claims.id, '');
 				return text('no license behind this key', 404);
 			}
 			console.error('refresh failed', claims.id, err);
@@ -224,6 +226,8 @@ async function webhook(request: Request, env: Env, send: Send): Promise<Response
 			from: env.INKAN_MAIL_FROM!,
 			replyTo: env.INKAN_MAIL_REPLY_TO?.trim() || undefined,
 			to: claims.email,
+			// Another copy of the worker may get the same event again.
+			idempotencyKey: event.id,
 			...mail(env, key, claims, ends)
 		});
 	} catch (err) {
@@ -320,8 +324,17 @@ async function sign(
 	const license = await owed(env.INKAN_STRIPE_KEY, id, settingsOf(env), now());
 	const claims = claimsOf(env, license, lastEmail);
 	const key = await issue(claims, await importPrivateKey(env.INKAN_PRIVATE_KEY));
-	keys.set(id, { key, at: Date.now() });
+	remember(id, key);
 	return { key, claims, period: license.period, ends: license.expires_at };
+}
+
+// A long-lived worker would keep every key it ever signed without the sweep.
+function remember(id: string, key: string): void {
+	const now = Date.now();
+	if (keys.size >= maxRemembered) {
+		for (const [old, { at }] of keys) if (now - at >= cacheFor) keys.delete(old);
+	}
+	keys.set(id, { key, at: now });
 }
 
 function claimsOf(env: Env, license: License, lastEmail = ''): Claims {

@@ -484,6 +484,11 @@ test('webhook mails the key once', async (t) => {
 	assert.equal(mails[0].url, 'https://api.resend.com/emails');
 	assert.equal(mails[0].body.from, 'Keys <keys@example.com>');
 	assert.equal(mails[0].body.reply_to, 'support@example.com');
+	assert.equal(
+		mails[0].headers['Idempotency-Key'],
+		'evt_1',
+		'another copy of the worker that gets the event again sends no second mail'
+	);
 	assert.deepEqual(mails[0].body.to, ['ops@acme.io']);
 	const key = mails[0].body.text.match(/MYAPP-\S+/)![0];
 	assert.equal((await claimsOf(key)).id, 'sub_ok_webhook');
@@ -578,13 +583,19 @@ test('licenses hands the dashboard what the worker hands out', async (t) => {
 		call('GET', '/licenses' + query, undefined, headers, with_);
 
 	type Listed = { id: string; key: string; expires_at: number };
-	type Page = { product: { public_key: string }; licenses: Listed[]; next: string | null };
+	type Page = {
+		product: { public_key: string; mail: { custom: boolean } };
+		licenses: Listed[];
+		next: string | null;
+	};
 	const pages: Page[] = [];
 	let cursor: string | null = '';
 	while (cursor !== null) {
 		const response = await get('?cursor=' + encodeURIComponent(cursor));
 		assert.equal(response.status, 200);
 		const page = (await response.json()) as Page;
+		// A clone with a mail of its own in template.ts reads the same fixture.
+		page.product.mail.custom = false;
 		pages.push(page);
 		cursor = page.next;
 	}
