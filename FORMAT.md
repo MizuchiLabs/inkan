@@ -161,6 +161,10 @@ escaping are yours to choose. Write `app` as the product prefix and leave out
 number and each name once, and stay inside
 [what a verifier reads](#how-the-payload-is-read).
 
+The `sign` test vectors hold the bytes the Go package writes. It escapes `<`,
+`>`, `&` and the line separators `U+2028` and `U+2029`, the reference worker
+does not. Both are fine, a signer of your own only has to verify.
+
 Keep the encoding stable. Ed25519 signatures are deterministic, so the same
 bytes always give the same key, and an app that refreshes can tell that
 nothing changed.

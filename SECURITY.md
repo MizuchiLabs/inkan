@@ -89,7 +89,8 @@ For when a private key may have leaked, or the people who had it moved on.
 4. **Drop the old keys** under Edit once no key from before is in use, then
    ship a build with the new public key alone and deploy the worker again.
    The export then leaves `INKAN_OLD_PUBLIC_KEYS` out. Cloudflare and
-   Scaleway keep a secret until it is deleted, so delete that one there.
+   Scaleway keep a secret until it is deleted, so delete that one there. On
+   Cloudflare that is `npx wrangler secret delete INKAN_OLD_PUBLIC_KEYS`.
 
 Nothing breaks in between. Keys that are out work offline the whole time, and
 the worker keeps signing with the old key until step 3.

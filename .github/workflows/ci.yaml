@@ -58,6 +58,17 @@ jobs:
           node --test
           pnpm build
 
+      - name: Email
+        working-directory: email
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm check
+
+      # West of UTC is where a day label can slip to the day before.
+      - name: Dashboard day labels
+        working-directory: web
+        run: TZ=America/New_York node --test tests/
+
   # Runs on main only and skips itself for repos without kos in .goreleaser.yaml.
   nightly:
     needs: ci
