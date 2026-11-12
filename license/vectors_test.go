@@ -85,6 +85,28 @@ func raw(wire byte, payload string, priv ed25519.PrivateKey) string {
 	return "MYAPP-" + chunkKey(base64.RawStdEncoding.EncodeToString(data))
 }
 
+// claim is a payload of MYAPP with more claims behind the usual three.
+func claim(more string) string {
+	return `{"app":"MYAPP","plan":"pro","email":"",` + more + `}`
+}
+
+// spareBits is a key whose last character has bits that belong to no byte,
+// with one of them set.
+func spareBits(t *testing.T, priv ed25519.PrivateKey) string {
+	t.Helper()
+	payload := claim(`"exp":0`)
+	for (1+len(payload)+ed25519.SignatureSize)%3 != 1 {
+		payload += " "
+	}
+	key := raw(1, payload, priv)
+	const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+	last := strings.IndexByte(alphabet, key[len(key)-1])
+	if last%16 != 0 {
+		t.Fatal("the spare bits of an issued key are not zero")
+	}
+	return key[:len(key)-1] + string(alphabet[last+1])
+}
+
 func buildVectors(t *testing.T) vectors {
 	t.Helper()
 	seed := make([]byte, ed25519.SeedSize)
@@ -143,6 +165,48 @@ func buildVectors(t *testing.T) vectors {
 		{"too short to hold a signature", "MYAPP-AXsid-iI6MS", "MYAPP", ""},
 		{"not base64", "MYAPP-!!!!!-?????", "MYAPP", ""},
 		{"empty", "", "MYAPP", ""},
+
+		// The edges every verifier has to agree on.
+		{"exp written with an exponent", raw(1, claim(`"exp":4.1e9`), priv), "MYAPP", ""},
+		{"exp of -0.0 is 0", raw(1, claim(`"exp":-0.0`), priv), "MYAPP", ""},
+		{"a negative exp ran out", raw(1, claim(`"exp":-5`), priv), "MYAPP", ""},
+		{"the largest exp, 2^53 - 1", raw(1, claim(`"exp":9007199254740991`), priv), "MYAPP", ""},
+		{"exp of 2^53 is too large", raw(1, claim(`"exp":9007199254740992`), priv), "MYAPP", ""},
+		{"exp of 30 digits is too large", raw(1, claim(`"exp":1000000000000000000000000000000`), priv), "MYAPP", ""},
+		{"exp with a fraction", raw(1, claim(`"exp":1.5`), priv), "MYAPP", ""},
+		{"exp as a string", raw(1, claim(`"exp":"0"`), priv), "MYAPP", ""},
+		{"a null claim is its zero value", raw(1, claim(`"exp":null,"id":null,"meta":null`), priv), "MYAPP", ""},
+		{"a claim name in capitals is not the claim", raw(1, `{"APP":"MYAPP","plan":"pro","email":"","exp":0}`, priv), "MYAPP", ""},
+		{"app in another case does not count", raw(1, claim(`"exp":0,"App":"OTHER"`), priv), "MYAPP", ""},
+		{"exp in another case does not count", raw(1, claim(`"exp":1,"Exp":0`), priv), "MYAPP", ""},
+		{"the last of two equal names counts", raw(1, `{"app":"OTHER","app":"MYAPP","plan":"free","plan":"pro","email":"","exp":0}`, priv), "MYAPP", ""},
+		{"the last of two equal names counts, also a wrong one", raw(1, claim(`"exp":0,"app":"OTHER"`), priv), "MYAPP", ""},
+		{"null in meta", raw(1, claim(`"exp":0,"meta":{"a":null}`), priv), "MYAPP", ""},
+		{"a number in meta", raw(1, claim(`"exp":0,"meta":{"seats":5}`), priv), "MYAPP", ""},
+		{"meta as a list", raw(1, claim(`"exp":0,"meta":[]`), priv), "MYAPP", ""},
+		{"the payload is null", raw(1, `null`, priv), "MYAPP", ""},
+		{"the payload is a list", raw(1, `["app","MYAPP"]`, priv), "MYAPP", ""},
+		{"a byte order mark before the payload", raw(1, "\xef\xbb\xbf"+claim(`"exp":0`), priv), "MYAPP", ""},
+		{"whitespace around the payload", raw(1, " \n"+claim(`"exp":0`)+"\r\n\t", priv), "MYAPP", ""},
+		{"NaN in a claim this version does not know", raw(1, claim(`"exp":0,"new":NaN`), priv), "MYAPP", ""},
+		{"text cut off inside a character", raw(1, `{"app":"MYAPP","plan":"a`+"\xe3\x83"+`","email":"","exp":0}`, priv), "MYAPP", ""},
+		{"half a surrogate pair", raw(1, claim(`"exp":0,"new":"\ud83d"`), priv), "MYAPP", ""},
+		{"a whole surrogate pair", raw(1, claim(`"exp":0,"id":"\ud83d\udd11"`), priv), "MYAPP", ""},
+		{"an escaped backslash before a u", raw(1, claim(`"exp":0,"id":"\\ud83d"`), priv), "MYAPP", ""},
+		{"spare bits in the last character are ignored", spareBits(t, priv), "MYAPP", ""},
+		{"only a to z are uppercased", issue("straße", plain, priv), "straße", ""},
+		{"a prefix uppercased beyond a to z", strings.Replace(issue("straße", plain, priv), "STRAßE-", "STRASSE-", 1), "straße", ""},
+
+		// What cleaning drops and what it leaves.
+		{"a byte order mark before the key", "\ufeff" + good, "MYAPP", ""},
+		{"a no-break space inside", good[:20] + "\u00a0" + good[20:], "MYAPP", ""},
+		{"a next line character inside", good[:20] + "\u0085" + good[20:], "MYAPP", ""},
+		{"a line separator inside", good[:20] + "\u2028" + good[20:], "MYAPP", ""},
+		{"an ideographic space inside", good[:20] + "\u3000" + good[20:], "MYAPP", ""},
+		{"a zero width space inside", good[:20] + "\u200b" + good[20:], "MYAPP", ""},
+		{"a control character is no whitespace", good[:20] + "\x1c" + good[20:], "MYAPP", ""},
+		{"a zero width joiner is no whitespace", good[:20] + "\u200d" + good[20:], "MYAPP", ""},
+		{"curly quotes are not dropped", "\u201c" + good + "\u201d", "MYAPP", ""},
 	} {
 		claims, err := VerifyWith(c.key, c.app, c.fingerprint, pub)
 		v.Verify = append(v.Verify, verifyVector{c.name, c.key, c.app, c.fingerprint, resultOf(err), claims})

@@ -37,18 +37,20 @@ decides, inkan only carries it. A key without one works on every machine.
 
 ## Verify
 
-1. Drop all whitespace, then all quotes (`"` and `'`) from both ends.
+1. Clean the key. Drop every character of the list below, wherever it is,
+   then all quotes (`"` and `'`) from both ends.
 2. The key must start with the uppercase app name and a dash. If not, the
-   result is `format`.
+   result is `format`. Only `a` to `z` are uppercased, every other character
+   stays as it is.
 3. Drop the dashes from the rest and decode it as base64 without padding. On
    an error, with fewer than 66 bytes, or with a first byte other than `1`,
    the result is `format`.
 4. The last 64 bytes are the signature, everything between is the payload.
    Check the signature over the payload bytes as they are with every public
    key you carry. If none fits, the result is `signature`.
-5. Parse the payload as JSON. A missing claim is its zero value, unknown
-   claims are ignored. Anything that is not an object, or a claim of the
-   wrong type, gives `format`.
+5. Parse the payload as JSON by the rules below. A missing claim is its zero
+   value, unknown claims are ignored. Anything that is not an object, or a
+   claim of the wrong type, gives `format`.
 6. `app` must equal your app name exactly, case included. Else `app`.
 7. If the key has `fp` and the app gave you a fingerprint that is not it, the
    result is `fingerprint`. Hand the claims back with it, so the app can say
@@ -63,6 +65,61 @@ any way it likes.
 
 A public key is 32 bytes as hex. An app can carry several, separated by
 commas, while a signing key rotates.
+
+### What cleaning drops
+
+The characters Unicode gives the property White_Space, plus the zero width
+space and the byte order mark. Spell the list out, the whitespace of a regex
+or a `trim` is another one in every language.
+
+| Code points          |                                             |
+| -------------------- | ------------------------------------------- |
+| `U+0009` to `U+000D` | Tab, line feed, vertical tab, form feed, carriage return |
+| `U+0020`             | Space                                       |
+| `U+0085`             | Next line                                   |
+| `U+00A0`             | No-break space                              |
+| `U+1680`             | Ogham space mark                            |
+| `U+2000` to `U+200A` | The spaces of typography                    |
+| `U+200B`             | Zero width space                            |
+| `U+2028`, `U+2029`   | Line and paragraph separator                |
+| `U+202F`, `U+205F`   | Narrow no-break space, math space           |
+| `U+3000`             | Ideographic space                           |
+| `U+FEFF`             | Byte order mark                             |
+
+Nothing else is dropped. A control character like `U+001C`, a zero width
+joiner or a curly quote stays, and the key then fails as `format`.
+
+### How the payload is read
+
+The JSON parser of a language is rarely strict enough alone. These rules make
+every verifier give the same answer for the same bytes. Only someone with the
+private key can sign a payload that breaks them, so they guard against a
+careless signer, not against a forger.
+
+- **Bytes.** The payload is valid UTF-8 and strict JSON. No byte order mark,
+  no `NaN` or `Infinity`, nothing after the value. Whitespace around it is
+  fine. Anything else is `format`.
+- **Object.** The payload is a JSON object. `null`, a list or a bare value is
+  `format`.
+- **Names.** A claim name matches exactly. `App` or `EXP` is an unknown claim
+  and ignored.
+- **Twice.** When a name is there twice, the last one counts. The same goes
+  for the names in `meta`.
+- **Null.** A claim that is `null` is treated as missing. A `null` inside
+  `meta` is `format`.
+- **Strings.** `app`, `plan`, `email`, `id` and `fp` are strings. `meta` is an
+  object and all its values are strings.
+- **Escapes.** A `\u` escape that is half of a surrogate pair, like
+  `"\ud83d"` alone, is `format`, also in an unknown claim. A whole pair is
+  fine.
+- **`exp`.** A JSON number, judged by its value as a 64-bit float and not by
+  how it is written. It must be whole and between -(2^53 - 1) and 2^53 - 1.
+  So `4.1e9` is 4100000000 and `-0.0` is 0. `1.5`, `9007199254740992` and
+  `1e30` are `format`. A negative value is a time before 1970, so the key
+  ran out.
+
+Base64 leaves up to four bits in the last character that belong to no byte.
+They are ignored, as every common decoder does.
 
 ## Refresh
 
@@ -100,7 +157,9 @@ Only needed for a worker of your own. Verifiers can skip this.
 Encode the claims as a JSON object and sign those bytes. A verifier checks the
 bytes as they arrive, so the order of the fields, the whitespace and the
 escaping are yours to choose. Write `app` as the product prefix and leave out
-`id`, `fp` and `meta` when they are empty.
+`id`, `fp` and `meta` when they are empty. Write `exp` as a plain whole
+number and each name once, and stay inside
+[what a verifier reads](#how-the-payload-is-read).
 
 Keep the encoding stable. Ed25519 signatures are deterministic, so the same
 bytes always give the same key, and an app that refreshes can tell that
@@ -132,5 +191,6 @@ In a `renew` case `exp` is the expiry of the held key and `failures` counts
 the refreshes in a row that failed. The time is `now`.
 
 A verifier is done when it passes every `verify` case, a keeper when it
-passes every `renew` case. [`sdk/ts`](sdk/ts) and [`sdk/python`](sdk/python)
+passes every `renew` case. The second half of the `verify` cases are the
+edges of the rules above, one case each. [`sdk/ts`](sdk/ts) and [`sdk/python`](sdk/python)
 can serve as a template, the verifier in each is about a hundred lines.

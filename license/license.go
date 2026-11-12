@@ -15,19 +15,27 @@
 package license
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"math"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf16"
+	"unicode/utf8"
 )
 
 const (
 	wireVersion = 1
 	chunkSize   = 5
+	// The largest whole number every language reads the same, 2^53 - 1.
+	maxExp = 1<<53 - 1
 )
 
 var (
@@ -79,7 +87,8 @@ func ParsePrivateKey(privateB64 string) (ed25519.PrivateKey, error) {
 // app names the license's owner app. With a shared keypair across apps,
 // binding is enforced by the signed Claims.App value, which must equal
 // app (case-sensitive). The uppercase app name also becomes the readable
-// key prefix, e.g. Issue("myapp", ...) emits "MYAPP-XXXXX-...".
+// key prefix, e.g. Issue("myapp", ...) emits "MYAPP-XXXXX-...". Only a to z
+// are uppercased.
 func Issue(app string, claims Claims, priv ed25519.PrivateKey) (string, error) {
 	if app == "" {
 		return "", errors.New("app name is required")
@@ -104,7 +113,17 @@ func Issue(app string, claims Claims, priv ed25519.PrivateKey) (string, error) {
 	data = append(data, sig...)
 
 	encoded := base64.RawStdEncoding.EncodeToString(data)
-	return strings.ToUpper(app) + "-" + chunkKey(encoded), nil
+	return prefixOf(app) + chunkKey(encoded), nil
+}
+
+// prefixOf uppercases a to z only. Languages disagree on the rest, like ß.
+func prefixOf(app string) string {
+	return strings.Map(func(r rune) rune {
+		if r >= 'a' && r <= 'z' {
+			return r - 'a' + 'A'
+		}
+		return r
+	}, app) + "-"
 }
 
 func chunkKey(encoded string) string {
@@ -137,6 +156,9 @@ func chunkKey(encoded string) string {
 //
 // Whitespace anywhere in rawKey and quotes around it are ignored, see [Clean].
 //
+// The payload is read strictly, so that every verifier agrees on every key.
+// Claim names match exactly and the last of two equal names counts.
+//
 // publicKeys is the hex public key of the app. It is no secret and can live
 // in the code:
 //
@@ -162,9 +184,7 @@ func Verify(rawKey, app, publicKeys, fingerprint string) (*Claims, error) {
 // VerifyWith is Verify against public keys that are already decoded, for
 // issuers that hold the keys of several apps.
 func VerifyWith(rawKey, app, fingerprint string, pubs ...ed25519.PublicKey) (*Claims, error) {
-	prefix := strings.ToUpper(app) + "-"
-
-	enc, ok := strings.CutPrefix(Clean(rawKey), prefix)
+	enc, ok := strings.CutPrefix(Clean(rawKey), prefixOf(app))
 	if !ok {
 		return nil, ErrInvalidFormat
 	}
@@ -188,8 +208,8 @@ func VerifyWith(rawKey, app, fingerprint string, pubs ...ed25519.PublicKey) (*Cl
 		return nil, ErrInvalidSig
 	}
 
-	var c Claims
-	if err := json.Unmarshal(payload, &c); err != nil {
+	c, ok := parseClaims(payload)
+	if !ok {
 		return nil, ErrInvalidFormat
 	}
 
@@ -197,20 +217,131 @@ func VerifyWith(rawKey, app, fingerprint string, pubs ...ed25519.PublicKey) (*Cl
 		return nil, ErrAppMismatch
 	}
 	if fingerprint != "" && c.Fingerprint != "" && c.Fingerprint != fingerprint {
-		return &c, ErrBound
+		return c, ErrBound
 	}
 	if c.IsExpired() {
-		return &c, ErrExpired
+		return c, ErrExpired
 	}
 
-	return &c, nil
+	return c, nil
+}
+
+// parseClaims reads a payload by the rules of FORMAT.md. encoding/json alone
+// is too forgiving for that: it matches names without case, takes null for an
+// object and patches up broken text.
+func parseClaims(payload []byte) (*Claims, bool) {
+	if !utf8.Valid(payload) || !bytes.HasPrefix(bytes.TrimLeft(payload, " \t\r\n"), []byte("{")) {
+		return nil, false
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(payload, &fields); err != nil || loneSurrogate(payload) {
+		return nil, false
+	}
+
+	var c Claims
+	for name, into := range map[string]*string{
+		"app": &c.App, "plan": &c.Plan, "email": &c.Email, "id": &c.ID, "fp": &c.Fingerprint,
+	} {
+		if !parseString(fields[name], into) {
+			return nil, false
+		}
+	}
+	if !parseExp(fields["exp"], &c.ExpiresAt) {
+		return nil, false
+	}
+
+	var meta map[string]json.RawMessage
+	if raw, ok := fields["meta"]; ok && json.Unmarshal(raw, &meta) != nil {
+		return nil, false
+	}
+	for name, raw := range meta {
+		var value string
+		if isNull(raw) || !parseString(raw, &value) {
+			return nil, false
+		}
+		if c.Meta == nil {
+			c.Meta = make(map[string]string, len(meta))
+		}
+		c.Meta[name] = value
+	}
+	return &c, true
+}
+
+func isNull(raw json.RawMessage) bool {
+	return len(raw) == 0 || string(raw) == "null"
+}
+
+// A missing or null claim keeps its zero value.
+func parseString(raw json.RawMessage, into *string) bool {
+	if isNull(raw) {
+		return true
+	}
+	return raw[0] == '"' && json.Unmarshal(raw, into) == nil
+}
+
+// exp is judged by its value as a float, the only way JavaScript can read
+// it. So 4.1e9 is fine, 1.5 and anything from 2^53 on are not.
+func parseExp(raw json.RawMessage, into *int64) bool {
+	if isNull(raw) {
+		return true
+	}
+	if raw[0] != '-' && (raw[0] < '0' || raw[0] > '9') {
+		return false
+	}
+	f, err := strconv.ParseFloat(string(raw), 64)
+	if err != nil || f != math.Trunc(f) || math.Abs(f) > maxExp {
+		return false
+	}
+	*into = int64(f)
+	return true
+}
+
+// loneSurrogate finds a \u escape that is half of a surrogate pair. Go would
+// turn it into U+FFFD, JavaScript and Python keep it. payload is valid JSON,
+// so a backslash only stands in a string and every \u has its four digits.
+func loneSurrogate(payload []byte) bool {
+	escaped := func(at int) (rune, bool) {
+		if at+6 > len(payload) || payload[at] != '\\' || payload[at+1] != 'u' {
+			return 0, false
+		}
+		r, err := strconv.ParseUint(string(payload[at+2:at+6]), 16, 16)
+		return rune(r), err == nil
+	}
+	for i := 0; i < len(payload); i++ {
+		if payload[i] != '\\' {
+			continue
+		}
+		r, ok := escaped(i)
+		if !ok {
+			i++
+			continue
+		}
+		i += 5
+		if !utf16.IsSurrogate(r) {
+			continue
+		}
+		low, ok := escaped(i + 1)
+		if !ok || utf16.DecodeRune(r, low) == unicode.ReplacementChar {
+			return true
+		}
+		i += 6
+	}
+	return false
 }
 
 // Clean strips what a key picks up on its way to an app: the line breaks a
 // mail client adds, stray spaces, the quotes of an env file. [Verify] does it
 // by itself, Clean is for whoever stores or compares keys.
+//
+// It drops every character Unicode calls White_Space, the zero width space
+// U+200B and the byte order mark U+FEFF, then the quotes " and ' at both ends.
 func Clean(rawKey string) string {
-	return strings.Trim(strings.Join(strings.Fields(rawKey), ""), `"'`)
+	return strings.Trim(strings.Map(func(r rune) rune {
+		if unicode.IsSpace(r) || r == '\u200b' || r == '\ufeff' {
+			return -1
+		}
+		return r
+	}, rawKey), `"'`)
 }
 
 // One malformed entry rejects the whole list, a typo must not silently

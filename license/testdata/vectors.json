@@ -238,6 +238,376 @@
       "app": "MYAPP",
       "result": "format",
       "claims": null
+    },
+    {
+      "name": "exp written with an exponent",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-IiLCJ-leHAi-OjQuM-WU5fb-D1RbX-gHBCw-YwNXr-EKFMc-UjHa4-5lzNY-mH9lJ-z9vDM-VFOH2-VAayH-mboFq-UIYAz-0eRXk-8stsJ-T0Cef-HPG5x-q/YAc",
+      "app": "MYAPP",
+      "result": "valid",
+      "claims": {
+        "app": "MYAPP",
+        "plan": "pro",
+        "email": "",
+        "exp": 4100000000
+      }
+    },
+    {
+      "name": "exp of -0.0 is 0",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-IiLCJ-leHAi-Oi0wL-jB9j8-lOSSl-tlmfH-jeFb+-CwfDc-svcEq-A1V4I-o4Z0S-uhARI-buDoP-Im1Jd-g2sl2-idwwS-SpH6S-OfM2P-JvO7X-cvtKi-YhBQ",
+      "app": "MYAPP",
+      "result": "valid",
+      "claims": {
+        "app": "MYAPP",
+        "plan": "pro",
+        "email": "",
+        "exp": 0
+      }
+    },
+    {
+      "name": "a negative exp ran out",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-IiLCJ-leHAi-Oi01f-ex/De-R95K+-jVnKL-GDagW-ZAlXx-mwnig-kdj48-27AAg-D6oZL-t/jX6-Ojk1u-2HhwK-GgGZc-6z4VX-Ujv4P-GYSRF-/k2RA-8",
+      "app": "MYAPP",
+      "result": "expired",
+      "claims": {
+        "app": "MYAPP",
+        "plan": "pro",
+        "email": "",
+        "exp": -5
+      }
+    },
+    {
+      "name": "the largest exp, 2^53 - 1",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-IiLCJ-leHAi-OjkwM-DcxOT-kyNTQ-3NDA5-OTF9g-GIOBh-qOLkJ-Q0/Jp-Ql2CN-Tc9kb-8h3W4-OWDB1-S6v43-KoSuS-WNUlm-texnH-3G6kn-7enIc-kazbW-igxUp-/r0O2-Zm/Dw",
+      "app": "MYAPP",
+      "result": "valid",
+      "claims": {
+        "app": "MYAPP",
+        "plan": "pro",
+        "email": "",
+        "exp": 9007199254740991
+      }
+    },
+    {
+      "name": "exp of 2^53 is too large",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-IiLCJ-leHAi-OjkwM-DcxOT-kyNTQ-3NDA5-OTJ9Q-Nyffq-vwOQM-+KMe1-KcVDZ-BzFxh-YuNUt-ktYWq-NnpdU-o1xrU-HDJq+-FG4px-tq2Hz-sY+0j-9LdZP-hJ/j3-slaHA-1XhDA",
+      "app": "MYAPP",
+      "result": "format",
+      "claims": null
+    },
+    {
+      "name": "exp of 30 digits is too large",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-IiLCJ-leHAi-OjEwM-DAwMD-AwMDA-wMDAw-MDAwM-DAwMD-AwMDA-wMDAw-MDB91-BOeSU-/HUAv-08EQc-97YQz-CcPJl-tDMcx-o8aA6-Xokdy-IYK9r-zc5IE-KUW/9-sNfWA-mwFyU-YDQN0-8JQi2-5kjY8-AXsBw",
+      "app": "MYAPP",
+      "result": "format",
+      "claims": null
+    },
+    {
+      "name": "exp with a fraction",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-IiLCJ-leHAi-OjEuN-X1qhX-Mce0B-SpSeV-YrHEH-Jm8K1-KUo4G-N/iVI-l83QP-hLcce-ehsNy-xUVoO-9UvJA-2ycDG-zOFbP-mwgeS-zkfBQ-GXG83-0I",
+      "app": "MYAPP",
+      "result": "format",
+      "claims": null
+    },
+    {
+      "name": "exp as a string",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-IiLCJ-leHAi-OiIwI-n2lhX-/WQhd-b11Oc-RW81g-qIZOa-vekhc-wcCNx-/fG0W-i5lTz-JgYnN-CV43G-LvtkM-NIh7A-beAQ7-z1vPi-lk8UW-Wm6O0-oL",
+      "app": "MYAPP",
+      "result": "format",
+      "claims": null
+    },
+    {
+      "name": "a null claim is its zero value",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-IiLCJ-leHAi-Om51b-GwsIm-lkIjp-udWxs-LCJtZ-XRhIj-pudWx-sfdHb-DC9e0-TK1dM-RFCSi-dzqVj-a/bP1-BUWvu-KXrUO-F4d1d-uEF3X-7mnZs-X3mjO-fFihh-6ND59-acAWD-2LpO5-HztKU-uwM",
+      "app": "MYAPP",
+      "result": "valid",
+      "claims": {
+        "app": "MYAPP",
+        "plan": "pro",
+        "email": "",
+        "exp": 0
+      }
+    },
+    {
+      "name": "a claim name in capitals is not the claim",
+      "key": "MYAPP-AXsiQ-VBQIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-IiLCJ-leHAi-OjB9J-torN0-b1hXz-lLui7-t296R-D3Eq+-lhURh-L5sFs-M4mOk-aVVG9-CaJYD-A0rsv-3Y9oo-Qbeo8-rkc5A-9phDA-BhDgA-ggVCg",
+      "app": "MYAPP",
+      "result": "app",
+      "claims": null
+    },
+    {
+      "name": "app in another case does not count",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-IiLCJ-leHAi-OjAsI-kFwcC-I6Ik9-USEVS-In0eW-5T+H2-IyhSY-7gKc8-CSZIl-rv55s-/okZC-QeRCw-kZooM-fywr4-QZZlu-mE08y-ORORy-3A2d0-jXTLz-bnhCZ-vsK9R-uQC",
+      "app": "MYAPP",
+      "result": "valid",
+      "claims": {
+        "app": "MYAPP",
+        "plan": "pro",
+        "email": "",
+        "exp": 0
+      }
+    },
+    {
+      "name": "exp in another case does not count",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-IiLCJ-leHAi-OjEsI-kV4cC-I6MH2-2lnWu-0WDou-yTPRb-mpqF5-M3LAw-+4HRV-HYXGK-MCmsQ-FusGQ-+FS1s-lXoPb-a5edu-Dt4Eu-2KakV-NAAhD-9CjLR-Xs0kK",
+      "app": "MYAPP",
+      "result": "expired",
+      "claims": {
+        "app": "MYAPP",
+        "plan": "pro",
+        "email": "",
+        "exp": 1
+      }
+    },
+    {
+      "name": "the last of two equal names counts",
+      "key": "MYAPP-AXsiY-XBwIj-oiT1R-IRVIi-LCJhc-HAiOi-JNWUF-QUCIs-InBsY-W4iOi-JmcmV-lIiwi-cGxhb-iI6In-BybyI-sImVt-YWlsI-joiIi-wiZXh-wIjow-fVyoo-yxCyY-iPbMl-rGtsL-wWoLr-HuC76-AyXMG-5S5oa-tI3yg-lvxj1-TEPcG-rfa96-7q9GT-mJpaV-Yrvq2-iz1R9-2H2lQ-w8",
+      "app": "MYAPP",
+      "result": "valid",
+      "claims": {
+        "app": "MYAPP",
+        "plan": "pro",
+        "email": "",
+        "exp": 0
+      }
+    },
+    {
+      "name": "the last of two equal names counts, also a wrong one",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-IiLCJ-leHAi-OjAsI-mFwcC-I6Ik9-USEVS-In12/-3DxS0-n3qj8-wczwF-0R0Pv-/+j+f-G9VQl-R4Y9S-qBDiM-KHumq-xbyZm-clCUs-f88uG-Tdv7u-NTQqY-8ikzO-oKgje-oEF",
+      "app": "MYAPP",
+      "result": "app",
+      "claims": null
+    },
+    {
+      "name": "null in meta",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-IiLCJ-leHAi-OjAsI-m1ldG-EiOns-iYSI6-bnVsb-H19Jz-MSQ/i-MfGyx-QozY/-WG+Hz-0Clbv-45tXt-BV7qe-H8wnc-0bpAQ-uMwEK-C8Gob-PP+fM-HrPwe-Wsya6-XF94t-o6fou-0oDA",
+      "app": "MYAPP",
+      "result": "format",
+      "claims": null
+    },
+    {
+      "name": "a number in meta",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-IiLCJ-leHAi-OjAsI-m1ldG-EiOns-ic2Vh-dHMiO-jV9fe-u4KUj-iSmct-S/wO6-sSG3D-YPi0u-uVdUL-JmJBj-ndRFn-RGELL-jp7cf-mLtgM-QUbbh-uqD0H-6gmHY-b5DS2-PfmCB-LvDQQ",
+      "app": "MYAPP",
+      "result": "format",
+      "claims": null
+    },
+    {
+      "name": "meta as a list",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-IiLCJ-leHAi-OjAsI-m1ldG-EiOlt-dfY03-Q4Tnj-BjCSg-VYg0H-XXSo5-EkEXT-eHZfK-5SR1c-aE9/t-8dvAn-6BVH8-S6AAi-cIh7o-kin/g-0JQiK-s91nN-x0gfN-Jwk",
+      "app": "MYAPP",
+      "result": "format",
+      "claims": null
+    },
+    {
+      "name": "the payload is null",
+      "key": "MYAPP-AW51b-GztLO-PODxM-VqgHb-K9zUp-I69r5-C5syt-viTh+-Q7KRT-p4rkm-6BkUI-gslkA-uDqIK-PbJt1-7DWfS-BkHxB-9FEuz-qeY5L-oP",
+      "app": "MYAPP",
+      "result": "format",
+      "claims": null
+    },
+    {
+      "name": "the payload is a list",
+      "key": "MYAPP-AVsiY-XBwIi-wiTVl-BUFAi-XRV/b-ZFjNx-gIunl-6y1/p-wIW7o-kStH+-GPXn9-k5Zvv-cipzn-Q7+LE-+HuXF-N2AWN-Ag+Ib-CiOIq-wC3i1-sIpOy-VcdVk-wg",
+      "app": "MYAPP",
+      "result": "format",
+      "claims": null
+    },
+    {
+      "name": "a byte order mark before the payload",
+      "key": "MYAPP-Ae+7v-3siYX-BwIjo-iTVlB-UFAiL-CJwbG-FuIjo-icHJv-IiwiZ-W1haW-wiOiI-iLCJl-eHAiO-jB9X9-gdr+k-viIWd-NVSHv-0pnE9-9Udfc-DRs+t-oEVNH-dnT33-L5IOc-bJ1kx-xRp2a-gw5ar-rPK2L-y0je6-VVrL4-hGlnO-5GBA",
+      "app": "MYAPP",
+      "result": "format",
+      "claims": null
+    },
+    {
+      "name": "whitespace around the payload",
+      "key": "MYAPP-ASAKe-yJhcH-AiOiJ-NWUFQ-UCIsI-nBsYW-4iOiJ-wcm8i-LCJlb-WFpbC-I6IiI-sImV4-cCI6M-H0NCg-n2iFM-5aP+c-iKpqm-04T3D-zu5K1-08BUp-HCra6-M2A9s-zonjX-GZ88V-lG2TV-EKVIx-oajxn-wp1or-GEIQn-TCvu6-oMR5c-F",
+      "app": "MYAPP",
+      "result": "valid",
+      "claims": {
+        "app": "MYAPP",
+        "plan": "pro",
+        "email": "",
+        "exp": 0
+      }
+    },
+    {
+      "name": "NaN in a claim this version does not know",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-IiLCJ-leHAi-OjAsI-m5ldy-I6TmF-OfYQS-aJN0V-rDR+p-bN5mk-zEqrb-ZgXpc-dKF+k-us8s5-qe7pt-Gsh0j-mLlsw-0SEgF-2Z17p-Y0YJP-ldiDb-fTFP/-FfLS4-cwM",
+      "app": "MYAPP",
+      "result": "format",
+      "claims": null
+    },
+    {
+      "name": "text cut off inside a character",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oiYeO-DIiwi-ZW1ha-WwiOi-IiLCJ-leHAi-OjB9H-mSxel-j3uxz-rGl7L-gFX5s-N0U+W-2S3An-QvO2X-zzYgG-DfIuU-VMh2Z-O7RkG-fUVGC-Xj78Q-4ikKC-M3TG4-3GV5w-WX2Bg",
+      "app": "MYAPP",
+      "result": "format",
+      "claims": null
+    },
+    {
+      "name": "half a surrogate pair",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-IiLCJ-leHAi-OjAsI-m5ldy-I6Ilx-1ZDgz-ZCJ9L-6Xlpr-0pk4u-Mg0FD-DGcHg-DQ5+t-mhvHT-9aImm-EsOgi-2ofqN-L6oxb-R1yOj-Jac8H-YoYJ4-+ltwu-aUBew-Lgtxy-uS8CQ",
+      "app": "MYAPP",
+      "result": "format",
+      "claims": null
+    },
+    {
+      "name": "a whole surrogate pair",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-IiLCJ-leHAi-OjAsI-mlkIj-oiXHV-kODNk-XHVkZ-DExIn-3GKPD-et+ao-i5e7n-jNPn9-PjSku-vEnoX-SgcAW-4ISmZ-R2087-4vK6c-Hr02P-IR9pf-a5yP5-67o6M-7atvR-XCX31-qiAAk-O",
+      "app": "MYAPP",
+      "result": "valid",
+      "claims": {
+        "app": "MYAPP",
+        "plan": "pro",
+        "email": "",
+        "exp": 0,
+        "id": "🔑"
+      }
+    },
+    {
+      "name": "an escaped backslash before a u",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-IiLCJ-leHAi-OjAsI-mlkIj-oiXFx-1ZDgz-ZCJ9/-iIY46-HmHRN-o1DvM-zSRlm-UqqlA-XokQ+-r3Ao1-9vgX6-FAf02-+Ox0K-AUS5e-DjMMl-FIGKQ-PL5sO-LMf8L-V96GP-1CdCw",
+      "app": "MYAPP",
+      "result": "valid",
+      "claims": {
+        "app": "MYAPP",
+        "plan": "pro",
+        "email": "",
+        "exp": 0,
+        "id": "\\ud83d"
+      }
+    },
+    {
+      "name": "spare bits in the last character are ignored",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-IiLCJ-leHAi-OjB98-UB12P-E8bZj-4C3f3-VBCL8-pjtd2-Rswb9-/WQ8R-x3ZdI-s/Htm-lHBC9-arE9Q-FEU96-h6CpO-o/RU1-tIOuh-Iv2G7-DPbAx",
+      "app": "MYAPP",
+      "result": "valid",
+      "claims": {
+        "app": "MYAPP",
+        "plan": "pro",
+        "email": "",
+        "exp": 0
+      }
+    },
+    {
+      "name": "only a to z are uppercased",
+      "key": "STRAßE-AXsiY-XBwIj-oic3R-yYcOf-ZSIsI-nBsYW-4iOiJ-wcm8i-LCJlb-WFpbC-I6Im9-wc0Bh-Y21lL-mlvIi-wiZXh-wIjo0-MTAyN-DQ0OD-AwLCJ-pZCI6-InN1Y-l8xMj-MifTI-8v/XF-XiV5A-ebg1t-UUfpC-oAjj8-0UMCm-PNR/w-6THhG-q0EPe-F27yK-aUqyu-ifO0l-SfSo8-J5eJN-xeCRO-ZZm1G-NwwY",
+      "app": "straße",
+      "result": "valid",
+      "claims": {
+        "app": "straße",
+        "plan": "pro",
+        "email": "ops@acme.io",
+        "exp": 4102444800,
+        "id": "sub_123"
+      }
+    },
+    {
+      "name": "a prefix uppercased beyond a to z",
+      "key": "STRASSE-AXsiY-XBwIj-oic3R-yYcOf-ZSIsI-nBsYW-4iOiJ-wcm8i-LCJlb-WFpbC-I6Im9-wc0Bh-Y21lL-mlvIi-wiZXh-wIjo0-MTAyN-DQ0OD-AwLCJ-pZCI6-InN1Y-l8xMj-MifTI-8v/XF-XiV5A-ebg1t-UUfpC-oAjj8-0UMCm-PNR/w-6THhG-q0EPe-F27yK-aUqyu-ifO0l-SfSo8-J5eJN-xeCRO-ZZm1G-NwwY",
+      "app": "straße",
+      "result": "format",
+      "claims": null
+    },
+    {
+      "name": "a byte order mark before the key",
+      "key": "﻿MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-JvcHN-AYWNt-ZS5pb-yIsIm-V4cCI-6NDEw-MjQ0N-DgwMC-wiaWQ-iOiJz-dWJfM-TIzIn-3rDQQ-Ftyht-3rPOv-W3O6f-CnNPF-SCQ5x-TnBMr-9Ntm6-Du7u4-n8bwj-vQ8dV-JMasD-LWrWE-FXKU4-W16pz-AO0tH-/AFHs-D",
+      "app": "MYAPP",
+      "result": "valid",
+      "claims": {
+        "app": "MYAPP",
+        "plan": "pro",
+        "email": "ops@acme.io",
+        "exp": 4102444800,
+        "id": "sub_123"
+      }
+    },
+    {
+      "name": "a no-break space inside",
+      "key": "MYAPP-AXsiY-XBwIj-oi TVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-JvcHN-AYWNt-ZS5pb-yIsIm-V4cCI-6NDEw-MjQ0N-DgwMC-wiaWQ-iOiJz-dWJfM-TIzIn-3rDQQ-Ftyht-3rPOv-W3O6f-CnNPF-SCQ5x-TnBMr-9Ntm6-Du7u4-n8bwj-vQ8dV-JMasD-LWrWE-FXKU4-W16pz-AO0tH-/AFHs-D",
+      "app": "MYAPP",
+      "result": "valid",
+      "claims": {
+        "app": "MYAPP",
+        "plan": "pro",
+        "email": "ops@acme.io",
+        "exp": 4102444800,
+        "id": "sub_123"
+      }
+    },
+    {
+      "name": "a next line character inside",
+      "key": "MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-JvcHN-AYWNt-ZS5pb-yIsIm-V4cCI-6NDEw-MjQ0N-DgwMC-wiaWQ-iOiJz-dWJfM-TIzIn-3rDQQ-Ftyht-3rPOv-W3O6f-CnNPF-SCQ5x-TnBMr-9Ntm6-Du7u4-n8bwj-vQ8dV-JMasD-LWrWE-FXKU4-W16pz-AO0tH-/AFHs-D",
+      "app": "MYAPP",
+      "result": "valid",
+      "claims": {
+        "app": "MYAPP",
+        "plan": "pro",
+        "email": "ops@acme.io",
+        "exp": 4102444800,
+        "id": "sub_123"
+      }
+    },
+    {
+      "name": "a line separator inside",
+      "key": "MYAPP-AXsiY-XBwIj-oi\u2028TVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-JvcHN-AYWNt-ZS5pb-yIsIm-V4cCI-6NDEw-MjQ0N-DgwMC-wiaWQ-iOiJz-dWJfM-TIzIn-3rDQQ-Ftyht-3rPOv-W3O6f-CnNPF-SCQ5x-TnBMr-9Ntm6-Du7u4-n8bwj-vQ8dV-JMasD-LWrWE-FXKU4-W16pz-AO0tH-/AFHs-D",
+      "app": "MYAPP",
+      "result": "valid",
+      "claims": {
+        "app": "MYAPP",
+        "plan": "pro",
+        "email": "ops@acme.io",
+        "exp": 4102444800,
+        "id": "sub_123"
+      }
+    },
+    {
+      "name": "an ideographic space inside",
+      "key": "MYAPP-AXsiY-XBwIj-oi　TVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-JvcHN-AYWNt-ZS5pb-yIsIm-V4cCI-6NDEw-MjQ0N-DgwMC-wiaWQ-iOiJz-dWJfM-TIzIn-3rDQQ-Ftyht-3rPOv-W3O6f-CnNPF-SCQ5x-TnBMr-9Ntm6-Du7u4-n8bwj-vQ8dV-JMasD-LWrWE-FXKU4-W16pz-AO0tH-/AFHs-D",
+      "app": "MYAPP",
+      "result": "valid",
+      "claims": {
+        "app": "MYAPP",
+        "plan": "pro",
+        "email": "ops@acme.io",
+        "exp": 4102444800,
+        "id": "sub_123"
+      }
+    },
+    {
+      "name": "a zero width space inside",
+      "key": "MYAPP-AXsiY-XBwIj-oi​TVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-JvcHN-AYWNt-ZS5pb-yIsIm-V4cCI-6NDEw-MjQ0N-DgwMC-wiaWQ-iOiJz-dWJfM-TIzIn-3rDQQ-Ftyht-3rPOv-W3O6f-CnNPF-SCQ5x-TnBMr-9Ntm6-Du7u4-n8bwj-vQ8dV-JMasD-LWrWE-FXKU4-W16pz-AO0tH-/AFHs-D",
+      "app": "MYAPP",
+      "result": "valid",
+      "claims": {
+        "app": "MYAPP",
+        "plan": "pro",
+        "email": "ops@acme.io",
+        "exp": 4102444800,
+        "id": "sub_123"
+      }
+    },
+    {
+      "name": "a control character is no whitespace",
+      "key": "MYAPP-AXsiY-XBwIj-oi\u001cTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-JvcHN-AYWNt-ZS5pb-yIsIm-V4cCI-6NDEw-MjQ0N-DgwMC-wiaWQ-iOiJz-dWJfM-TIzIn-3rDQQ-Ftyht-3rPOv-W3O6f-CnNPF-SCQ5x-TnBMr-9Ntm6-Du7u4-n8bwj-vQ8dV-JMasD-LWrWE-FXKU4-W16pz-AO0tH-/AFHs-D",
+      "app": "MYAPP",
+      "result": "format",
+      "claims": null
+    },
+    {
+      "name": "a zero width joiner is no whitespace",
+      "key": "MYAPP-AXsiY-XBwIj-oi‍TVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-JvcHN-AYWNt-ZS5pb-yIsIm-V4cCI-6NDEw-MjQ0N-DgwMC-wiaWQ-iOiJz-dWJfM-TIzIn-3rDQQ-Ftyht-3rPOv-W3O6f-CnNPF-SCQ5x-TnBMr-9Ntm6-Du7u4-n8bwj-vQ8dV-JMasD-LWrWE-FXKU4-W16pz-AO0tH-/AFHs-D",
+      "app": "MYAPP",
+      "result": "format",
+      "claims": null
+    },
+    {
+      "name": "curly quotes are not dropped",
+      "key": "“MYAPP-AXsiY-XBwIj-oiTVl-BUFAi-LCJwb-GFuIj-oicHJ-vIiwi-ZW1ha-WwiOi-JvcHN-AYWNt-ZS5pb-yIsIm-V4cCI-6NDEw-MjQ0N-DgwMC-wiaWQ-iOiJz-dWJfM-TIzIn-3rDQQ-Ftyht-3rPOv-W3O6f-CnNPF-SCQ5x-TnBMr-9Ntm6-Du7u4-n8bwj-vQ8dV-JMasD-LWrWE-FXKU4-W16pz-AO0tH-/AFHs-D”",
+      "app": "MYAPP",
+      "result": "format",
+      "claims": null
     }
   ],
   "sign": [
