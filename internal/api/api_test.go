@@ -233,8 +233,10 @@ func TestProductWorker(t *testing.T) {
 	assert.NotContains(t, listed.String(), stored.WorkerToken, "the token only leaves through worker export")
 	assert.NotContains(t, listed.String(), stored.PrivateKey)
 
-	settings["worker_url"] = "ftp://worker.example.com"
-	assert.Equal(t, http.StatusUnprocessableEntity, call(t, srv, http.MethodPut, path, settings, nil))
+	for _, url := range []string{"ftp://worker.example.com", "http://worker.example.com"} {
+		settings["worker_url"] = url
+		assert.Equal(t, http.StatusUnprocessableEntity, call(t, srv, http.MethodPut, path, settings, nil), url)
+	}
 	settings["worker_url"] = worker.URL
 	for _, list := range []string{"prod_app,prod_app=team", "=team", "prod app", "prod_app=a=b", "prod_app=te\nam"} {
 		settings["provider_product"] = list

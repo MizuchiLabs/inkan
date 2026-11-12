@@ -449,3 +449,56 @@ func TestSyncLeavesHandIssuedRowsAlone(t *testing.T) {
 	refused("a worker that lists a hand issued id would rewrite its row")
 	w.pages[0].Licenses[0] = mine
 }
+
+func TestCheckURL(t *testing.T) {
+	t.Parallel()
+	for _, ok := range []string{
+		"https://worker.example.com",
+		"https://worker.example.com/myapp/",
+		"http://localhost:4242",
+		"http://127.0.0.1:4242",
+		"http://[::1]:4242",
+		"http://10.0.0.7",
+		"http://192.168.1.20:8080",
+		"http://worker:8080",
+	} {
+		assert.NoError(t, CheckURL(ok), ok)
+	}
+	for _, bad := range []string{
+		"http://worker.example.com",
+		"http://8.8.8.8",
+		"http://localhost.example.com",
+		"http://host.docker.internal",
+		"ftp://worker.example.com",
+		"worker.example.com",
+		"https://",
+		"",
+	} {
+		assert.Error(t, CheckURL(bad), bad)
+	}
+}
+
+// The token must not follow a redirect, it could lead to plain http or to
+// another host.
+func TestSyncFollowsNoRedirect(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	q, closeDB, err := db.Open(ctx, t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(closeDB)
+
+	reached := false
+	elsewhere := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { reached = true }))
+	t.Cleanup(elsewhere.Close)
+	moved := httptest.NewServer(http.RedirectHandler(elsewhere.URL, http.StatusFound))
+	t.Cleanup(moved.Close)
+	p := newProduct(t, q, moved.URL)
+
+	_, err = Sync(ctx, q, p)
+	require.ErrorContains(t, err, "redirects to "+elsewhere.URL)
+	assert.False(t, reached, "the token stayed where it was sent")
+
+	p.WorkerUrl = "http://worker.example.com"
+	_, err = Sync(ctx, q, p)
+	require.ErrorContains(t, err, "needs https", "a url from before the rule is not called either")
+}

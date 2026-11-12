@@ -214,6 +214,12 @@ func (h *productHandlers) update(ctx context.Context, in *UpdateProductInput) (*
 	if in.Body.MailTemplate != "" && !keyPlaceholder.MatchString(in.Body.MailTemplate) {
 		return nil, huma.Error422UnprocessableEntity("the mail template shows no {{key}}")
 	}
+	workerURL := strings.TrimSpace(in.Body.WorkerURL)
+	if workerURL != "" {
+		if err := mirror.CheckURL(workerURL); err != nil {
+			return nil, huma.Error422UnprocessableEntity(err.Error())
+		}
+	}
 	stripe, err := stripeProducts(in.Body.ProviderProduct)
 	if err != nil {
 		return nil, huma.Error422UnprocessableEntity(err.Error())
@@ -224,7 +230,7 @@ func (h *productHandlers) update(ctx context.Context, in *UpdateProductInput) (*
 		GraceDays:       in.Body.GraceDays,
 		MaxKeyDays:      in.Body.MaxKeyDays,
 		ProviderProduct: stripe,
-		WorkerUrl:       strings.TrimSpace(in.Body.WorkerURL),
+		WorkerUrl:       workerURL,
 		MailFrom:        strings.TrimSpace(in.Body.MailFrom),
 		MailReplyTo:     in.Body.MailReplyTo,
 		MailLogo:        strings.TrimSpace(in.Body.MailLogo),

@@ -15,6 +15,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"slices"
 	"strconv"
@@ -34,7 +35,11 @@ const (
 	pageSize = 100
 )
 
-var client = &http.Client{Timeout: 30 * time.Second}
+// A redirect could take the token to plain http or another host.
+var client = &http.Client{
+	Timeout:       30 * time.Second,
+	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+}
 
 // page is one answer of GET /licenses.
 type page struct {
@@ -192,7 +197,36 @@ func handIssued(l listed) bool {
 	return strings.HasPrefix(l.ID, "lic_")
 }
 
+// CheckURL says whether the token may travel to a worker url. Plain http is
+// only for a worker on this machine or network: localhost, a name without a
+// dot like a Docker service, or a loopback or private IP address.
+func CheckURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil || u.Hostname() == "" {
+		return errors.New("the worker url is no url")
+	}
+	host := u.Hostname()
+	switch u.Scheme {
+	case "https":
+		return nil
+	case "http":
+		if ip, err := netip.ParseAddr(host); err == nil {
+			if ip.IsLoopback() || ip.IsPrivate() {
+				return nil
+			}
+		} else if !strings.Contains(host, ".") {
+			return nil
+		}
+		return errors.New("the worker url needs https, plain http is only for localhost or a private address")
+	default:
+		return errors.New("the worker url needs https")
+	}
+}
+
 func fetch(ctx context.Context, p *db.Product, cursor string) (*page, error) {
+	if err := CheckURL(p.WorkerUrl); err != nil {
+		return nil, err
+	}
 	query := url.Values{"cursor": {cursor}, "limit": {strconv.Itoa(pageSize)}}
 	target := strings.TrimRight(p.WorkerUrl, "/") + "/licenses?" + query.Encode()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
@@ -223,6 +257,9 @@ func fetch(ctx context.Context, p *db.Product, cursor string) (*page, error) {
 		}
 		return nil, errors.New("worker: no /licenses there, check the worker url and that it has a token")
 	default:
+		if to := resp.Header.Get("Location"); to != "" {
+			return nil, fmt.Errorf("worker: it redirects to %s, enter the url it really runs on", to)
+		}
 		said := strings.TrimSpace(string(body[:min(len(body), 200)]))
 		return nil, fmt.Errorf("worker: %s: %s", resp.Status, said)
 	}
