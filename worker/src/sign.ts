@@ -39,7 +39,9 @@ export async function issue(claims: Claims, privateKey: CryptoKey): Promise<stri
 	const signature = new Uint8Array(await crypto.subtle.sign('Ed25519', privateKey, body));
 	const data = new Uint8Array([1, ...body, ...signature]);
 	const encoded = btoa(String.fromCharCode(...data)).replace(/=+$/, '');
-	return claims.app.toUpperCase() + '-' + encoded.match(/.{1,5}/g)!.join('-');
+	// Only a to z, as FORMAT.md says. toUpperCase would turn ß into SS.
+	const prefix = claims.app.replace(/[a-z]/g, (letter) => letter.toUpperCase());
+	return prefix + '-' + encoded.match(/.{1,5}/g)!.join('-');
 }
 
 // Fixed field order and sorted meta, so the same license always gives the same key.

@@ -1,5 +1,12 @@
-node_modules
-dist
+dist/
+node_modules/
 .wrangler
 .dev.vars
+# The built worker, embedded into the inkan binary.
+/bundle/*
+!/bundle/.gitkeep
+# Your own settings and what inkan worker export writes.
 worker.env
+worker.keys.env
+worker.keys.json
+inkan-worker-*/

@@ -5,10 +5,11 @@
 	"scripts": {
 		"start": "node src/node.ts",
 		"dev": "wrangler dev",
-		"deploy": "wrangler deploy",
-		"build": "pnpm build:node && pnpm build:scaleway",
-		"build:node": "esbuild src/node.ts --bundle --platform=node --format=esm --outfile=dist/node.js",
-		"build:scaleway": "esbuild src/scaleway.ts --bundle --platform=node --format=esm --outfile=dist/scaleway/handler.js && echo '{\"type\":\"module\"}' > dist/scaleway/package.json && node scripts/zip.ts dist/scaleway.zip dist/scaleway",
+		"build": "pnpm build:cloudflare && pnpm build:node && pnpm build:scaleway",
+		"build:cloudflare": "esbuild src/cloudflare.ts --bundle --format=esm --outfile=bundle/cloudflare.js",
+		"build:node": "esbuild src/node.ts --bundle --platform=node --format=esm --outfile=bundle/node.js",
+		"build:scaleway": "esbuild src/scaleway.ts --bundle --platform=node --format=esm --outfile=dist/scaleway/handler.js && echo '{\"type\":\"module\"}' > dist/scaleway/package.json && node scripts/zip.ts bundle/scaleway.zip dist/scaleway",
+		"postbuild": "touch bundle/.gitkeep",
 		"check": "tsc",
 		"test": "node --test"
 	},

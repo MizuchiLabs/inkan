@@ -14,9 +14,8 @@
 	import { Spinner } from '#lib/components/ui/spinner/index.js';
 	import * as Tabs from '#lib/components/ui/tabs/index.js';
 	import { Textarea } from '#lib/components/ui/textarea/index.js';
-	import { render } from '#lib/mail.js';
-	import { PlusIcon, RotateCwIcon, XIcon } from '@lucide/svelte';
-	import { Debounced } from 'runed';
+	import { formatRelativeTime } from '#lib/license.js';
+	import { RotateCwIcon } from '@lucide/svelte';
 	import { tick } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import CopyBlock from './CopyBlock.svelte';
@@ -42,17 +41,6 @@
 	// The key action that waits for a yes.
 	let confirming = $state<'rotate' | 'drop'>();
 
-	// prod_a=team,prod_b as one row per Stripe product.
-	function stripeRows(list: string) {
-		return list
-			.split(',')
-			.filter(Boolean)
-			.map((entry) => {
-				const [id = '', plan = ''] = entry.split('=');
-				return { id, plan };
-			});
-	}
-
 	// The sheet is mounted per use, so the form is a snapshot of the product.
 	function initial() {
 		return {
@@ -60,76 +48,24 @@
 			prefix: product?.prefix ?? '',
 			plan: product?.plan ?? '',
 			privateKey: '',
-			workerUrl: product?.worker_url ?? '',
-			stripeProducts: stripeRows(product?.provider_product ?? ''),
-			graceDays: product?.grace_days ?? 14,
-			maxKeyDays: product?.max_key_days ?? 0,
-			mailFrom: product?.mail_from ?? '',
-			mailReplyTo: product?.mail_reply_to ?? '',
-			mailLogo: product?.mail_logo ?? '',
-			mailAccent: product?.mail_accent ?? '',
-			mailFooter: product?.mail_footer ?? '',
-			mailCompany: product?.mail_company ?? '',
-			mailTemplate: product?.mail_template ?? ''
+			workerUrl: product?.worker_url ?? ''
 		};
 	}
 	const form = $state(initial());
 
-	// Made up, it only has to look like a key.
-	const sampleKey = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(165))))
-		.match(/.{1,5}/g)!
-		.join('-');
-	const sampleExpiry = Math.floor(Date.now() / 1000) + 365 * 86400;
-
-	// The preview is a whole page in a frame, it should not reload on every key.
-	const look = new Debounced(
-		() => ({
-			name: form.name,
-			logo: form.mailLogo,
-			accent: form.mailAccent,
-			footer: form.mailFooter,
-			company: form.mailCompany
-		}),
-		300
+	// What the worker said at its last sync. Its settings live in its env alone.
+	const runs = $derived(product?.worker_report);
+	// prod_a=team,prod_b as one line per Stripe product.
+	const stripeProducts = $derived(
+		(runs?.provider_product ?? '')
+			.split(',')
+			.map((entry) => entry.trim())
+			.filter(Boolean)
+			.map((entry) => {
+				const [id = '', plan = ''] = entry.split('=');
+				return { id: id.trim(), plan: plan.trim() || runs?.plan || '' };
+			})
 	);
-	const preview = $derived(
-		render(
-			`${form.prefix}-${sampleKey}`,
-			{
-				app: form.prefix,
-				plan: form.plan,
-				email: 'customer@example.com',
-				exp: sampleExpiry,
-				id: '',
-				fp: '',
-				meta: {}
-			},
-			look.current,
-			form.mailTemplate
-		)
-	);
-	const templateSize = $derived(`${Math.round(new Blob([form.mailTemplate]).size / 1024)} kB`);
-
-	// The html of a key mail of your own, built in the email folder of the repository.
-	async function loadTemplate(event: Event & { currentTarget: HTMLInputElement }) {
-		const input = event.currentTarget;
-		const file = input.files?.[0];
-		input.value = '';
-		if (!file) return;
-		if (file.size > 256 * 1024) {
-			toast.error('The mail is larger than 256 kB');
-			return;
-		}
-		const html = await file.text();
-		if (!/\{\{\s*key\s*\}\}/.test(html)) {
-			toast.error('The mail shows no {{key}}, so the worker would not send it');
-			return;
-		}
-		form.mailTemplate = html;
-	}
-	// A link would load its page inside the preview. The sandbox allows no
-	// new windows, so sending them there leaves a click without effect.
-	const inert = $derived(preview.html.replace('<head>', '<head><base target="_blank">'));
 
 	// The sheet shows a snapshot, so it closes on a product whose keys changed.
 	function changeKeys() {
@@ -159,12 +95,6 @@
 		confirming = undefined;
 	}
 
-	async function addStripeProduct() {
-		form.stripeProducts.push({ id: '', plan: '' });
-		await tick();
-		document.getElementById(`stripe-product-${form.stripeProducts.length - 1}`)?.focus();
-	}
-
 	// A hidden tab cannot show what is wrong with its fields, so the form
 	// checks itself and opens the tab of the first one first.
 	async function save(event: SubmitEvent & { currentTarget: HTMLFormElement }) {
@@ -184,18 +114,7 @@
 					body: {
 						name: form.name,
 						plan: form.plan,
-						worker_url: form.workerUrl,
-						// The server drops empty rows, empty plans and spaces.
-						provider_product: form.stripeProducts.map(({ id, plan }) => `${id}=${plan}`).join(','),
-						grace_days: form.graceDays,
-						max_key_days: form.maxKeyDays,
-						mail_from: form.mailFrom,
-						mail_reply_to: form.mailReplyTo,
-						mail_logo: form.mailLogo,
-						mail_accent: form.mailAccent,
-						mail_footer: form.mailFooter,
-						mail_company: form.mailCompany,
-						mail_template: form.mailTemplate
+						worker_url: form.workerUrl
 					}
 				},
 				{
@@ -227,6 +146,11 @@
 		);
 	}
 </script>
+
+{#snippet setting(label: string, value: string)}
+	<dt class="text-muted-foreground">{label}</dt>
+	<dd class="min-w-0 wrap-break-word">{value}</dd>
+{/snippet}
 
 {#snippet general()}
 	<div class="grid gap-4 sm:grid-cols-2">
@@ -281,7 +205,7 @@
 					<Sheet.Title>{product ? `Edit ${product.name}` : 'Add a product'}</Sheet.Title>
 					<Sheet.Description>
 						{#if product}
-							Its worker hands out the paid licenses. What it runs with is set here.
+							Its worker hands out the paid licenses. The worker has its own settings.
 						{:else}
 							Each product has its own signing key. Its public half goes into your build.
 						{/if}
@@ -296,7 +220,6 @@
 					<Tabs.List class="mx-6 w-auto">
 						<Tabs.Trigger value="general">General</Tabs.Trigger>
 						<Tabs.Trigger value="worker">Worker</Tabs.Trigger>
-						<Tabs.Trigger value="mail">Mail</Tabs.Trigger>
 					</Tabs.List>
 
 					<Tabs.Content value="general" class="overflow-y-auto">
@@ -349,13 +272,13 @@
 									refreshes them. Inkan only shows what it hands out.
 								</Field.Description>
 								<CopyBlock
-									title="Its settings"
+									title="Set it up"
 									text={`inkan worker export ${product.prefix}`}
 									what="command"
 								>
-									Run it in the worker folder. It writes worker.env with what is set here and the
-									signing key, and the key mail. Add the Stripe key and deploy the worker. A change
-									here only reaches the worker that way.
+									Writes the folder inkan-worker-{product.prefix.toLowerCase()} with the worker and the
+									keys of the product. Put your Stripe key into its worker.env, deploy it and enter its
+									url below. Run it again after a key rotation or a new name or plan.
 								</CopyBlock>
 
 								<Field.Field>
@@ -365,6 +288,7 @@
 										type="url"
 										bind:value={form.workerUrl}
 										pattern="https?://.+"
+										maxlength={512}
 										placeholder="https://keys.example.com"
 										autocomplete="off"
 									/>
@@ -374,223 +298,66 @@
 									</Field.Description>
 								</Field.Field>
 
-								<Field.Field aria-labelledby="product-stripe-products">
-									<Field.Title id="product-stripe-products">Stripe products</Field.Title>
-									<div class="flex flex-col gap-4 sm:gap-2">
-										{#each form.stripeProducts as row, i (row)}
-											<!-- A phone gives the id a line of its own. -->
-											<div class="flex flex-wrap items-center gap-2">
-												<Input
-													id={`stripe-product-${i}`}
-													aria-label="Stripe product id"
-													bind:value={row.id}
-													pattern="\s*[^\s,=]+\s*"
-													required={!!row.plan.trim()}
-													placeholder="prod_..."
-													autocomplete="off"
-													spellcheck={false}
-													class="basis-full sm:flex-1 sm:basis-0"
-												/>
-												<Input
-													aria-label={`Plan of ${row.id || 'this product'}`}
-													bind:value={row.plan}
-													pattern="[^,=]+"
-													placeholder={form.plan || 'plan'}
-													autocomplete="off"
-													class="flex-1 sm:w-40 sm:flex-none"
-												/>
-												<Button
-													variant="ghost"
-													size="icon"
-													aria-label={`Remove ${row.id || 'this product'}`}
-													onclick={() => form.stripeProducts.splice(i, 1)}
-												>
-													<XIcon />
-												</Button>
-											</div>
-										{/each}
-										<Button
-											variant="outline"
-											size="sm"
-											class="self-start"
-											onclick={addStripeProduct}
-										>
-											<PlusIcon data-icon="inline-start" />
-											Add a product
-										</Button>
-									</div>
-									<Field.Description>
-										Every subscription and one time purchase of these becomes a license with the
-										plan next to it. An empty plan is the plan of the product. The quantity bought
-										is the seats. Metadata on the Stripe product like
-										<code class="font-mono">meta_tier=gold</code> adds a claim to the key.
-									</Field.Description>
-								</Field.Field>
-
-								<div class="grid gap-4 sm:grid-cols-2">
-									<Field.Field>
-										<Field.Label for="product-grace">Grace days</Field.Label>
-										<Input
-											id="product-grace"
-											type="number"
-											min={0}
-											max={365}
-											bind:value={form.graceDays}
-											required
-										/>
-									</Field.Field>
-									<Field.Field>
-										<Field.Label for="product-max-key-days">Max key days</Field.Label>
-										<Input
-											id="product-max-key-days"
-											type="number"
-											min={0}
-											max={3650}
-											bind:value={form.maxKeyDays}
-											required
-										/>
-									</Field.Field>
-								</div>
-								<Field.Description>
-									A paid license stays valid the grace days past its paid period, so the renewed key
-									arrives before the old one runs out. Max key days cut every paid key short, so the
-									app has to refresh and a refund, a cancellation or a plan change takes effect. A
-									key lasts between half and all of them. 30 suits yearly plans and one time
-									purchases in an app that is online. Leave it at 0 for apps that run offline or
-									have monthly plans only.
-								</Field.Description>
-							</Field.Group>
-						</div>
-					</Tabs.Content>
-
-					<Tabs.Content value="mail" class="overflow-y-auto">
-						<div class="px-6 pt-2 pb-6">
-							<Field.Group>
-								<Field.Description>
-									The mail the worker sends a key in. All of it is optional but the sender, the mail
-									calls the product by its name.
-								</Field.Description>
-								<div class="grid gap-4 sm:grid-cols-2">
-									<Field.Field>
-										<Field.Label for="product-mail-from">Sender</Field.Label>
-										<Input
-											id="product-mail-from"
-											bind:value={form.mailFrom}
-											maxlength={256}
-											placeholder="My App <licenses@example.com>"
-											autocomplete="off"
-										/>
-									</Field.Field>
-									<Field.Field>
-										<Field.Label for="product-mail-reply-to">Reply to</Field.Label>
-										<Input
-											id="product-mail-reply-to"
-											type="email"
-											bind:value={form.mailReplyTo}
-											maxlength={256}
-											placeholder="support@example.com"
-											autocomplete="off"
-										/>
-									</Field.Field>
-								</div>
-								<Field.Description>
-									An answer to the mail goes to the reply to address, for a sender that reads none.
-									Empty sends it to the sender.
-								</Field.Description>
-								<div class="grid gap-4 sm:grid-cols-2">
-									<Field.Field>
-										<Field.Label for="product-mail-logo">Logo</Field.Label>
-										<Input
-											id="product-mail-logo"
-											type="url"
-											bind:value={form.mailLogo}
-											pattern="https://.+"
-											placeholder="https://example.com/logo.png"
-											autocomplete="off"
-										/>
-									</Field.Field>
-									<Field.Field>
-										<Field.Label for="product-mail-accent">Accent color</Field.Label>
-										<Input
-											id="product-mail-accent"
-											bind:value={form.mailAccent}
-											pattern={'#[0-9a-fA-F]{6}'}
-											placeholder="#2f3e8f"
-											autocomplete="off"
-										/>
-									</Field.Field>
-								</div>
-								<Field.Description>
-									The logo sits on the dark header, 32 pixels high, so it has to read on a dark
-									background.
-								</Field.Description>
-								<Field.Field>
-									<Field.Label for="product-mail-footer">Footer</Field.Label>
-									<Input
-										id="product-mail-footer"
-										bind:value={form.mailFooter}
-										maxlength={256}
-										placeholder="Questions? Just reply to this mail."
-									/>
-								</Field.Field>
-								<Field.Field>
-									<Field.Label for="product-mail-company">Company details</Field.Label>
-									<Input
-										id="product-mail-company"
-										bind:value={form.mailCompany}
-										maxlength={512}
-										placeholder="Example GmbH, Street 1, 12345 Berlin, HRB 12345"
-									/>
-									<Field.Description>
-										The last line of the mail, for what your business has to state in its mail.
-										Links and email addresses in it and in the footer can be clicked.
-									</Field.Description>
-								</Field.Field>
-								<Field.Field>
-									<Field.Label for="product-mail-template">A mail of your own</Field.Label>
-									{#if form.mailTemplate}
-										<div
-											class="flex items-center justify-between gap-3 rounded-2xl bg-input/50 px-3 py-1.5 text-sm"
-										>
-											<span>An html mail of {templateSize}, shown below.</span>
-											<Button
-												type="button"
-												variant="ghost"
-												size="sm"
-												onclick={() => (form.mailTemplate = '')}
-											>
-												Remove
-											</Button>
-										</div>
-									{:else}
-										<Input
-											id="product-mail-template"
-											type="file"
-											accept=".html,text/html"
-											onchange={loadTemplate}
-										/>
-									{/if}
-									<Field.Description>
-										Html with the key and the customer as placeholders, the email folder of the
-										repository builds one. It replaces the built-in mail, so the logo and the accent
-										above do nothing for it. The footer and the company details reach it.
-									</Field.Description>
-								</Field.Field>
-
 								<Field.Separator />
-								<p class="text-sm text-muted-foreground">
-									Subject: <span class="text-foreground">{preview.subject}</span>
-								</p>
-								<!-- An empty sandbox runs nothing, the mail is markup only. -->
-								<iframe
-									title="Preview of the key mail"
-									srcdoc={inert}
-									sandbox=""
-									class="h-176 w-full rounded-lg border"
-								></iframe>
-								<p class="text-xs text-muted-foreground">
-									The key is made up and the links do nothing here.
-								</p>
+								<Field.Field>
+									<Field.Title>What it runs with</Field.Title>
+									{#if runs}
+										<dl class="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
+											<dt class="text-muted-foreground">Stripe products</dt>
+											<dd class="flex min-w-0 flex-col gap-1">
+												{#each stripeProducts as stripe (stripe.id)}
+													<span class="wrap-break-word">
+														<span class="font-mono text-xs">{stripe.id}</span>
+														gives the plan {stripe.plan}
+													</span>
+												{/each}
+											</dd>
+											{@render setting('Grace days', String(runs.grace_days))}
+											{@render setting(
+												'Max key days',
+												runs.max_key_days ? String(runs.max_key_days) : 'No limit'
+											)}
+											{#if runs.mail}
+												{@render setting('Mail sender', runs.mail.from)}
+												{#if runs.mail.reply_to}
+													{@render setting('Reply to', runs.mail.reply_to)}
+												{/if}
+												{#if runs.mail.custom}
+													{@render setting('Mail', 'A mail of its own, built into the worker')}
+												{:else}
+													{#if runs.mail.logo}
+														{@render setting('Logo', runs.mail.logo)}
+													{/if}
+													{#if runs.mail.accent}
+														{@render setting('Accent color', runs.mail.accent)}
+													{/if}
+												{/if}
+												{#if runs.mail.footer}
+													{@render setting('Footer', runs.mail.footer)}
+												{/if}
+												{#if runs.mail.company}
+													{@render setting('Company details', runs.mail.company)}
+												{/if}
+											{:else}
+												{@render setting(
+													'Key mails',
+													'None. It has no webhook secret, sender or mail service'
+												)}
+											{/if}
+										</dl>
+										<Field.Description>
+											{#if product.synced_at}
+												As the worker reported it {formatRelativeTime(product.synced_at)}.
+											{/if}
+											These are set in the worker.env of the worker. Change them there and deploy it again.
+										</Field.Description>
+									{:else}
+										<Field.Description>
+											Nothing yet. Its Stripe products, grace days, max key days and mail settings
+											show up here once the worker was read. They are set in its worker.env.
+										</Field.Description>
+									{/if}
+								</Field.Field>
 							</Field.Group>
 						</div>
 					</Tabs.Content>

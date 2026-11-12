@@ -33,3 +33,5 @@ data/
 
 # Envs
 *.env*
+!worker.env.example
+inkan-worker-*/

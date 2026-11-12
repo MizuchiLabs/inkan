@@ -28,8 +28,8 @@ Japan.
   become licenses
 - A license gives the same key every time, until something it says changes
 - A small worker reads Stripe, mails keys to customers and renews them for
-  apps that are online. It runs on Cloudflare Workers, Scaleway Functions or
-  anywhere Node runs
+  apps that are online. It comes out of the same binary, ready to deploy on
+  Cloudflare Workers, Scaleway Functions or anywhere Node runs
 - Small packages for Go, TypeScript and Python that verify, hold and renew
   keys, a documented format for every other language
 - Paste any key to see what is inside
@@ -47,9 +47,19 @@ Japan.
    and every other language work too.
 5. **Issue a key** on the Licenses page and paste it into your app.
 
-That is all an app with hand issued keys needs. To sell licenses, let Stripe
-subscriptions and purchases become keys with the worker, see
-[STRIPE.md](STRIPE.md).
+That is all an app with hand issued keys needs.
+
+To sell licenses, let Stripe subscriptions and purchases become keys. That
+takes a worker, the one public part:
+
+```sh
+inkan worker export MYAPP    # writes the folder inkan-worker-myapp
+cd inkan-worker-myapp
+$EDITOR worker.env           # your Stripe key and Stripe products
+npx wrangler deploy          # or run node.js, or upload scaleway.zip
+```
+
+[STRIPE.md](STRIPE.md#set-it-up) has every step.
 
 ## Screenshots
 
@@ -223,6 +233,11 @@ Stripe, signs the keys of the paid licenses, mails them and refreshes them.
 The dashboard reads the paid licenses from the worker, it never talks to
 Stripe.
 
+| Part      | Runs                                  | Holds                             | You set there                        |
+| --------- | ------------------------------------- | --------------------------------- | ------------------------------------ |
+| Dashboard | Private, on your machine or network   | Signing keys, hand issued licenses | Products, their name, plan and keys  |
+| Worker    | Public, one per product               | Its signing key, your Stripe key  | Everything about selling, in its env |
+
 Keys you issue by hand need no worker. [STRIPE.md](STRIPE.md) has everything
 about the paid ones.
 
@@ -263,7 +278,7 @@ inkan backup /mnt/safe/inkan.db
   clear out old ones yourself.
 
 Paid licenses need no backup. They come back from the worker with the next
-sync.
+sync. The settings of a worker live where it runs, keep your `worker.env`.
 
 ## What it does not do
 

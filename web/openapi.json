@@ -83,14 +83,6 @@
 			"CreateProductInputBody": {
 				"additionalProperties": false,
 				"properties": {
-					"grace_days": {
-						"default": 14,
-						"format": "int64",
-						"maximum": 365,
-						"minimum": 0,
-						"type": "integer"
-					},
-					"max_key_days": { "format": "int64", "maximum": 3650, "minimum": 0, "type": "integer" },
 					"name": { "maxLength": 64, "minLength": 1, "type": "string" },
 					"plan": { "maxLength": 32, "minLength": 1, "type": "string" },
 					"prefix": {
@@ -261,49 +253,28 @@
 				"required": ["email"],
 				"type": "object"
 			},
+			"Mail": {
+				"additionalProperties": false,
+				"properties": {
+					"accent": { "type": "string" },
+					"company": { "type": "string" },
+					"custom": {
+						"description": "The worker was built with a mail of its own",
+						"type": "boolean"
+					},
+					"footer": { "type": "string" },
+					"from": { "type": "string" },
+					"logo": { "type": "string" },
+					"reply_to": { "type": "string" }
+				},
+				"required": ["from", "reply_to", "logo", "accent", "footer", "company", "custom"],
+				"type": "object"
+			},
 			"Product": {
 				"additionalProperties": false,
 				"properties": {
 					"created_at": { "format": "date-time", "type": "string" },
-					"grace_days": {
-						"description": "Worker setting. Days a paid license stays valid past its paid period",
-						"format": "int64",
-						"type": "integer"
-					},
 					"id": { "format": "int64", "type": "integer" },
-					"mail_accent": {
-						"description": "Worker setting. Color of the key mail, #rrggbb",
-						"type": "string"
-					},
-					"mail_company": {
-						"description": "Worker setting. Last line of the key mail: legal name, address, register number",
-						"type": "string"
-					},
-					"mail_footer": {
-						"description": "Worker setting. One line under the key in the mail",
-						"type": "string"
-					},
-					"mail_from": {
-						"description": "Worker setting. Sender of the key mails",
-						"type": "string"
-					},
-					"mail_logo": {
-						"description": "Worker setting. https url of a logo for the dark header of the key mail",
-						"type": "string"
-					},
-					"mail_reply_to": {
-						"description": "Worker setting. Where an answer to the key mail goes, empty is the sender",
-						"type": "string"
-					},
-					"mail_template": {
-						"description": "Worker setting. Html of a key mail of its own with placeholders, empty sends the built-in mail",
-						"type": "string"
-					},
-					"max_key_days": {
-						"description": "Worker setting. Longest life of a paid key in days, 0 has no limit. Apps refresh for the next one",
-						"format": "int64",
-						"type": "integer"
-					},
 					"name": { "type": "string" },
 					"old_public_keys": {
 						"description": "Public keys from before a rotation, newest first. The product carries them next to public_key until their keys have run out",
@@ -316,10 +287,6 @@
 					},
 					"prefix": {
 						"description": "Visible key prefix and the app name the product verifies against",
-						"type": "string"
-					},
-					"provider_product": {
-						"description": "Worker setting. Stripe products, comma separated, their subscriptions and purchases are licenses. prod_x=team gives the keys of prod_x the plan team",
 						"type": "string"
 					},
 					"public_key": {
@@ -339,6 +306,10 @@
 						"description": "Whether a worker url is stored",
 						"type": "boolean"
 					},
+					"worker_report": {
+						"$ref": "#/components/schemas/Report",
+						"description": "What the worker said it runs with at the last sync, null before the first one. Its settings live in its env"
+					},
 					"worker_url": {
 						"description": "Where the worker of the product runs. Its paid licenses are mirrored from there",
 						"type": "string"
@@ -353,19 +324,60 @@
 					"old_public_keys",
 					"worker_url",
 					"worker_connected",
-					"grace_days",
-					"max_key_days",
-					"provider_product",
-					"mail_from",
-					"mail_reply_to",
-					"mail_logo",
-					"mail_accent",
-					"mail_footer",
-					"mail_company",
-					"mail_template",
 					"synced_at",
 					"sync_error",
 					"created_at"
+				],
+				"type": "object"
+			},
+			"Report": {
+				"additionalProperties": false,
+				"properties": {
+					"grace_days": {
+						"description": "Days a paid license stays valid past its paid period",
+						"format": "int64",
+						"type": "integer"
+					},
+					"mail": {
+						"$ref": "#/components/schemas/Mail",
+						"description": "The key mail, missing when the worker sends none"
+					},
+					"max_key_days": {
+						"description": "Days a paid key lives before the app has to refresh, 0 has no limit",
+						"format": "int64",
+						"type": "integer"
+					},
+					"name": { "description": "How the key mail calls the product", "type": "string" },
+					"old_public_keys": {
+						"description": "Keys from before a rotation that a refresh still takes",
+						"items": { "type": "string" },
+						"type": "array"
+					},
+					"plan": { "description": "Plan for Stripe products that set none", "type": "string" },
+					"prefix": { "type": "string" },
+					"provider": {
+						"description": "Who the worker asks what is paid, like stripe",
+						"type": "string"
+					},
+					"provider_product": {
+						"description": "The products at the provider, like prod_a=team,prod_b",
+						"type": "string"
+					},
+					"public_key": {
+						"description": "Hex public key of the key the worker signs with",
+						"type": "string"
+					}
+				},
+				"required": [
+					"provider",
+					"prefix",
+					"public_key",
+					"old_public_keys",
+					"plan",
+					"name",
+					"grace_days",
+					"max_key_days",
+					"provider_product"
 				],
 				"type": "object"
 			},
@@ -399,52 +411,8 @@
 			"UpdateProductInputBody": {
 				"additionalProperties": false,
 				"properties": {
-					"grace_days": { "format": "int64", "maximum": 365, "minimum": 0, "type": "integer" },
-					"mail_accent": {
-						"description": "Color of the key mail, like #2f3e8f",
-						"pattern": "^(#[0-9a-fA-F]{6})?$",
-						"type": "string"
-					},
-					"mail_company": {
-						"description": "Last line of the key mail, for what a business has to state: legal name, address, register number",
-						"maxLength": 512,
-						"type": "string"
-					},
-					"mail_footer": {
-						"description": "One line under the key in the mail, like where to get help",
-						"maxLength": 256,
-						"type": "string"
-					},
-					"mail_from": {
-						"description": "An address or \"Name \u003caddress\u003e\"",
-						"maxLength": 256,
-						"type": "string"
-					},
-					"mail_logo": {
-						"description": "https url of a logo for the dark header of the key mail",
-						"maxLength": 512,
-						"pattern": "^(https://.+)?$",
-						"type": "string"
-					},
-					"mail_reply_to": {
-						"description": "A bare address for the answers to the key mail, for a sender that reads none",
-						"maxLength": 256,
-						"pattern": "^([^\\s\u003c\u003e@]+@[^\\s\u003c\u003e@]+)?$",
-						"type": "string"
-					},
-					"mail_template": {
-						"description": "Html of a key mail of its own, with {{key}} and the other placeholders in it. Empty sends the built-in mail",
-						"maxLength": 262144,
-						"type": "string"
-					},
-					"max_key_days": { "format": "int64", "maximum": 3650, "minimum": 0, "type": "integer" },
 					"name": { "maxLength": 64, "minLength": 1, "type": "string" },
 					"plan": { "maxLength": 32, "minLength": 1, "type": "string" },
-					"provider_product": {
-						"description": "Stripe products for the worker, like prod_a=team,prod_b. One without a plan gets the plan of the product",
-						"maxLength": 1024,
-						"type": "string"
-					},
 					"worker_url": {
 						"description": "Where the worker runs. Empty disconnects it",
 						"maxLength": 512,
@@ -452,7 +420,7 @@
 						"type": "string"
 					}
 				},
-				"required": ["name", "plan", "grace_days"],
+				"required": ["name", "plan"],
 				"type": "object"
 			}
 		}
@@ -662,7 +630,7 @@
 				"tags": ["Products"]
 			},
 			"put": {
-				"description": "A product with a worker is synced with it right away, the outcome is on the returned product. The worker settings only reach the worker once its env is exported and deployed.",
+				"description": "A product with a worker is synced with it right away, the outcome is on the returned product. The name and the plan only reach the worker once inkan worker export ran and it is deployed.",
 				"operationId": "update-product",
 				"parameters": [
 					{

@@ -11,17 +11,15 @@ import (
 
 const createProduct = `-- name: CreateProduct :one
 INSERT INTO
-  products (name, prefix, plan, grace_days, max_key_days, private_key, worker_token)
+  products (name, prefix, plan, private_key, worker_token)
 VALUES
-  (?, ?, ?, ?, ?, ?, ?) RETURNING id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_reply_to, mail_logo, mail_accent, mail_footer, mail_company, mail_template, synced_at, sync_error, created_at
+  (?, ?, ?, ?, ?) RETURNING id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, worker_report, synced_at, sync_error, created_at
 `
 
 type CreateProductParams struct {
 	Name        string `json:"name"`
 	Prefix      string `json:"prefix"`
 	Plan        string `json:"plan"`
-	GraceDays   int64  `json:"graceDays"`
-	MaxKeyDays  int64  `json:"maxKeyDays"`
 	PrivateKey  string `json:"privateKey"`
 	WorkerToken string `json:"workerToken"`
 }
@@ -31,8 +29,6 @@ func (q *Queries) CreateProduct(ctx context.Context, arg *CreateProductParams) (
 		arg.Name,
 		arg.Prefix,
 		arg.Plan,
-		arg.GraceDays,
-		arg.MaxKeyDays,
 		arg.PrivateKey,
 		arg.WorkerToken,
 	)
@@ -46,16 +42,7 @@ func (q *Queries) CreateProduct(ctx context.Context, arg *CreateProductParams) (
 		&i.OldPublicKeys,
 		&i.WorkerUrl,
 		&i.WorkerToken,
-		&i.GraceDays,
-		&i.MaxKeyDays,
-		&i.ProviderProduct,
-		&i.MailFrom,
-		&i.MailReplyTo,
-		&i.MailLogo,
-		&i.MailAccent,
-		&i.MailFooter,
-		&i.MailCompany,
-		&i.MailTemplate,
+		&i.WorkerReport,
 		&i.SyncedAt,
 		&i.SyncError,
 		&i.CreatedAt,
@@ -76,7 +63,7 @@ func (q *Queries) DeleteProduct(ctx context.Context, id int64) error {
 
 const getProduct = `-- name: GetProduct :one
 SELECT
-  id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_reply_to, mail_logo, mail_accent, mail_footer, mail_company, mail_template, synced_at, sync_error, created_at
+  id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, worker_report, synced_at, sync_error, created_at
 FROM
   products
 WHERE
@@ -95,16 +82,7 @@ func (q *Queries) GetProduct(ctx context.Context, id int64) (*Product, error) {
 		&i.OldPublicKeys,
 		&i.WorkerUrl,
 		&i.WorkerToken,
-		&i.GraceDays,
-		&i.MaxKeyDays,
-		&i.ProviderProduct,
-		&i.MailFrom,
-		&i.MailReplyTo,
-		&i.MailLogo,
-		&i.MailAccent,
-		&i.MailFooter,
-		&i.MailCompany,
-		&i.MailTemplate,
+		&i.WorkerReport,
 		&i.SyncedAt,
 		&i.SyncError,
 		&i.CreatedAt,
@@ -114,7 +92,7 @@ func (q *Queries) GetProduct(ctx context.Context, id int64) (*Product, error) {
 
 const getProductByPrefix = `-- name: GetProductByPrefix :one
 SELECT
-  id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_reply_to, mail_logo, mail_accent, mail_footer, mail_company, mail_template, synced_at, sync_error, created_at
+  id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, worker_report, synced_at, sync_error, created_at
 FROM
   products
 WHERE
@@ -133,16 +111,7 @@ func (q *Queries) GetProductByPrefix(ctx context.Context, prefix string) (*Produ
 		&i.OldPublicKeys,
 		&i.WorkerUrl,
 		&i.WorkerToken,
-		&i.GraceDays,
-		&i.MaxKeyDays,
-		&i.ProviderProduct,
-		&i.MailFrom,
-		&i.MailReplyTo,
-		&i.MailLogo,
-		&i.MailAccent,
-		&i.MailFooter,
-		&i.MailCompany,
-		&i.MailTemplate,
+		&i.WorkerReport,
 		&i.SyncedAt,
 		&i.SyncError,
 		&i.CreatedAt,
@@ -152,7 +121,7 @@ func (q *Queries) GetProductByPrefix(ctx context.Context, prefix string) (*Produ
 
 const listProducts = `-- name: ListProducts :many
 SELECT
-  id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_reply_to, mail_logo, mail_accent, mail_footer, mail_company, mail_template, synced_at, sync_error, created_at
+  id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, worker_report, synced_at, sync_error, created_at
 FROM
   products
 ORDER BY
@@ -177,16 +146,7 @@ func (q *Queries) ListProducts(ctx context.Context) ([]*Product, error) {
 			&i.OldPublicKeys,
 			&i.WorkerUrl,
 			&i.WorkerToken,
-			&i.GraceDays,
-			&i.MaxKeyDays,
-			&i.ProviderProduct,
-			&i.MailFrom,
-			&i.MailReplyTo,
-			&i.MailLogo,
-			&i.MailAccent,
-			&i.MailFooter,
-			&i.MailCompany,
-			&i.MailTemplate,
+			&i.WorkerReport,
 			&i.SyncedAt,
 			&i.SyncError,
 			&i.CreatedAt,
@@ -210,7 +170,7 @@ SET
   private_key = ?,
   old_public_keys = ?
 WHERE
-  id = ? RETURNING id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_reply_to, mail_logo, mail_accent, mail_footer, mail_company, mail_template, synced_at, sync_error, created_at
+  id = ? RETURNING id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, worker_report, synced_at, sync_error, created_at
 `
 
 type SetProductKeysParams struct {
@@ -232,16 +192,7 @@ func (q *Queries) SetProductKeys(ctx context.Context, arg *SetProductKeysParams)
 		&i.OldPublicKeys,
 		&i.WorkerUrl,
 		&i.WorkerToken,
-		&i.GraceDays,
-		&i.MaxKeyDays,
-		&i.ProviderProduct,
-		&i.MailFrom,
-		&i.MailReplyTo,
-		&i.MailLogo,
-		&i.MailAccent,
-		&i.MailFooter,
-		&i.MailCompany,
-		&i.MailTemplate,
+		&i.WorkerReport,
 		&i.SyncedAt,
 		&i.SyncError,
 		&i.CreatedAt,
@@ -271,19 +222,21 @@ const setProductSynced = `-- name: SetProductSynced :exec
 UPDATE products
 SET
   synced_at = unixepoch(),
-  sync_error = ?
+  sync_error = ?,
+  worker_report = ?
 WHERE
   id = ?
 `
 
 type SetProductSyncedParams struct {
-	SyncError string `json:"syncError"`
-	ID        int64  `json:"id"`
+	SyncError    string `json:"syncError"`
+	WorkerReport string `json:"workerReport"`
+	ID           int64  `json:"id"`
 }
 
 // The worker was read. sync_error is empty, or what is off with the worker.
 func (q *Queries) SetProductSynced(ctx context.Context, arg *SetProductSyncedParams) error {
-	_, err := q.db.ExecContext(ctx, setProductSynced, arg.SyncError, arg.ID)
+	_, err := q.db.ExecContext(ctx, setProductSynced, arg.SyncError, arg.WorkerReport, arg.ID)
 	return err
 }
 
@@ -308,55 +261,27 @@ func (q *Queries) SetProductWorkerToken(ctx context.Context, arg *SetProductWork
 const updateProduct = `-- name: UpdateProduct :one
 UPDATE products
 SET
-  name = ?,
-  plan = ?,
-  grace_days = ?,
-  max_key_days = ?,
-  provider_product = ?,
-  worker_url = ?,
-  mail_from = ?,
-  mail_reply_to = ?,
-  mail_logo = ?,
-  mail_accent = ?,
-  mail_footer = ?,
-  mail_company = ?,
-  mail_template = ?
+  name = ?1,
+  plan = ?2,
+  worker_url = ?3,
+  worker_report = CASE ?3 WHEN '' THEN '' ELSE worker_report END
 WHERE
-  id = ? RETURNING id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, grace_days, max_key_days, provider_product, mail_from, mail_reply_to, mail_logo, mail_accent, mail_footer, mail_company, mail_template, synced_at, sync_error, created_at
+  id = ?4 RETURNING id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, worker_report, synced_at, sync_error, created_at
 `
 
 type UpdateProductParams struct {
-	Name            string `json:"name"`
-	Plan            string `json:"plan"`
-	GraceDays       int64  `json:"graceDays"`
-	MaxKeyDays      int64  `json:"maxKeyDays"`
-	ProviderProduct string `json:"providerProduct"`
-	WorkerUrl       string `json:"workerUrl"`
-	MailFrom        string `json:"mailFrom"`
-	MailReplyTo     string `json:"mailReplyTo"`
-	MailLogo        string `json:"mailLogo"`
-	MailAccent      string `json:"mailAccent"`
-	MailFooter      string `json:"mailFooter"`
-	MailCompany     string `json:"mailCompany"`
-	MailTemplate    string `json:"mailTemplate"`
-	ID              int64  `json:"id"`
+	Name      string `json:"name"`
+	Plan      string `json:"plan"`
+	WorkerUrl string `json:"workerUrl"`
+	ID        int64  `json:"id"`
 }
 
+// A product without a worker url has no report to show.
 func (q *Queries) UpdateProduct(ctx context.Context, arg *UpdateProductParams) (*Product, error) {
 	row := q.db.QueryRowContext(ctx, updateProduct,
 		arg.Name,
 		arg.Plan,
-		arg.GraceDays,
-		arg.MaxKeyDays,
-		arg.ProviderProduct,
 		arg.WorkerUrl,
-		arg.MailFrom,
-		arg.MailReplyTo,
-		arg.MailLogo,
-		arg.MailAccent,
-		arg.MailFooter,
-		arg.MailCompany,
-		arg.MailTemplate,
 		arg.ID,
 	)
 	var i Product
@@ -369,16 +294,7 @@ func (q *Queries) UpdateProduct(ctx context.Context, arg *UpdateProductParams) (
 		&i.OldPublicKeys,
 		&i.WorkerUrl,
 		&i.WorkerToken,
-		&i.GraceDays,
-		&i.MaxKeyDays,
-		&i.ProviderProduct,
-		&i.MailFrom,
-		&i.MailReplyTo,
-		&i.MailLogo,
-		&i.MailAccent,
-		&i.MailFooter,
-		&i.MailCompany,
-		&i.MailTemplate,
+		&i.WorkerReport,
 		&i.SyncedAt,
 		&i.SyncError,
 		&i.CreatedAt,

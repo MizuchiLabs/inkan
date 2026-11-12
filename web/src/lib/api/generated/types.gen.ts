@@ -67,8 +67,6 @@ export type CreateLicenseInputBody = {
 };
 
 export type CreateProductInputBody = {
-    grace_days?: number;
-    max_key_days?: number;
     name: string;
     plan: string;
     /**
@@ -201,45 +199,22 @@ export type LicenseFields = {
     plan?: string;
 };
 
+export type Mail = {
+    accent: string;
+    company: string;
+    /**
+     * The worker was built with a mail of its own
+     */
+    custom: boolean;
+    footer: string;
+    from: string;
+    logo: string;
+    reply_to: string;
+};
+
 export type Product = {
     created_at: string;
-    /**
-     * Worker setting. Days a paid license stays valid past its paid period
-     */
-    grace_days: number;
     id: number;
-    /**
-     * Worker setting. Color of the key mail, #rrggbb
-     */
-    mail_accent: string;
-    /**
-     * Worker setting. Last line of the key mail: legal name, address, register number
-     */
-    mail_company: string;
-    /**
-     * Worker setting. One line under the key in the mail
-     */
-    mail_footer: string;
-    /**
-     * Worker setting. Sender of the key mails
-     */
-    mail_from: string;
-    /**
-     * Worker setting. https url of a logo for the dark header of the key mail
-     */
-    mail_logo: string;
-    /**
-     * Worker setting. Where an answer to the key mail goes, empty is the sender
-     */
-    mail_reply_to: string;
-    /**
-     * Worker setting. Html of a key mail of its own with placeholders, empty sends the built-in mail
-     */
-    mail_template: string;
-    /**
-     * Worker setting. Longest life of a paid key in days, 0 has no limit. Apps refresh for the next one
-     */
-    max_key_days: number;
     name: string;
     /**
      * Public keys from before a rotation, newest first. The product carries them next to public_key until their keys have run out
@@ -253,10 +228,6 @@ export type Product = {
      * Visible key prefix and the app name the product verifies against
      */
     prefix: string;
-    /**
-     * Worker setting. Stripe products, comma separated, their subscriptions and purchases are licenses. prod_x=team gives the keys of prod_x the plan team
-     */
-    provider_product: string;
     /**
      * Hex Ed25519 public key to build into the product
      */
@@ -274,9 +245,53 @@ export type Product = {
      */
     worker_connected: boolean;
     /**
+     * What the worker said it runs with at the last sync, null before the first one. Its settings live in its env
+     */
+    worker_report?: Report;
+    /**
      * Where the worker of the product runs. Its paid licenses are mirrored from there
      */
     worker_url: string;
+};
+
+export type Report = {
+    /**
+     * Days a paid license stays valid past its paid period
+     */
+    grace_days: number;
+    /**
+     * The key mail, missing when the worker sends none
+     */
+    mail?: Mail;
+    /**
+     * Days a paid key lives before the app has to refresh, 0 has no limit
+     */
+    max_key_days: number;
+    /**
+     * How the key mail calls the product
+     */
+    name: string;
+    /**
+     * Keys from before a rotation that a refresh still takes
+     */
+    old_public_keys: Array<string>;
+    /**
+     * Plan for Stripe products that set none
+     */
+    plan: string;
+    prefix: string;
+    /**
+     * Who the worker asks what is paid, like stripe
+     */
+    provider: string;
+    /**
+     * The products at the provider, like prod_a=team,prod_b
+     */
+    provider_product: string;
+    /**
+     * Hex public key of the key the worker signs with
+     */
+    public_key: string;
 };
 
 export type Snapshot = {
@@ -300,42 +315,8 @@ export type SyncOutputBody = {
 };
 
 export type UpdateProductInputBody = {
-    grace_days: number;
-    /**
-     * Color of the key mail, like #2f3e8f
-     */
-    mail_accent?: string;
-    /**
-     * Last line of the key mail, for what a business has to state: legal name, address, register number
-     */
-    mail_company?: string;
-    /**
-     * One line under the key in the mail, like where to get help
-     */
-    mail_footer?: string;
-    /**
-     * An address or "Name <address>"
-     */
-    mail_from?: string;
-    /**
-     * https url of a logo for the dark header of the key mail
-     */
-    mail_logo?: string;
-    /**
-     * A bare address for the answers to the key mail, for a sender that reads none
-     */
-    mail_reply_to?: string;
-    /**
-     * Html of a key mail of its own, with {{key}} and the other placeholders in it. Empty sends the built-in mail
-     */
-    mail_template?: string;
-    max_key_days?: number;
     name: string;
     plan: string;
-    /**
-     * Stripe products for the worker, like prod_a=team,prod_b. One without a plan gets the plan of the product
-     */
-    provider_product?: string;
     /**
      * Where the worker runs. Empty disconnects it
      */

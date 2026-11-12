@@ -17,8 +17,7 @@ function goServerUrl(): Plugin {
 
 export default defineConfig({
 	// The Go server proxies the UI from here in dev, so the port must not move.
-	// The mail preview renders the key mail of the worker, see src/lib/mail.ts.
-	server: { port: 5173, strictPort: true, fs: { allow: ['../worker/src'] } },
+	server: { port: 5173, strictPort: true },
 	plugins: [
 		goServerUrl(),
 		tailwindcss(),

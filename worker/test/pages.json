@@ -6,10 +6,19 @@
 			"public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
 			"old_public_keys": [],
 			"plan": "pro",
+			"name": "My <App>",
 			"grace_days": 14,
 			"max_key_days": 0,
 			"provider_product": "prod_app=team,prod_lifetime=lifetime,prod_plain",
-			"mail_template": ""
+			"mail": {
+				"from": "Keys <keys@example.com>",
+				"reply_to": "support@example.com",
+				"logo": "",
+				"accent": "red; background: url(x)",
+				"footer": "",
+				"company": "",
+				"custom": false
+			}
 		},
 		"licenses": [
 			{
@@ -41,10 +50,19 @@
 			"public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
 			"old_public_keys": [],
 			"plan": "pro",
+			"name": "My <App>",
 			"grace_days": 14,
 			"max_key_days": 0,
 			"provider_product": "prod_app=team,prod_lifetime=lifetime,prod_plain",
-			"mail_template": ""
+			"mail": {
+				"from": "Keys <keys@example.com>",
+				"reply_to": "support@example.com",
+				"logo": "",
+				"accent": "red; background: url(x)",
+				"footer": "",
+				"company": "",
+				"custom": false
+			}
 		},
 		"licenses": [
 			{
@@ -76,10 +94,19 @@
 			"public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
 			"old_public_keys": [],
 			"plan": "pro",
+			"name": "My <App>",
 			"grace_days": 14,
 			"max_key_days": 0,
 			"provider_product": "prod_app=team,prod_lifetime=lifetime,prod_plain",
-			"mail_template": ""
+			"mail": {
+				"from": "Keys <keys@example.com>",
+				"reply_to": "support@example.com",
+				"logo": "",
+				"accent": "red; background: url(x)",
+				"footer": "",
+				"company": "",
+				"custom": false
+			}
 		},
 		"licenses": [
 			{

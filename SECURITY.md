@@ -84,10 +84,12 @@ For when a private key may have leaked, or the people who had it moved on.
    one and the old ones behind it. It takes keys of both.
 3. **Deploy the worker** with a fresh `inkan worker export`. It signs with the new
    key and still refreshes keys of the old one, so an app trades its old key
-   for a new one on its next refresh. The settings are swapped in one go on
+   for a new one on its next refresh. The keys are swapped in one go on
    Cloudflare and Scaleway, on Node the worker restarts.
 4. **Drop the old keys** under Edit once no key from before is in use, then
    ship a build with the new public key alone and deploy the worker again.
+   The export then leaves `INKAN_OLD_PUBLIC_KEYS` out. Cloudflare and
+   Scaleway keep a secret until it is deleted, so delete that one there.
 
 Nothing breaks in between. Keys that are out work offline the whole time, and
 the worker keeps signing with the old key until step 3.
@@ -112,15 +114,21 @@ the worker keeps signing with the old key until step 3.
 - **The worker** gets the private key, a Stripe key and the key of a mail
   service through its environment. A restricted Stripe key that only reads
   is enough, [STRIPE.md](STRIPE.md#the-worker) lists what it reads.
-  `inkan worker export` writes the private key into `worker.env`, treat the
-  file like one.
+  `inkan worker export` writes the private key into `worker.keys.env` and
+  `worker.keys.json`, treat the files like one.
 - **The webhook** only takes events with a valid Stripe signature that are at
   most five minutes old.
 - **Refresh** only looks up keys with a valid signature of the product, by
   its current key or one from before a rotation that it was given.
 - **The license list** of a worker is only for the dashboard. It takes a token
   of at least 32 characters that Inkan makes for each product. Whoever has it
-  reads every customer and key of the product.
+  reads every customer and key of the product. `inkan worker export MYAPP
+  --new-token` replaces it. The dashboard sends it over https only, or over
+  plain http to localhost, a host name without a dot or a private address,
+  and follows no redirect.
+- **What a worker tells the dashboard** is shown, not trusted with the
+  signing key. An answer that lists a hand issued license is refused, so
+  nothing a worker says ever gets a key signed by the dashboard.
 
 ## The login
 

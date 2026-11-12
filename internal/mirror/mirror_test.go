@@ -22,11 +22,7 @@ import (
 	"github.com/mizuchilabs/inkan/internal/db"
 )
 
-const (
-	token = "a-long-token-only-the-dashboard-knows"
-	// What the worker of worker/test/pages.json runs with.
-	stripeProducts = "prod_app=team,prod_lifetime=lifetime,prod_plain"
-)
+const token = "a-long-token-only-the-dashboard-knows"
 
 // fakeWorker answers with the pages the real worker gives in its own tests,
 // see worker/test/pages.json. That file is what the two sides agree on.
@@ -90,22 +86,20 @@ func privateKey(t *testing.T) string {
 	return base64.StdEncoding.EncodeToString(ed25519.NewKeyFromSeed(seed))
 }
 
-// newProduct is set up the way the worker of the pages runs.
+// newProduct has the name, plan and key the worker of the pages got.
 func newProduct(t *testing.T, q *db.Queries, workerURL string) *db.Product {
 	t.Helper()
 	ctx := t.Context()
 	p, err := q.CreateProduct(ctx, &db.CreateProductParams{
-		Name: "App", Prefix: "MYAPP", Plan: "pro", GraceDays: 14, PrivateKey: privateKey(t), WorkerToken: token,
+		Name: "My <App>", Prefix: "MYAPP", Plan: "pro", PrivateKey: privateKey(t), WorkerToken: token,
 	})
 	require.NoError(t, err)
 	assert.False(t, Connected(p))
 	p, err = q.UpdateProduct(ctx, &db.UpdateProductParams{
-		Name:            p.Name,
-		Plan:            p.Plan,
-		GraceDays:       p.GraceDays,
-		ProviderProduct: stripeProducts,
-		WorkerUrl:       workerURL,
-		ID:              p.ID,
+		Name:      p.Name,
+		Plan:      p.Plan,
+		WorkerUrl: workerURL,
+		ID:        p.ID,
 	})
 	require.NoError(t, err)
 	assert.True(t, Connected(p))
@@ -193,6 +187,19 @@ func TestSync(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, p.SyncedAt)
 	assert.Empty(t, p.SyncError)
+
+	runs := LastReport(p)
+	require.NotNil(t, runs, "what the worker runs with is kept for the UI")
+	assert.Equal(t, "prod_app=team,prod_lifetime=lifetime,prod_plain", runs.ProviderProduct)
+	assert.Equal(t, int64(14), runs.GraceDays)
+	require.NotNil(t, runs.Mail, "this worker mails keys")
+	assert.Equal(t, "Keys <keys@example.com>", runs.Mail.From)
+	assert.Equal(t, "support@example.com", runs.Mail.ReplyTo)
+	assert.False(t, runs.Mail.Custom)
+
+	p, err = q.UpdateProduct(ctx, &db.UpdateProductParams{Name: p.Name, Plan: p.Plan, ID: p.ID})
+	require.NoError(t, err)
+	assert.Nil(t, LastReport(p), "a product without a worker shows no report")
 
 	require.NoError(t, snapshot(ctx, q))
 	require.NoError(t, snapshot(ctx, q), "a second count on the same day replaces the first")
@@ -301,9 +308,9 @@ func TestSyncFailures(t *testing.T) {
 	failed("another product", "its keys would not verify in the app")
 }
 
-// The worker only gets its settings when its env is exported and deployed, so
-// it can run with other ones than the product shows.
-func TestSyncNoticesOtherSettings(t *testing.T) {
+// The plan and the name reach the worker through an export. One that was not
+// deployed since runs with the old ones.
+func TestSyncNoticesAnOldExport(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	q, closeDB, err := db.Open(ctx, t.TempDir())
@@ -323,33 +330,27 @@ func TestSyncNoticesOtherSettings(t *testing.T) {
 		return stored.SyncError
 	}
 
-	for i := range w.pages {
-		w.pages[i].Product.ProviderProduct = "prod_typo"
-	}
-	assert.Contains(t, notice(), "stripe product prod_typo")
-	assert.True(t, has(t, q, p, "sub_stale"), "a worker on another Stripe product drops nothing here")
+	p.Plan = "team"
+	assert.Contains(t, notice(), `plan "pro"`)
+	assert.False(t, has(t, q, p, "sub_stale"), "a notice does not stop the sync")
+	p.Plan = "pro"
 
+	p.Name = "Renamed"
+	assert.Contains(t, notice(), `calls the product "My <App>"`)
+	p.Name = "My <App>"
+
+	// What the worker sets by itself is no drift, it has no other home.
 	for i := range w.pages {
-		w.pages[i].Product.ProviderProduct = stripeProducts
 		w.pages[i].Product.GraceDays = 7
 		w.pages[i].Product.MaxKeyDays = 30
-	}
-	said := notice()
-	assert.Contains(t, said, "7 grace days")
-	assert.Contains(t, said, "30 max key days")
-	assert.False(t, has(t, q, p, "sub_stale"))
-
-	for i := range w.pages {
-		w.pages[i].Product.GraceDays = 14
-		w.pages[i].Product.MaxKeyDays = 0
-		w.pages[i].Product.MailTemplate = TemplateHash("<p>{{key}}</p>")
-	}
-	assert.Contains(t, notice(), "another key mail")
-
-	for i := range w.pages {
-		w.pages[i].Product.MailTemplate = ""
+		w.pages[i].Product.ProviderProduct = "prod_other"
+		w.pages[i].Product.Mail = nil
 	}
 	assert.Empty(t, notice())
+	stored, err := q.GetProduct(ctx, p.ID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(30), LastReport(stored).MaxKeyDays)
+	assert.Nil(t, LastReport(stored).Mail)
 }
 
 // After a rotation the worker keeps signing with the old key until its env is
@@ -429,7 +430,12 @@ func TestSyncLeavesHandIssuedRowsAlone(t *testing.T) {
 		all, err := q.ListLicenses(ctx, &db.ListLicensesParams{Limit: -1})
 		require.NoError(t, err)
 		for _, l := range all {
-			assert.True(t, l.Source != "manual" || l.ID == "lic_manual", "no hand issued row came from the worker: %s", l.ID)
+			assert.True(
+				t,
+				l.Source != "manual" || l.ID == "lic_manual",
+				"no hand issued row came from the worker: %s",
+				l.ID,
+			)
 		}
 	}
 
@@ -462,7 +468,7 @@ func TestCheckURL(t *testing.T) {
 		"http://192.168.1.20:8080",
 		"http://worker:8080",
 	} {
-		assert.NoError(t, CheckURL(ok), ok)
+		require.NoError(t, CheckURL(ok), ok)
 	}
 	for _, bad := range []string{
 		"http://worker.example.com",

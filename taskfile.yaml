@@ -20,18 +20,17 @@ tasks:
       - pnpm run dev
 
   worker:
-    desc: Run the worker of a product with the Stripe CLI forwarding test webhooks to it, task worker -- MYAPP. Takes INKAN_STRIPE_KEY and the mail service from the environment
+    desc: Run the worker of a product with the Stripe CLI forwarding test webhooks to it, task worker -- MYAPP. Takes INKAN_STRIPE_KEY and the other settings from the environment or worker/worker.env
     cmds:
       - |
         dir="$(mktemp -d)"
         trap 'rm -rf "$dir"' EXIT
         go run . worker export {{.CLI_ARGS}} "$dir"
-        env="$dir/worker.env"
         export INKAN_STRIPE_WEBHOOK_SECRET="$(stripe listen --print-secret)"
         stripe listen --forward-to localhost:4242/webhook \
           --events invoice.paid,checkout.session.completed,checkout.session.async_payment_succeeded &
         trap 'kill $!; rm -rf "$dir"' EXIT
-        PORT=4242 node --env-file="$env" worker/src/node.ts
+        PORT=4242 node --env-file="$dir/worker.keys.env" --env-file-if-exists=worker/worker.env worker/src/node.ts
 
   seed:
     desc: Fill data/demo with made up products, licenses and 90 days of history

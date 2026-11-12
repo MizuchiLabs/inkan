@@ -82,7 +82,6 @@ func TestProductKeys(t *testing.T) {
 
 	p := createProduct(t, srv)
 	assert.Len(t, p.PublicKey, 64, "a fresh product gets a keypair")
-	assert.Equal(t, int64(14), p.GraceDays)
 	assert.False(t, p.WorkerConnected)
 
 	stored, err := q.GetProduct(t.Context(), p.ID)
@@ -184,7 +183,7 @@ func TestListLicensesInPages(t *testing.T) {
 	assert.Empty(t, ids("?limit=2&offset=4"))
 }
 
-// The worker settings of a product are only kept for worker export. Saving them
+// A product knows where its worker runs and shows what it reported. Saving
 // reads the worker right away.
 func TestProductWorker(t *testing.T) {
 	t.Parallel()
@@ -203,24 +202,12 @@ func TestProductWorker(t *testing.T) {
 	t.Cleanup(worker.Close)
 
 	path := fmt.Sprintf("/api/products/%d", p.ID)
-	settings := map[string]any{
-		"name":             "App",
-		"plan":             "team",
-		"grace_days":       7,
-		"max_key_days":     30,
-		"provider_product": " prod_app , prod_ent= enterprise,",
-		"worker_url":       worker.URL,
-		"mail_from":        "Keys <keys@example.com>",
-		"mail_accent":      "#c2410c",
-		"mail_reply_to":    "support@example.com",
-	}
+	settings := map[string]any{"name": "App", "plan": "team", "worker_url": worker.URL}
 	var saved Product
 	require.Equal(t, http.StatusOK, call(t, srv, http.MethodPut, path, settings, &saved))
 	assert.True(t, saved.WorkerConnected)
-	assert.Equal(t, "support@example.com", saved.MailReplyTo)
 	assert.Equal(t, "team", saved.Plan)
-	assert.Equal(t, int64(30), saved.MaxKeyDays)
-	assert.Equal(t, "prod_app,prod_ent=enterprise", saved.ProviderProduct, "written the way the worker reports it")
+	assert.Nil(t, saved.WorkerReport, "nothing was read yet")
 	assert.Contains(t, saved.SyncError, "Invalid API Key provided", "a failed sync is not a failed update")
 	assert.Equal(t, http.StatusBadGateway, call(t, srv, http.MethodPost, path+"/sync", nil, nil))
 
@@ -237,31 +224,6 @@ func TestProductWorker(t *testing.T) {
 		settings["worker_url"] = url
 		assert.Equal(t, http.StatusUnprocessableEntity, call(t, srv, http.MethodPut, path, settings, nil), url)
 	}
-	settings["worker_url"] = worker.URL
-	for _, list := range []string{"prod_app,prod_app=team", "=team", "prod app", "prod_app=a=b", "prod_app=te\nam"} {
-		settings["provider_product"] = list
-		assert.Equal(t, http.StatusUnprocessableEntity, call(t, srv, http.MethodPut, path, settings, nil), list)
-	}
-	settings["provider_product"] = "prod_app"
-	settings["mail_reply_to"] = "support@example.com\r\nBcc: all@example.com"
-	assert.Equal(
-		t,
-		http.StatusUnprocessableEntity,
-		call(t, srv, http.MethodPut, path, settings, nil),
-		"a reply to address that brings a header of its own",
-	)
-	settings["mail_reply_to"] = "support@example.com"
-	settings["mail_template"] = "<p>{{name}}</p>"
-	assert.Equal(
-		t,
-		http.StatusUnprocessableEntity,
-		call(t, srv, http.MethodPut, path, settings, nil),
-		"a mail without the key",
-	)
-	settings["mail_template"] = "<p>{{ key }}</p>"
-	require.Equal(t, http.StatusOK, call(t, srv, http.MethodPut, path, settings, &saved))
-	assert.Equal(t, "<p>{{ key }}</p>", saved.MailTemplate)
-	delete(settings, "mail_template")
 	settings["worker_url"] = ""
 	require.Equal(t, http.StatusOK, call(t, srv, http.MethodPut, path, settings, &saved))
 	assert.False(t, saved.WorkerConnected, "an empty url disconnects the worker")

@@ -7,7 +7,6 @@ import (
 	"cmp"
 	"context"
 	"crypto/ed25519"
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json/v2"
 	"errors"
@@ -43,23 +42,36 @@ var client = &http.Client{
 
 // page is one answer of GET /licenses.
 type page struct {
-	Product  settings `json:"product"`
+	Product  Report   `json:"product"`
 	Licenses []listed `json:"licenses"`
 	Skipped  []string `json:"skipped"`
 	Next     *string  `json:"next"`
 }
 
-// settings is what the worker runs with.
-type settings struct {
-	Provider        string   `json:"provider"`
+// Report is what a worker says it runs with. Its settings live in its env
+// alone, so this is the only place the dashboard knows them from.
+type Report struct {
+	Provider        string   `json:"provider"         doc:"Who the worker asks what is paid, like stripe"`
 	Prefix          string   `json:"prefix"`
-	PublicKey       string   `json:"public_key"`
-	OldPublicKeys   []string `json:"old_public_keys"`
-	Plan            string   `json:"plan"`
-	GraceDays       int64    `json:"grace_days"`
-	MaxKeyDays      int64    `json:"max_key_days"`
-	ProviderProduct string   `json:"provider_product"`
-	MailTemplate    string   `json:"mail_template"`
+	PublicKey       string   `json:"public_key"       doc:"Hex public key of the key the worker signs with"`
+	OldPublicKeys   []string `json:"old_public_keys"  doc:"Keys from before a rotation that a refresh still takes"              nullable:"false"`
+	Plan            string   `json:"plan"             doc:"Plan for Stripe products that set none"`
+	Name            string   `json:"name"             doc:"How the key mail calls the product"`
+	GraceDays       int64    `json:"grace_days"       doc:"Days a paid license stays valid past its paid period"`
+	MaxKeyDays      int64    `json:"max_key_days"     doc:"Days a paid key lives before the app has to refresh, 0 has no limit"`
+	ProviderProduct string   `json:"provider_product" doc:"The products at the provider, like prod_a=team,prod_b"`
+	Mail            *Mail    `json:"mail,omitempty"   doc:"The key mail, missing when the worker sends none"`
+}
+
+// Mail is how the key mail of a worker looks.
+type Mail struct {
+	From    string `json:"from"`
+	ReplyTo string `json:"reply_to"`
+	Logo    string `json:"logo"`
+	Accent  string `json:"accent"`
+	Footer  string `json:"footer"`
+	Company string `json:"company"`
+	Custom  bool   `json:"custom"   doc:"The worker was built with a mail of its own"`
 }
 
 type listed struct {
@@ -116,7 +128,7 @@ func Connected(p *db.Product) bool {
 // Sync mirrors the licenses the worker of a product hands out and returns how
 // many there are. The outcome is recorded on the product, so the UI can show it.
 func Sync(ctx context.Context, q *db.Queries, p *db.Product) (int, error) {
-	n, notice, err := pull(ctx, q, p)
+	n, runs, err := pull(ctx, q, p)
 	if err != nil {
 		if dbErr := q.SetProductSyncError(ctx, &db.SetProductSyncErrorParams{
 			SyncError: err.Error(),
@@ -126,47 +138,63 @@ func Sync(ctx context.Context, q *db.Queries, p *db.Product) (int, error) {
 		}
 		return 0, err
 	}
-	return n, q.SetProductSynced(ctx, &db.SetProductSyncedParams{SyncError: notice, ID: p.ID})
+	report, err := json.Marshal(runs)
+	if err != nil {
+		return 0, err
+	}
+	return n, q.SetProductSynced(ctx, &db.SetProductSyncedParams{
+		SyncError:    drift(p, runs),
+		WorkerReport: string(report),
+		ID:           p.ID,
+	})
 }
 
-// pull reads every page of the worker. notice says what is off with a worker
-// that could be read all the same.
-func pull(ctx context.Context, q *db.Queries, p *db.Product) (n int, notice string, err error) {
-	priv, err := license.ParsePrivateKey(p.PrivateKey)
-	if err != nil {
-		return 0, "", err
+// LastReport is what the worker of a product said at its last sync, nil
+// before the first one.
+func LastReport(p *db.Product) *Report {
+	var r Report
+	if p.WorkerReport == "" || json.Unmarshal([]byte(p.WorkerReport), &r) != nil {
+		return nil
 	}
-	pub, _ := priv.Public().(ed25519.PublicKey)
-	current := hex.EncodeToString(pub)
+	return &r
+}
+
+// pull reads every page of the worker and returns what it runs with.
+func pull(ctx context.Context, q *db.Queries, p *db.Product) (n int, runs *Report, err error) {
+	current, err := publicKey(p)
+	if err != nil {
+		return 0, nil, err
+	}
 
 	// Rows a full round did not see are gone at the provider.
 	round := time.Now().Unix()
 	purchases := true
 	cursor := ""
 	asked := map[string]bool{}
-	var runs settings
 	for {
 		asked[cursor] = true
 		pg, err := fetch(ctx, p, cursor)
 		if err != nil {
-			return 0, "", err
+			return 0, nil, err
 		}
-		runs = pg.Product
+		runs = &pg.Product
 		// A worker that was not deployed since a rotation still signs with the old key.
 		ours := runs.PublicKey == current || slices.Contains(p.OldKeys(), runs.PublicKey)
 		if runs.Prefix != p.Prefix || !ours {
-			return 0, "", errors.New("this worker signs for another product, check the worker url")
+			return 0, nil, errors.New("this worker signs for another product, check the worker url")
 		}
 		// The dashboard signs every row that says manual, so a worker must never write one.
 		if runs.Provider == "manual" || slices.ContainsFunc(pg.Licenses, handIssued) {
-			return 0, "", errors.New("this worker lists hand issued licenses, it is not a worker of inkan. Check the worker url")
+			return 0, nil, errors.New(
+				"this worker lists hand issued licenses, it is not a worker of inkan. Check the worker url",
+			)
 		}
 		if slices.Contains(pg.Skipped, "purchase") {
 			purchases = false
 		}
 		for _, l := range pg.Licenses {
 			if err := store(ctx, q, p, cmp.Or(runs.Provider, "stripe"), l, round); err != nil {
-				return 0, "", err
+				return 0, nil, err
 			}
 			n++
 		}
@@ -175,22 +203,25 @@ func pull(ctx context.Context, q *db.Queries, p *db.Product) (n int, notice stri
 		}
 		cursor = *pg.Next
 		if asked[cursor] {
-			return 0, "", errors.New("worker: its pages go in a circle")
+			return 0, nil, errors.New("worker: its pages go in a circle")
 		}
 	}
 
-	notice = drift(p, runs, current)
-	// A worker on another product at the provider lists other licenses. Until
-	// that is settled nothing is dropped, the notes on the rows would go with them.
-	if runs.ProviderProduct != p.ProviderProduct {
-		return n, notice, nil
-	}
 	err = q.DeleteUnseenProviderLicenses(ctx, &db.DeleteUnseenProviderLicensesParams{
 		ProductID: p.ID,
 		SeenAt:    round,
 		Purchases: purchases,
 	})
-	return n, notice, err
+	return n, runs, err
+}
+
+func publicKey(p *db.Product) (string, error) {
+	priv, err := license.ParsePrivateKey(p.PrivateKey)
+	if err != nil {
+		return "", err
+	}
+	pub, _ := priv.Public().(ed25519.PublicKey)
+	return hex.EncodeToString(pub), nil
 }
 
 func handIssued(l listed) bool {
@@ -290,47 +321,22 @@ func health(ctx context.Context, p *db.Product) string {
 	return string(body)
 }
 
-// drift names the settings the worker runs with that the product does not
-// show. They only reach the worker when its env is exported and deployed.
-func drift(p *db.Product, s settings, current string) string {
-	if s.PublicKey != current {
-		return "The worker still signs with the key from before the rotation. Run inkan worker export again and deploy it."
-	}
-	if !slices.Equal(s.OldPublicKeys, p.OldKeys()) {
-		return "The worker takes other old keys than the product has. Run inkan worker export again and deploy it."
-	}
-	var off []string
-	if s.Plan != p.Plan {
-		off = append(off, fmt.Sprintf("plan %q", s.Plan))
-	}
-	if s.GraceDays != p.GraceDays {
-		off = append(off, fmt.Sprintf("%d grace days", s.GraceDays))
-	}
-	if s.MaxKeyDays != p.MaxKeyDays {
-		off = append(off, fmt.Sprintf("%d max key days", s.MaxKeyDays))
-	}
-	if s.ProviderProduct != p.ProviderProduct {
-		off = append(off, cmp.Or(s.Provider, "stripe")+" product "+s.ProviderProduct)
-	}
-	if len(off) > 0 {
-		return "The worker runs with " + strings.Join(off, ", ") +
-			". Run inkan worker export again and deploy it, or set the same here."
-	}
-	if s.MailTemplate != TemplateHash(p.MailTemplate) {
-		return "The worker sends another key mail than the one here. Run inkan worker export again and deploy it."
+// drift says what the worker got from an older export. Only the keys, the
+// plan and the name come from the dashboard, the rest is the worker's own.
+func drift(p *db.Product, runs *Report) string {
+	const again = " Run inkan worker export again and deploy it."
+	current, _ := publicKey(p)
+	switch {
+	case runs.PublicKey != current:
+		return "The worker still signs with the key from before the rotation." + again
+	case !slices.Equal(runs.OldPublicKeys, p.OldKeys()):
+		return "The worker takes other old keys than the product has." + again
+	case runs.Plan != p.Plan:
+		return fmt.Sprintf("The worker runs with the plan %q, the product has %q.", runs.Plan, p.Plan) + again
+	case runs.Name != p.Name:
+		return fmt.Sprintf("The worker calls the product %q, here it is %q.", runs.Name, p.Name) + again
 	}
 	return ""
-}
-
-// TemplateHash is how a worker names the key mail it sends on /licenses, so
-// the dashboard can tell when the one here is not deployed yet. Empty is the
-// built-in mail.
-func TemplateHash(template string) string {
-	if template == "" {
-		return ""
-	}
-	sum := sha256.Sum256([]byte(template))
-	return hex.EncodeToString(sum[:])
 }
 
 func store(ctx context.Context, q *db.Queries, p *db.Product, provider string, l listed, round int64) error {

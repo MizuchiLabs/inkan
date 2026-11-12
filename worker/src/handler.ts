@@ -94,7 +94,9 @@ export async function handle(request: Request, env: Env): Promise<Response> {
 		if (route === 'GET /healthz') return text(serves(send, env), 200);
 		if (route === 'POST /refresh') return await refresh(request, env);
 		if (route === 'POST /webhook' && send) return await webhook(request, env, send);
-		if (route === 'GET /licenses' && env.INKAN_WORKER_TOKEN) return await licenses(request, env);
+		if (route === 'GET /licenses' && env.INKAN_WORKER_TOKEN) {
+			return await licenses(request, env, send !== undefined);
+		}
 	} catch (err) {
 		console.error('the worker failed', route, err);
 		return text('the worker failed', 500);
@@ -237,8 +239,9 @@ async function webhook(request: Request, env: Env, send: Send): Promise<Response
 }
 
 // licenses hands the dashboard one page of what Stripe holds for the product,
-// each license with the key a refresh gives it.
-async function licenses(request: Request, env: Env): Promise<Response> {
+// each license with the key a refresh gives it. mails says whether the worker
+// serves the webhook.
+async function licenses(request: Request, env: Env, mails: boolean): Promise<Response> {
 	const token = env.INKAN_WORKER_TOKEN!;
 	if (token.length < minTokenLength) {
 		return text(`INKAN_WORKER_TOKEN needs at least ${minTokenLength} characters`, 500);
@@ -267,10 +270,22 @@ async function licenses(request: Request, env: Env): Promise<Response> {
 			public_key: publicKeyHex(env.INKAN_PRIVATE_KEY),
 			old_public_keys: oldPublicKeys(env),
 			plan: env.INKAN_PLAN ?? '',
+			name: env.INKAN_PRODUCT_NAME ?? '',
 			grace_days: settings.grace_days,
 			max_key_days: settings.max_key_days,
 			provider_product: env.INKAN_STRIPE_PRODUCT,
-			mail_template: await templateHash()
+			// The settings live here alone, so the dashboard shows what is reported.
+			mail: mails
+				? {
+						from: env.INKAN_MAIL_FROM ?? '',
+						reply_to: env.INKAN_MAIL_REPLY_TO ?? '',
+						logo: env.INKAN_MAIL_LOGO ?? '',
+						accent: env.INKAN_MAIL_ACCENT ?? '',
+						footer: env.INKAN_MAIL_FOOTER ?? '',
+						company: env.INKAN_MAIL_COMPANY ?? '',
+						custom: template !== ''
+					}
+				: null
 		},
 		licenses: await Promise.all(
 			page.licenses.map(async (license) => ({
@@ -349,13 +364,6 @@ async function settingsOf(env: Env): Promise<Settings> {
 		grace_days: whole(env.INKAN_GRACE_DAYS, 14),
 		max_key_days: whole(env.INKAN_MAX_KEY_DAYS, 0)
 	};
-}
-
-// The dashboard compares it with the template it holds, empty is the built-in mail.
-async function templateHash(): Promise<string> {
-	if (!template) return '';
-	const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(template));
-	return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 function mail(env: Env, key: string, claims: Claims) {

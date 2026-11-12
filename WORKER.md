@@ -10,6 +10,9 @@ any payment provider. [`worker/test/pages.json`](worker/test/pages.json) holds
 what the reference answers on `/licenses`. The dashboard reads that same file
 in its tests, so the two cannot drift apart unnoticed.
 
+The endpoints can still change before inkan 1.0. The worker that
+`inkan worker export` writes always fits the dashboard it came from.
+
 A worker signs keys the way [FORMAT.md](FORMAT.md) says. Sign the same license
 into the same bytes as long as nothing about it changes, then an app that
 refreshes can tell that it already has the current key.
@@ -78,10 +81,19 @@ fewer licenses than the limit, or none, and still have a `next`.
     "public_key": "03a107bf…",
     "old_public_keys": [],
     "plan": "pro",
+    "name": "My App",
     "grace_days": 14,
     "max_key_days": 0,
     "provider_product": "prod_…=pro,prod_…=enterprise",
-    "mail_template": ""
+    "mail": {
+      "from": "My App <licenses@example.com>",
+      "reply_to": "",
+      "logo": "",
+      "accent": "",
+      "footer": "",
+      "company": "",
+      "custom": false
+    }
   },
   "licenses": [
     {
@@ -108,9 +120,11 @@ fewer licenses than the limit, or none, and still have a `next`.
 | Field             |                                                                       |
 | ----------------- | --------------------------------------------------------------------- |
 | `product`         | What the worker runs with, the same on every page                     |
-| `provider`        | Who is asked what is paid. The dashboard shows it as the source       |
+| `provider`        | Who is asked what is paid, never `manual`. Shown as the source        |
 | `old_public_keys` | Hex keys from before a rotation that a refresh still takes            |
-| `mail_template`   | SHA-256 hex of the key mail the worker sends, empty for the built-in  |
+| `plan`, `name`    | The plan and the name of the product the worker was exported with     |
+| `mail`            | How the key mail is set up, `null` when the worker sends none         |
+| `mail.custom`     | The worker was built with a mail of its own                           |
 | `id`              | Id at the provider, never `lic_…`. The key carries it as its `id`     |
 | `kind`            | `subscription` or `purchase`                                          |
 | `email`           | Who the license is for                                                |
@@ -138,14 +152,20 @@ What the dashboard does with it:
 - It checks `prefix` and `public_key` against the product and reads nothing
   from a worker that signs for another one. A worker that still signs with a
   key from before a rotation is read, and the user is told to deploy it.
-- It tells the user when `old_public_keys`, `plan`, `grace_days`,
-  `max_key_days` or `provider_product` differ from what the product shows, or
-  when `mail_template` is not the hash of the mail uploaded there.
+- It reads nothing from an answer with the provider `manual` or a `lic_…`
+  id. Those are the hand issued licenses, which the dashboard signs itself.
+- It tells the user when `old_public_keys`, `plan` or `name` differ from what
+  the product has. Those come from `inkan worker export`.
+- It shows the rest of `product` as it is. Those settings live in the worker
+  alone.
 - It keeps a row per license and drops the rows a full read no longer lists.
-  It keeps the purchases when `skipped` names them, and it drops nothing
-  while `provider_product` differs.
+  It keeps the purchases when `skipped` names them.
 - It keeps the last `email` and `customer` it saw for a deleted customer. The
   `key` of that license carries no email then.
+
+The dashboard only calls a worker on https. Plain http is taken for
+`localhost`, a host name without a dot and a loopback or private IP address.
+It follows no redirect.
 
 The token has at least 32 characters. Compare it in constant time.
 

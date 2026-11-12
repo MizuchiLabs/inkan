@@ -215,7 +215,7 @@ export const deleteProductMutation = (options?: Partial<Options<DeleteProductDat
 /**
  * Update a product
  *
- * A product with a worker is synced with it right away, the outcome is on the returned product. The worker settings only reach the worker once its env is exported and deployed.
+ * A product with a worker is synced with it right away, the outcome is on the returned product. The name and the plan only reach the worker once inkan worker export ran and it is deployed.
  */
 export const updateProductMutation = (options?: Partial<Options<UpdateProductData>>): MutationOptions<UpdateProductResponse, UpdateProductError, Options<UpdateProductData>> => {
     const mutationOptions: MutationOptions<UpdateProductResponse, UpdateProductError, Options<UpdateProductData>> = {

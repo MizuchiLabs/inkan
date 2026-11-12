@@ -56,6 +56,7 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm check
           node --test
+          pnpm build
 
   # Runs on main only and skips itself for repos without kos in .goreleaser.yaml.
   nightly:

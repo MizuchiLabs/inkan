@@ -80,7 +80,7 @@ export const deleteProduct = <ThrowOnError extends boolean = false>(options: Opt
 /**
  * Update a product
  *
- * A product with a worker is synced with it right away, the outcome is on the returned product. The worker settings only reach the worker once its env is exported and deployed.
+ * A product with a worker is synced with it right away, the outcome is on the returned product. The name and the plan only reach the worker once inkan worker export ran and it is deployed.
  */
 export const updateProduct = <ThrowOnError extends boolean = false>(options: Options<UpdateProductData, ThrowOnError>): RequestResult<UpdateProductResponses, UpdateProductErrors, ThrowOnError> => (options.client ?? client).put<UpdateProductResponses, UpdateProductErrors, ThrowOnError>({
     url: '/api/products/{id}',

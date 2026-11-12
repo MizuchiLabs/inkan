@@ -120,7 +120,11 @@
 									>
 									<Badge variant="secondary">{count} {count === 1 ? 'license' : 'licenses'}</Badge>
 									<Badge variant="secondary">plan {product.plan}</Badge>
-									<Badge variant="secondary">{product.grace_days} grace days</Badge>
+									{#if product.worker_report}
+										<Badge variant="secondary">
+											{product.worker_report.grace_days} grace days
+										</Badge>
+									{/if}
 								</div>
 							</div>
 						</div>

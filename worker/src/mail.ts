@@ -1,5 +1,5 @@
-// The key mail. The worker sends it and the dashboard previews it, so this
-// file has to run in a browser too. A mail of your own goes into template.ts.
+// The key mail. A mail of your own goes into template.ts, the email folder
+// of the repository builds it.
 
 import type { Claims } from './sign.ts';
 

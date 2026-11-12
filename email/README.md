@@ -11,7 +11,7 @@ pnpm dev
 `pnpm dev` previews `emails/license.tsx` in the browser with a made up key.
 Change the component until the mail is yours. The logo and the colors are
 constants at the top, they are part of the design. The footer and the company
-details come from the product in the dashboard, the same as for the built-in
+details come from the settings of the worker, the same as for the built-in
 mail.
 
 ```sh
@@ -19,13 +19,22 @@ pnpm build
 ```
 
 This renders the mail with placeholders where the key and the customer go and
-writes it to `dist/license.html`. Upload that file on the product in inkan,
-under Edit in the Mail tab. The preview there shows it with your footer and
-company details, `inkan worker export` writes it into the worker, and the
-Products page says when the worker still sends another mail. Keep the
+writes it into the worker, as `../worker/src/template.ts`. Then build the
+worker and deploy it.
+
+```sh
+cd ../worker
+pnpm install
+pnpm build
+```
+
+Copy the files from `worker/bundle` over the ones in the folder that
+`inkan worker export` wrote, and deploy from there as before. The Worker tab
+of the product then says that the worker sends a mail of its own. Keep the
 component somewhere safe, it is the source.
 
-Remove the mail in the Mail tab to get the built-in one back.
+Run `git checkout ../worker/src/template.ts` and build again to get the
+built-in mail back.
 
 ## What the worker fills in
 
@@ -41,8 +50,7 @@ Remove the mail in the Mail tab to get the built-in one back.
 
 The props are plain text, so show them and do not branch on them. During the
 build they hold the placeholder, not a value, so a condition on a prop is
-always true. The logo and accent settings of the product shape only the
-built-in mail.
+always true. The logo and accent settings shape only the built-in mail.
 
 The `<title>` is the subject of the mail. The plain text part stays the one of
 the worker.

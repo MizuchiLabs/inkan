@@ -25,27 +25,18 @@ type License struct {
 }
 
 type Product struct {
-	ID              int64  `json:"id"`
-	Name            string `json:"name"`
-	Prefix          string `json:"prefix"`
-	Plan            string `json:"plan"`
-	PrivateKey      string `json:"privateKey"`
-	OldPublicKeys   string `json:"oldPublicKeys"`
-	WorkerUrl       string `json:"workerUrl"`
-	WorkerToken     string `json:"workerToken"`
-	GraceDays       int64  `json:"graceDays"`
-	MaxKeyDays      int64  `json:"maxKeyDays"`
-	ProviderProduct string `json:"providerProduct"`
-	MailFrom        string `json:"mailFrom"`
-	MailReplyTo     string `json:"mailReplyTo"`
-	MailLogo        string `json:"mailLogo"`
-	MailAccent      string `json:"mailAccent"`
-	MailFooter      string `json:"mailFooter"`
-	MailCompany     string `json:"mailCompany"`
-	MailTemplate    string `json:"mailTemplate"`
-	SyncedAt        *int64 `json:"syncedAt"`
-	SyncError       string `json:"syncError"`
-	CreatedAt       int64  `json:"createdAt"`
+	ID            int64  `json:"id"`
+	Name          string `json:"name"`
+	Prefix        string `json:"prefix"`
+	Plan          string `json:"plan"`
+	PrivateKey    string `json:"privateKey"`
+	OldPublicKeys string `json:"oldPublicKeys"`
+	WorkerUrl     string `json:"workerUrl"`
+	WorkerToken   string `json:"workerToken"`
+	WorkerReport  string `json:"workerReport"`
+	SyncedAt      *int64 `json:"syncedAt"`
+	SyncError     string `json:"syncError"`
+	CreatedAt     int64  `json:"createdAt"`
 }
 
 type Snapshot struct {

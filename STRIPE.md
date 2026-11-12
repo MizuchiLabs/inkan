@@ -5,6 +5,46 @@ key. A small worker does it. It reads Stripe, signs the keys, mails them to
 the customers and renews them for apps that are online. Keys you issue by hand
 need none of this.
 
+## Set it up
+
+There are two parts. The dashboard stays private and holds the signing keys.
+The worker is public and holds your Stripe key. You need no clone of the
+repository, the worker comes out of the `inkan` binary.
+
+1. **Export the worker** of a product. This writes the folder
+   `inkan-worker-myapp` with the built worker and the keys of the product.
+
+   ```sh
+   inkan worker export MYAPP
+   # or from the container of the quick start
+   docker exec inkan inkan worker export MYAPP - | tar x
+   cp -n inkan-worker-myapp/worker.env.example inkan-worker-myapp/worker.env
+   ```
+
+2. **Fill in `worker.env`** in that folder. The Stripe key and the Stripe
+   products are all it needs to start, the rest is optional.
+3. **Deploy it** from that folder, on one of these.
+
+   ```sh
+   # Cloudflare Workers
+   npx wrangler deploy
+   npx wrangler secret bulk worker.keys.env
+   npx wrangler secret bulk worker.env
+
+   # Anywhere Node 22 or newer runs
+   node --env-file=worker.keys.env --env-file=worker.env node.js
+   ```
+
+   For Scaleway Serverless Functions, create a function on a Node runtime
+   from `scaleway.zip`, switch its secrets to JSON, paste `worker.keys.json`
+   and add your settings to it.
+4. **Enter the url** of the worker under Edit on the Products page, in the
+   Worker tab. Its licenses show up on the Licenses page, and the tab shows
+   what the worker runs with.
+
+`worker.keys.env` and `worker.keys.json` hold the signing key. Treat them
+like one and delete them once the worker has them.
+
 ## What becomes a license
 
 - **Stripe.** Give the worker a Stripe API key and the Stripe products it
@@ -15,8 +55,9 @@ need none of this.
   of the Stripe account.
 - **Plans.** Each Stripe product can have a plan of its own. Pro and
   Enterprise products give `pro` and `enterprise` keys. Set the plan next to
-  each Stripe product under Edit on the Products page. A Stripe product
-  without one gets the plan of the product. All prices of a Stripe product,
+  each Stripe product in `INKAN_STRIPE_PRODUCT`, like
+  `prod_a=pro,prod_b=enterprise`. A Stripe product without one gets the plan
+  of the product. All prices of a Stripe product,
   monthly or yearly, give the same plan. An upgrade to another product keeps
   the subscription, so the next refresh brings a key of the new plan.
 - **One time purchases.** A paid Checkout session in payment mode is a license
@@ -63,31 +104,14 @@ need none of this.
 ## The worker
 
 The worker is the small public part of one product, written in TypeScript. It
-keeps no state. Stripe says what is paid and the private key signs it.
+keeps no state. Stripe says what is paid and the private key signs it. One
+worker serves one product, each export has a name of its own.
 
 | Endpoint        |                                                             |
 | --------------- | ----------------------------------------------------------- |
 | `POST /refresh` | An app sends its key and gets the current one back          |
 | `POST /webhook` | Stripe reports a payment, the key is mailed to the customer |
 | `GET /licenses` | The dashboard reads what the worker hands out               |
-
-The worker is deployed from a clone of this repository, it shares the
-verifier in `sdk/ts`. Write the settings of a product into its folder. They
-hold the private key, treat the file like one.
-
-```sh
-cd worker
-inkan worker export MYAPP
-# or from the container of the quick start
-docker exec inkan inkan worker export MYAPP - | tar x
-```
-
-This writes `worker.env`, the same as `worker.json` for a console that takes
-JSON, and the key mail in `src/template.ts`. Add the Stripe key and deploy
-the worker with it. [`worker`](worker) has the
-steps for Cloudflare Workers, Scaleway Functions and any host that runs Node.
-Then enter where the worker runs under Edit on the Products page. Its
-licenses show up on the Licenses page.
 
 The Stripe key is best a restricted key. Read access to these is all the
 worker needs, it never writes to Stripe.
@@ -109,12 +133,13 @@ Products page, the apps keep the keys they have.
 | `INKAN_PREFIX`                | -          | Key prefix of the product                      |
 | `INKAN_PRIVATE_KEY`           | -          | Signing key of the product                     |
 | `INKAN_OLD_PUBLIC_KEYS`       | -          | Public keys from before a rotation, to refresh |
+| `INKAN_WORKER_TOKEN`          | -          | Lets the dashboard read the licenses           |
+| `INKAN_PLAN`                  | -          | Plan for Stripe products that set none         |
+| `INKAN_PRODUCT_NAME`          | the prefix | How the key mail calls the product             |
 | `INKAN_STRIPE_KEY`            | -          | Restricted key with the read access above      |
 | `INKAN_STRIPE_PRODUCT`        | -          | Stripe products like `prod_a=team,prod_b`      |
-| `INKAN_PLAN`                  | -          | Plan for Stripe products that set none         |
 | `INKAN_GRACE_DAYS`            | `14`       | Days a key outlives its paid period            |
 | `INKAN_MAX_KEY_DAYS`          | `0`        | Longest life of a key in days, 0 has no limit  |
-| `INKAN_WORKER_TOKEN`          | -          | Lets the dashboard read the licenses           |
 | `INKAN_STRIPE_WEBHOOK_SECRET` | -          | Signing secret of the webhook endpoint         |
 | `INKAN_MAIL_FROM`             | -          | Sender of the key mails                        |
 | `INKAN_MAIL_REPLY_TO`         | the sender | Address an answer to the key mail goes to      |
@@ -122,35 +147,37 @@ Products page, the apps keep the keys they have.
 | `INKAN_SCW_SECRET_KEY`        | -          | Or through Scaleway Transactional Email        |
 | `INKAN_SCW_PROJECT_ID`        | -          | Project of the Scaleway key                    |
 | `INKAN_SCW_REGION`            | `fr-par`   | Region of Scaleway Transactional Email         |
-| `INKAN_PRODUCT_NAME`          | the prefix | How the key mail calls the product             |
 | `INKAN_MAIL_LOGO`             | -          | https url of a logo for the dark header        |
 | `INKAN_MAIL_ACCENT`           | `#2f3e8f`  | Color of the key mail                          |
 | `INKAN_MAIL_FOOTER`           | -          | One line under the key, like where to get help |
 | `INKAN_MAIL_COMPANY`          | -          | Last line of the mail, your company details    |
 
-`worker export` writes what the product has. The secrets of Stripe and the
-mail service are not kept in the dashboard, they come out as comments to fill
-in.
+The first six come from `inkan worker export` as `worker.keys.env`: the
+prefix, the signing key, the old public keys, the token, the plan and the
+name. Export again and deploy when one of them changes, the Products page
+says so when the worker still runs with an old one. Everything else is yours
+and lives in `worker.env`, which an export never touches. To change a
+setting, edit it where the worker runs and deploy. The dashboard shows what
+the worker reports, it does not edit it.
 
-The settings of the worker live on the product, under Edit on the Products
-page. A change only reaches the worker when you export the file again and
-deploy it. The Products page says so when the worker runs with other settings.
+A value with a space or a `#` needs quotes in an env file, like
+`INKAN_MAIL_ACCENT='#2f3e8f'`.
 
 For the mails, add a webhook endpoint in Stripe for `https://<worker>/webhook`
 that sends `invoice.paid`, plus `checkout.session.completed` and
 `checkout.session.async_payment_succeeded` if you sell one time purchases.
 Leave out the webhook secret or the mail service to serve no webhook.
 
-To try it against Stripe test mode, `task worker -- MYAPP` runs the worker on
-port 4242 with the Stripe CLI forwarding the three events to it. It takes the
-Stripe key and the mail service from your environment.
+To try it against Stripe test mode from a clone, `task worker -- MYAPP` runs
+the worker on port 4242 with the Stripe CLI forwarding the three events to
+it. It takes the Stripe key and the mail service from your environment or
+from `worker/worker.env`.
 
 ### The key mail
 
 The mail shows the key, its plan, how long it is valid and who it is for, as
 HTML with a plain text twin. A dark header carries the name of the product or
-its logo. These make it yours. Set them on the product under Edit, `worker
-export` writes them.
+its logo. These settings in `worker.env` make it yours.
 
 - **Logo.** An https url. It sits on the dark header, 32 pixels high, so it
   has to read on a dark background.
@@ -165,14 +192,10 @@ export` writes them.
 Links and email addresses in the footer and the company details can be
 clicked.
 
-Edit on a product has a Mail tab with a preview that follows what you type. It
-runs the very code the worker sends the mail with.
-
-For a mail of your own, design it in [`email`](email) and upload the html it
-builds in the Mail tab. The preview shows it, `worker export` writes it into
-the worker, and the Products page says when the worker still sends another
-one. It gets the footer and the company details from here, the logo and the
-accent are part of its design.
+For a mail of your own, design it in [`email`](email) in a clone of the
+repository. Its build writes the mail into the worker, see
+[its README](email/README.md). It gets the footer and the company details
+from the settings, the logo and the accent are part of its design.
 
 ### How it behaves
 

@@ -7,12 +7,9 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"net/http"
-	"regexp"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -24,27 +21,18 @@ import (
 
 // Product is one app that keys are issued for. Secrets never leave the server.
 type Product struct {
-	ID              int64      `json:"id"`
-	Name            string     `json:"name"`
-	Prefix          string     `json:"prefix"           doc:"Visible key prefix and the app name the product verifies against"`
-	Plan            string     `json:"plan"             doc:"Default for manual licenses. The worker gives it to Stripe products without a plan of their own"`
-	PublicKey       string     `json:"public_key"       doc:"Hex Ed25519 public key to build into the product"`
-	OldPublicKeys   []string   `json:"old_public_keys"  doc:"Public keys from before a rotation, newest first. The product carries them next to public_key until their keys have run out"                          nullable:"false"`
-	WorkerURL       string     `json:"worker_url"       doc:"Where the worker of the product runs. Its paid licenses are mirrored from there"`
-	WorkerConnected bool       `json:"worker_connected" doc:"Whether a worker url is stored"`
-	GraceDays       int64      `json:"grace_days"       doc:"Worker setting. Days a paid license stays valid past its paid period"`
-	MaxKeyDays      int64      `json:"max_key_days"     doc:"Worker setting. Longest life of a paid key in days, 0 has no limit. Apps refresh for the next one"`
-	ProviderProduct string     `json:"provider_product" doc:"Worker setting. Stripe products, comma separated, their subscriptions and purchases are licenses. prod_x=team gives the keys of prod_x the plan team"`
-	MailFrom        string     `json:"mail_from"        doc:"Worker setting. Sender of the key mails"`
-	MailReplyTo     string     `json:"mail_reply_to"    doc:"Worker setting. Where an answer to the key mail goes, empty is the sender"`
-	MailLogo        string     `json:"mail_logo"        doc:"Worker setting. https url of a logo for the dark header of the key mail"`
-	MailAccent      string     `json:"mail_accent"      doc:"Worker setting. Color of the key mail, #rrggbb"`
-	MailFooter      string     `json:"mail_footer"      doc:"Worker setting. One line under the key in the mail"`
-	MailCompany     string     `json:"mail_company"     doc:"Worker setting. Last line of the key mail: legal name, address, register number"`
-	MailTemplate    string     `json:"mail_template"    doc:"Worker setting. Html of a key mail of its own with placeholders, empty sends the built-in mail"`
-	SyncedAt        *time.Time `json:"synced_at"        doc:"Last time the worker was read"`
-	SyncError       string     `json:"sync_error"       doc:"Why the worker could not be read, or what is off with it. Empty when all is well"`
-	CreatedAt       time.Time  `json:"created_at"`
+	ID              int64          `json:"id"`
+	Name            string         `json:"name"`
+	Prefix          string         `json:"prefix"                  doc:"Visible key prefix and the app name the product verifies against"`
+	Plan            string         `json:"plan"                    doc:"Default for manual licenses. The worker gives it to Stripe products without a plan of their own"`
+	PublicKey       string         `json:"public_key"              doc:"Hex Ed25519 public key to build into the product"`
+	OldPublicKeys   []string       `json:"old_public_keys"         doc:"Public keys from before a rotation, newest first. The product carries them next to public_key until their keys have run out" nullable:"false"`
+	WorkerURL       string         `json:"worker_url"              doc:"Where the worker of the product runs. Its paid licenses are mirrored from there"`
+	WorkerConnected bool           `json:"worker_connected"        doc:"Whether a worker url is stored"`
+	WorkerReport    *mirror.Report `json:"worker_report,omitempty" doc:"What the worker said it runs with at the last sync, null before the first one. Its settings live in its env"`
+	SyncedAt        *time.Time     `json:"synced_at"               doc:"Last time the worker was read"`
+	SyncError       string         `json:"sync_error"              doc:"Why the worker could not be read, or what is off with it. Empty when all is well"`
+	CreatedAt       time.Time      `json:"created_at"`
 }
 
 type ProductsOutput struct {
@@ -64,8 +52,6 @@ type CreateProductInput struct {
 		Name       string `json:"name"                  minLength:"1"         maxLength:"64"`
 		Prefix     string `json:"prefix"                pattern:"^[A-Z0-9]+$" maxLength:"16"  doc:"Uppercase letters and digits. It cannot change later, issued keys are bound to it"`
 		Plan       string `json:"plan"                  minLength:"1"         maxLength:"32"`
-		GraceDays  int64  `json:"grace_days,omitempty"  minimum:"0"           maximum:"365"   default:"14"`
-		MaxKeyDays int64  `json:"max_key_days,omitempty"    minimum:"0"           maximum:"3650"`
 		PrivateKey string `json:"private_key,omitempty"                                       doc:"Base64 Ed25519 private key of an existing product. A fresh keypair is made when empty"`
 	}
 }
@@ -74,19 +60,9 @@ type UpdateProductInput struct {
 	ProductPath
 
 	Body struct {
-		Name            string `json:"name"                       minLength:"1"                    maxLength:"64"`
-		Plan            string `json:"plan"                       minLength:"1"                    maxLength:"32"`
-		WorkerURL       string `json:"worker_url,omitempty"       pattern:"^(https?://.+)?$"       maxLength:"512" doc:"Where the worker runs. Empty disconnects it"`
-		GraceDays       int64  `json:"grace_days"                 minimum:"0"                      maximum:"365"`
-		MaxKeyDays      int64  `json:"max_key_days,omitempty"         minimum:"0"                      maximum:"3650"`
-		ProviderProduct string `json:"provider_product,omitempty"                                  maxLength:"1024" doc:"Stripe products for the worker, like prod_a=team,prod_b. One without a plan gets the plan of the product"`
-		MailFrom        string `json:"mail_from,omitempty"                                         maxLength:"256" doc:"An address or \"Name <address>\""`
-		MailReplyTo     string `json:"mail_reply_to,omitempty"    pattern:"^([^\\s<>@]+@[^\\s<>@]+)?$" maxLength:"256" doc:"A bare address for the answers to the key mail, for a sender that reads none"`
-		MailLogo        string `json:"mail_logo,omitempty"        pattern:"^(https://.+)?$"        maxLength:"512" doc:"https url of a logo for the dark header of the key mail"`
-		MailAccent      string `json:"mail_accent,omitempty"      pattern:"^(#[0-9a-fA-F]{6})?$"                   doc:"Color of the key mail, like #2f3e8f"`
-		MailFooter      string `json:"mail_footer,omitempty"                                       maxLength:"256" doc:"One line under the key in the mail, like where to get help"`
-		MailCompany     string `json:"mail_company,omitempty"                                      maxLength:"512" doc:"Last line of the key mail, for what a business has to state: legal name, address, register number"`
-		MailTemplate    string `json:"mail_template,omitempty"                                     maxLength:"262144" doc:"Html of a key mail of its own, with {{key}} and the other placeholders in it. Empty sends the built-in mail"`
+		Name      string `json:"name"                       minLength:"1"                    maxLength:"64"`
+		Plan      string `json:"plan"                       minLength:"1"                    maxLength:"32"`
+		WorkerURL string `json:"worker_url,omitempty"       pattern:"^(https?://.+)?$"       maxLength:"512" doc:"Where the worker runs. Empty disconnects it"`
 	}
 }
 
@@ -95,9 +71,6 @@ type SyncOutput struct {
 		Licenses int `json:"licenses" doc:"Paid licenses the worker hands out"`
 	}
 }
-
-// A mail without the key is worth nothing, the worker would not use it.
-var keyPlaceholder = regexp.MustCompile(`\{\{\s*key\s*\}\}`)
 
 type productHandlers struct {
 	q *db.Queries
@@ -126,7 +99,7 @@ func registerProducts(api huma.API, q *db.Queries) {
 		Method:      http.MethodPut,
 		Path:        "/api/products/{id}",
 		Summary:     "Update a product",
-		Description: "A product with a worker is synced with it right away, the outcome is on the returned product. The worker settings only reach the worker once its env is exported and deployed.",
+		Description: "A product with a worker is synced with it right away, the outcome is on the returned product. The name and the plan only reach the worker once inkan worker export ran and it is deployed.",
 		Tags:        []string{"Products"},
 	}, h.update)
 	huma.Register(api, huma.Operation{
@@ -195,8 +168,6 @@ func (h *productHandlers) create(ctx context.Context, in *CreateProductInput) (*
 		Name:       in.Body.Name,
 		Prefix:     in.Body.Prefix,
 		Plan:       in.Body.Plan,
-		GraceDays:  in.Body.GraceDays,
-		MaxKeyDays: in.Body.MaxKeyDays,
 		PrivateKey: privateKey,
 		// Two of them, a worker wants at least 32 characters.
 		WorkerToken: rand.Text() + rand.Text(),
@@ -211,34 +182,17 @@ func (h *productHandlers) create(ctx context.Context, in *CreateProductInput) (*
 }
 
 func (h *productHandlers) update(ctx context.Context, in *UpdateProductInput) (*ProductOutput, error) {
-	if in.Body.MailTemplate != "" && !keyPlaceholder.MatchString(in.Body.MailTemplate) {
-		return nil, huma.Error422UnprocessableEntity("the mail template shows no {{key}}")
-	}
 	workerURL := strings.TrimSpace(in.Body.WorkerURL)
 	if workerURL != "" {
 		if err := mirror.CheckURL(workerURL); err != nil {
 			return nil, huma.Error422UnprocessableEntity(err.Error())
 		}
 	}
-	stripe, err := stripeProducts(in.Body.ProviderProduct)
-	if err != nil {
-		return nil, huma.Error422UnprocessableEntity(err.Error())
-	}
 	p, err := h.q.UpdateProduct(ctx, &db.UpdateProductParams{
-		Name:            in.Body.Name,
-		Plan:            in.Body.Plan,
-		GraceDays:       in.Body.GraceDays,
-		MaxKeyDays:      in.Body.MaxKeyDays,
-		ProviderProduct: stripe,
-		WorkerUrl:       workerURL,
-		MailFrom:        strings.TrimSpace(in.Body.MailFrom),
-		MailReplyTo:     in.Body.MailReplyTo,
-		MailLogo:        strings.TrimSpace(in.Body.MailLogo),
-		MailAccent:      in.Body.MailAccent,
-		MailFooter:      strings.TrimSpace(in.Body.MailFooter),
-		MailCompany:     strings.TrimSpace(in.Body.MailCompany),
-		MailTemplate:    in.Body.MailTemplate,
-		ID:              in.ID,
+		Name:      in.Body.Name,
+		Plan:      in.Body.Plan,
+		WorkerUrl: workerURL,
+		ID:        in.ID,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, huma.Error404NotFound("product not found")
@@ -251,33 +205,6 @@ func (h *productHandlers) update(ctx context.Context, in *UpdateProductInput) (*
 	}
 
 	return h.synced(ctx, p)
-}
-
-// stripeProducts writes a list like "prod_a=team, prod_b" the way the worker reports it.
-func stripeProducts(list string) (string, error) {
-	var out []string
-	seen := map[string]bool{}
-	for entry := range strings.SplitSeq(list, ",") {
-		id, plan, _ := strings.Cut(entry, "=")
-		id, plan = strings.TrimSpace(id), strings.TrimSpace(plan)
-		switch {
-		case id == "" && plan == "":
-			continue
-		case id == "" || strings.ContainsFunc(id, unicode.IsSpace) || strings.Contains(plan, "=") ||
-			strings.ContainsFunc(plan, unicode.IsControl):
-			return "", fmt.Errorf("%q is no Stripe product id with an optional =plan", strings.TrimSpace(entry))
-		case len(plan) > 32:
-			return "", fmt.Errorf("the plan of %s is longer than 32 characters", id)
-		case seen[id]:
-			return "", fmt.Errorf("the Stripe product %s is listed twice", id)
-		}
-		seen[id] = true
-		if plan != "" {
-			id += "=" + plan
-		}
-		out = append(out, id)
-	}
-	return strings.Join(out, ","), nil
 }
 
 func (h *productHandlers) rotate(ctx context.Context, in *ProductPath) (*ProductOutput, error) {
@@ -379,16 +306,7 @@ func toProduct(p *db.Product) Product {
 		Plan:            p.Plan,
 		WorkerURL:       p.WorkerUrl,
 		WorkerConnected: mirror.Connected(p),
-		GraceDays:       p.GraceDays,
-		MaxKeyDays:      p.MaxKeyDays,
-		ProviderProduct: p.ProviderProduct,
-		MailFrom:        p.MailFrom,
-		MailReplyTo:     p.MailReplyTo,
-		MailLogo:        p.MailLogo,
-		MailAccent:      p.MailAccent,
-		MailFooter:      p.MailFooter,
-		MailCompany:     p.MailCompany,
-		MailTemplate:    p.MailTemplate,
+		WorkerReport:    mirror.LastReport(p),
 		SyncError:       p.SyncError,
 		CreatedAt:       time.Unix(p.CreatedAt, 0),
 		// Never null, the UI joins it with the current key.

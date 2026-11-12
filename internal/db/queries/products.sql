@@ -24,28 +24,20 @@ WHERE
 
 -- name: CreateProduct :one
 INSERT INTO
-  products (name, prefix, plan, grace_days, max_key_days, private_key, worker_token)
+  products (name, prefix, plan, private_key, worker_token)
 VALUES
-  (?, ?, ?, ?, ?, ?, ?) RETURNING *;
+  (?, ?, ?, ?, ?) RETURNING *;
 
+-- A product without a worker url has no report to show.
 -- name: UpdateProduct :one
 UPDATE products
 SET
-  name = ?,
-  plan = ?,
-  grace_days = ?,
-  max_key_days = ?,
-  provider_product = ?,
-  worker_url = ?,
-  mail_from = ?,
-  mail_reply_to = ?,
-  mail_logo = ?,
-  mail_accent = ?,
-  mail_footer = ?,
-  mail_company = ?,
-  mail_template = ?
+  name = sqlc.arg (name),
+  plan = sqlc.arg (plan),
+  worker_url = sqlc.arg (worker_url),
+  worker_report = CASE sqlc.arg (worker_url) WHEN '' THEN '' ELSE worker_report END
 WHERE
-  id = ? RETURNING *;
+  id = sqlc.arg (id) RETURNING *;
 
 -- name: DeleteProduct :exec
 DELETE FROM products
@@ -73,7 +65,8 @@ WHERE
 UPDATE products
 SET
   synced_at = unixepoch(),
-  sync_error = ?
+  sync_error = ?,
+  worker_report = ?
 WHERE
   id = ?;
 

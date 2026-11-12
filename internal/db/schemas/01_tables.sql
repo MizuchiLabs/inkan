@@ -8,17 +8,7 @@ CREATE TABLE products (
   -- The worker hands out the paid licenses, inkan reads them from it.
   worker_url TEXT NOT NULL DEFAULT '', -- where the worker runs, empty without one
   worker_token TEXT NOT NULL DEFAULT '', -- lets inkan read the licenses of the worker
-  -- Settings of the worker. Only kept here so worker env can print them.
-  grace_days INTEGER NOT NULL DEFAULT 14, -- added to the paid period of a license
-  max_key_days INTEGER NOT NULL DEFAULT 0, -- longest life of a paid key, 0 has no limit, apps refresh for the next one
-  provider_product TEXT NOT NULL DEFAULT '', -- Stripe products like prod_a=team,prod_b, their subscriptions and purchases are licenses
-  mail_from TEXT NOT NULL DEFAULT '', -- an address or "Name <address>"
-  mail_reply_to TEXT NOT NULL DEFAULT '', -- a bare address, where an answer to the key mail goes
-  mail_logo TEXT NOT NULL DEFAULT '', -- https url, shown in the key mail
-  mail_accent TEXT NOT NULL DEFAULT '', -- color of the key mail, #rrggbb
-  mail_footer TEXT NOT NULL DEFAULT '', -- one line under the key
-  mail_company TEXT NOT NULL DEFAULT '', -- legal name, address and the like, the last line of the key mail
-  mail_template TEXT NOT NULL DEFAULT '', -- html of a key mail of its own, with placeholders, empty sends the built-in one
+  worker_report TEXT NOT NULL DEFAULT '', -- json, what the worker said it runs with at the last sync. Its settings live in its env alone
   synced_at INTEGER, -- last time the worker was read
   sync_error TEXT NOT NULL DEFAULT '', -- why the worker could not be read, or what is off with it
   created_at INTEGER NOT NULL DEFAULT (unixepoch())
