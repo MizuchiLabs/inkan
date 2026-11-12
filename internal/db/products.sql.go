@@ -13,7 +13,7 @@ const createProduct = `-- name: CreateProduct :one
 INSERT INTO
   products (name, prefix, plan, private_key, worker_token)
 VALUES
-  (?, ?, ?, ?, ?) RETURNING id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, worker_report, synced_at, sync_error, created_at
+  (?, ?, ?, ?, ?) RETURNING id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, worker_report, synced_at, sync_error, sync_notice, created_at
 `
 
 type CreateProductParams struct {
@@ -45,6 +45,7 @@ func (q *Queries) CreateProduct(ctx context.Context, arg *CreateProductParams) (
 		&i.WorkerReport,
 		&i.SyncedAt,
 		&i.SyncError,
+		&i.SyncNotice,
 		&i.CreatedAt,
 	)
 	return &i, err
@@ -63,7 +64,7 @@ func (q *Queries) DeleteProduct(ctx context.Context, id int64) error {
 
 const getProduct = `-- name: GetProduct :one
 SELECT
-  id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, worker_report, synced_at, sync_error, created_at
+  id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, worker_report, synced_at, sync_error, sync_notice, created_at
 FROM
   products
 WHERE
@@ -85,6 +86,7 @@ func (q *Queries) GetProduct(ctx context.Context, id int64) (*Product, error) {
 		&i.WorkerReport,
 		&i.SyncedAt,
 		&i.SyncError,
+		&i.SyncNotice,
 		&i.CreatedAt,
 	)
 	return &i, err
@@ -92,7 +94,7 @@ func (q *Queries) GetProduct(ctx context.Context, id int64) (*Product, error) {
 
 const getProductByPrefix = `-- name: GetProductByPrefix :one
 SELECT
-  id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, worker_report, synced_at, sync_error, created_at
+  id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, worker_report, synced_at, sync_error, sync_notice, created_at
 FROM
   products
 WHERE
@@ -114,6 +116,7 @@ func (q *Queries) GetProductByPrefix(ctx context.Context, prefix string) (*Produ
 		&i.WorkerReport,
 		&i.SyncedAt,
 		&i.SyncError,
+		&i.SyncNotice,
 		&i.CreatedAt,
 	)
 	return &i, err
@@ -121,7 +124,7 @@ func (q *Queries) GetProductByPrefix(ctx context.Context, prefix string) (*Produ
 
 const listProducts = `-- name: ListProducts :many
 SELECT
-  id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, worker_report, synced_at, sync_error, created_at
+  id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, worker_report, synced_at, sync_error, sync_notice, created_at
 FROM
   products
 ORDER BY
@@ -149,6 +152,7 @@ func (q *Queries) ListProducts(ctx context.Context) ([]*Product, error) {
 			&i.WorkerReport,
 			&i.SyncedAt,
 			&i.SyncError,
+			&i.SyncNotice,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -170,7 +174,7 @@ SET
   private_key = ?,
   old_public_keys = ?
 WHERE
-  id = ? RETURNING id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, worker_report, synced_at, sync_error, created_at
+  id = ? RETURNING id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, worker_report, synced_at, sync_error, sync_notice, created_at
 `
 
 type SetProductKeysParams struct {
@@ -195,6 +199,7 @@ func (q *Queries) SetProductKeys(ctx context.Context, arg *SetProductKeysParams)
 		&i.WorkerReport,
 		&i.SyncedAt,
 		&i.SyncError,
+		&i.SyncNotice,
 		&i.CreatedAt,
 	)
 	return &i, err
@@ -222,21 +227,22 @@ const setProductSynced = `-- name: SetProductSynced :exec
 UPDATE products
 SET
   synced_at = unixepoch(),
-  sync_error = ?,
+  sync_error = '',
+  sync_notice = ?,
   worker_report = ?
 WHERE
   id = ?
 `
 
 type SetProductSyncedParams struct {
-	SyncError    string `json:"syncError"`
+	SyncNotice   string `json:"syncNotice"`
 	WorkerReport string `json:"workerReport"`
 	ID           int64  `json:"id"`
 }
 
-// The worker was read. sync_error is empty, or what is off with the worker.
+// The worker was read. The notice is empty, or what is off with it all the same.
 func (q *Queries) SetProductSynced(ctx context.Context, arg *SetProductSyncedParams) error {
-	_, err := q.db.ExecContext(ctx, setProductSynced, arg.SyncError, arg.WorkerReport, arg.ID)
+	_, err := q.db.ExecContext(ctx, setProductSynced, arg.SyncNotice, arg.WorkerReport, arg.ID)
 	return err
 }
 
@@ -264,9 +270,11 @@ SET
   name = ?1,
   plan = ?2,
   worker_url = ?3,
-  worker_report = CASE ?3 WHEN '' THEN '' ELSE worker_report END
+  worker_report = CASE ?3 WHEN '' THEN '' ELSE worker_report END,
+  sync_notice = CASE ?3 WHEN '' THEN '' ELSE sync_notice END,
+  sync_error = CASE ?3 WHEN '' THEN '' ELSE sync_error END
 WHERE
-  id = ?4 RETURNING id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, worker_report, synced_at, sync_error, created_at
+  id = ?4 RETURNING id, name, prefix, "plan", private_key, old_public_keys, worker_url, worker_token, worker_report, synced_at, sync_error, sync_notice, created_at
 `
 
 type UpdateProductParams struct {
@@ -297,6 +305,7 @@ func (q *Queries) UpdateProduct(ctx context.Context, arg *UpdateProductParams) (
 		&i.WorkerReport,
 		&i.SyncedAt,
 		&i.SyncError,
+		&i.SyncNotice,
 		&i.CreatedAt,
 	)
 	return &i, err

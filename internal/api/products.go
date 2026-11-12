@@ -32,7 +32,8 @@ type Product struct {
 	WorkerConnected bool           `json:"worker_connected"        doc:"Whether a worker url is stored"`
 	WorkerReport    *mirror.Report `json:"worker_report,omitempty" doc:"What the worker said it runs with at the last sync, null before the first one. Its settings live in its env"`
 	SyncedAt        *time.Time     `json:"synced_at"               doc:"Last time the worker was read"`
-	SyncError       string         `json:"sync_error"              doc:"Why the worker could not be read, or what is off with it. Empty when all is well"`
+	SyncError       string         `json:"sync_error"              doc:"Why the worker could not be read at the last try. Empty when it could"`
+	SyncNotice      string         `json:"sync_notice"             doc:"What is off with a worker that could be read, like an export that was not deployed yet"`
 	CreatedAt       time.Time      `json:"created_at"`
 }
 
@@ -264,7 +265,7 @@ func (h *productHandlers) setKeys(
 
 // synced reads the worker of a product that was just changed, so the answer
 // says what the worker makes of it. A failed sync is not a failed change, it
-// shows up as sync_error.
+// shows up as sync_error or sync_notice.
 func (h *productHandlers) synced(ctx context.Context, p *db.Product) (*ProductOutput, error) {
 	if mirror.Connected(p) {
 		ctx, cancel := context.WithTimeout(ctx, syncTimeout)
@@ -325,6 +326,7 @@ func toProduct(p *db.Product) Product {
 		WorkerConnected: mirror.Connected(p),
 		WorkerReport:    mirror.LastReport(p),
 		SyncError:       p.SyncError,
+		SyncNotice:      p.SyncNotice,
 		CreatedAt:       time.Unix(p.CreatedAt, 0),
 		// Never null, the UI joins it with the current key.
 		OldPublicKeys: append([]string{}, p.OldKeys()...),

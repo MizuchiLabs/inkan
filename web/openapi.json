@@ -294,7 +294,11 @@
 						"type": "string"
 					},
 					"sync_error": {
-						"description": "Why the worker could not be read, or what is off with it. Empty when all is well",
+						"description": "Why the worker could not be read at the last try. Empty when it could",
+						"type": "string"
+					},
+					"sync_notice": {
+						"description": "What is off with a worker that could be read, like an export that was not deployed yet",
 						"type": "string"
 					},
 					"synced_at": {
@@ -326,6 +330,7 @@
 					"worker_connected",
 					"synced_at",
 					"sync_error",
+					"sync_notice",
 					"created_at"
 				],
 				"type": "object"

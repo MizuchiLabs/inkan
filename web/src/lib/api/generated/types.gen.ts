@@ -233,9 +233,13 @@ export type Product = {
      */
     public_key: string;
     /**
-     * Why the worker could not be read, or what is off with it. Empty when all is well
+     * Why the worker could not be read at the last try. Empty when it could
      */
     sync_error: string;
+    /**
+     * What is off with a worker that could be read, like an export that was not deployed yet
+     */
+    sync_notice: string;
     /**
      * Last time the worker was read
      */

@@ -35,7 +35,9 @@ SET
   name = sqlc.arg (name),
   plan = sqlc.arg (plan),
   worker_url = sqlc.arg (worker_url),
-  worker_report = CASE sqlc.arg (worker_url) WHEN '' THEN '' ELSE worker_report END
+  worker_report = CASE sqlc.arg (worker_url) WHEN '' THEN '' ELSE worker_report END,
+  sync_notice = CASE sqlc.arg (worker_url) WHEN '' THEN '' ELSE sync_notice END,
+  sync_error = CASE sqlc.arg (worker_url) WHEN '' THEN '' ELSE sync_error END
 WHERE
   id = sqlc.arg (id) RETURNING *;
 
@@ -60,12 +62,13 @@ SET
 WHERE
   id = ?;
 
--- The worker was read. sync_error is empty, or what is off with the worker.
+-- The worker was read. The notice is empty, or what is off with it all the same.
 -- name: SetProductSynced :exec
 UPDATE products
 SET
   synced_at = unixepoch(),
-  sync_error = ?,
+  sync_error = '',
+  sync_notice = ?,
   worker_report = ?
 WHERE
   id = ?;

@@ -292,6 +292,11 @@ func TestSyncFailures(t *testing.T) {
 	failed("another token", "the worker turns a wrong token down")
 	p.WorkerToken = token
 
+	p.WorkerUrl = "http://127.0.0.1:1"
+	failed("takes no connection, is the worker running?", "no raw Go error on the Products page")
+	p.WorkerUrl = "https://nowhere.invalid"
+	failed("there is no host nowhere.invalid", "a typo in the host is named as such")
+
 	p.WorkerUrl = url + "/nothing-here"
 	failed("no /licenses there", "a wrong url is named as such")
 	p.WorkerUrl = url
@@ -327,7 +332,8 @@ func TestSyncNoticesAnOldExport(t *testing.T) {
 		stored, err := q.GetProduct(ctx, p.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, stored.SyncedAt)
-		return stored.SyncError
+		assert.Empty(t, stored.SyncError, "the worker was read")
+		return stored.SyncNotice
 	}
 
 	p.Plan = "team"
@@ -370,7 +376,8 @@ func TestSyncAfterRotation(t *testing.T) {
 		assert.Equal(t, 3, n)
 		stored, err := q.GetProduct(ctx, p.ID)
 		require.NoError(t, err)
-		return stored.SyncError
+		assert.Empty(t, stored.SyncError, "the worker was read")
+		return stored.SyncNotice
 	}
 
 	fresh, freshPub, err := license.GenerateKey()

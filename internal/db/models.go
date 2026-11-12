@@ -36,6 +36,7 @@ type Product struct {
 	WorkerReport  string `json:"workerReport"`
 	SyncedAt      *int64 `json:"syncedAt"`
 	SyncError     string `json:"syncError"`
+	SyncNotice    string `json:"syncNotice"`
 	CreatedAt     int64  `json:"createdAt"`
 }
 

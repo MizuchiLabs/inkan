@@ -7,18 +7,21 @@ import (
 	"cmp"
 	"context"
 	"crypto/ed25519"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/netip"
 	"net/url"
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/mizuchilabs/inkan/license"
@@ -149,7 +152,7 @@ func Sync(ctx context.Context, q *db.Queries, p *db.Product) (int, error) {
 		return 0, err
 	}
 	return n, q.SetProductSynced(ctx, &db.SetProductSyncedParams{
-		SyncError:    drift(p, runs),
+		SyncNotice:   drift(p, runs),
 		WorkerReport: string(report),
 		ID:           p.ID,
 	})
@@ -277,7 +280,7 @@ func fetch(ctx context.Context, p *db.Product, cursor string) (*page, error) {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("worker: %w", err)
+		return nil, unreachable(req.URL.Host, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
@@ -309,6 +312,31 @@ func fetch(ctx context.Context, p *db.Product, cursor string) (*page, error) {
 		return nil, fmt.Errorf("worker: reading the answer: %w", err)
 	}
 	return &pg, nil
+}
+
+// unreachable says in plain words why no answer came from host. What Go
+// reports names the whole request, which is noise on the Products page.
+func unreachable(host string, err error) error {
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return fmt.Errorf("worker: %w", err)
+	}
+	if e, ok := errors.AsType[*url.Error](err); ok {
+		err = e.Err
+	}
+	_, unknown := errors.AsType[*net.DNSError](err)
+	_, untrusted := errors.AsType[*tls.CertificateVerificationError](err)
+	timeout, _ := errors.AsType[net.Error](err)
+	switch {
+	case unknown:
+		return fmt.Errorf("worker: there is no host %s, check the worker url", host)
+	case errors.Is(err, syscall.ECONNREFUSED):
+		return fmt.Errorf("worker: %s takes no connection, is the worker running?", host)
+	case untrusted:
+		return fmt.Errorf("worker: the certificate of %s is not trusted", host)
+	case timeout != nil && timeout.Timeout():
+		return fmt.Errorf("worker: %s took too long to answer", host)
+	}
+	return fmt.Errorf("worker: %s could not be reached: %w", host, err)
 }
 
 // health is what the worker answers on /healthz, like "ok: refresh, licenses",
