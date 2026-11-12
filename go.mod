@@ -5,7 +5,7 @@ go 1.27.4
 require (
 	github.com/danielgtaylor/huma/v2 v2.40.0
 	github.com/go-chi/httplog/v3 v3.5.0
-	github.com/mizuchilabs/inkan/license v0.1.0
+	github.com/mizuchilabs/inkan/license v0.3.0
 	github.com/mizuchilabs/kata v0.2.0
 	github.com/mizuchilabs/nushi v0.3.0
 	github.com/mizuchilabs/sqlite-schema-diff v0.3.6

@@ -26,8 +26,8 @@ github.com/klauspost/compress v1.20.3 h1:zWNoFqq/lSuYQRim3dUXlXeA0IqwuZGicdG5ZTf
 github.com/klauspost/compress v1.20.3/go.mod h1:LUdAzn7YLVvxLpc7y3V1m40wESHTgc1422pwwBSKYuI=
 github.com/mattn/go-isatty v0.0.24 h1:tGZZoVgT/KiqK1c8ocVLeDS8BSWMRd47J3Lbz7vsReI=
 github.com/mattn/go-isatty v0.0.24/go.mod h1:nMCL3Zebbrt45jsMDgnfIwz6ydEQApk5oEI3HqDio6A=
-github.com/mizuchilabs/inkan/license v0.1.0 h1:rMft18RwV0BC4Zgi+ku5WjhVYyuvTT5GUdJ/YWXvhaU=
-github.com/mizuchilabs/inkan/license v0.1.0/go.mod h1:2kuxX41PqVb0fOLO/Y0Zqwt52MhKglDvmj7rwtgH1fU=
+github.com/mizuchilabs/inkan/license v0.3.0 h1:gZG/OW1yqDhYnimsH7WpLjIeWDC4IKWcj4CY8otDb2s=
+github.com/mizuchilabs/inkan/license v0.3.0/go.mod h1:2kuxX41PqVb0fOLO/Y0Zqwt52MhKglDvmj7rwtgH1fU=
 github.com/mizuchilabs/kata v0.2.0 h1:5gni6L0hXOdwFwcoOKJ3EQARzWvk2lSH0BdRnyGQHKg=
 github.com/mizuchilabs/kata v0.2.0/go.mod h1:5/eGNufksiZuM8gc6QpVkNzNvmvfWj69L0WnpMnbRHI=
 github.com/mizuchilabs/nushi v0.3.0 h1:+Y64tntJ5hrrcd3ROAIDu0fCAjiNKYboyTWhV1AdsNs=

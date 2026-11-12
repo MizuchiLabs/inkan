@@ -40,6 +40,17 @@ jobs:
           go vet ./...
           go test -race -shuffle=on ./...
 
+      # The dashboard builds against the tagged module, not this folder. An edit
+      # in license/ only reaches it with a new license/v* tag and a bump in go.mod.
+      - name: License pin
+        run: |
+          go mod download github.com/mizuchilabs/inkan/license
+          dir="$(go list -m -f '{{.Dir}}' github.com/mizuchilabs/inkan/license)"
+          if ! diff -r "$dir" license; then
+            echo "::error::license/ differs from the module pinned in go.mod. Tag license/vX.Y.Z and bump it."
+            exit 1
+          fi
+
       - name: TypeScript verifier
         working-directory: sdk/ts
         run: node --test
