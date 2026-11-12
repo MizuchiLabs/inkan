@@ -78,6 +78,12 @@ func TestWorkerFiles(t *testing.T) {
 	if _, built := byName["cloudflare.js"]; built {
 		assert.Contains(t, byName["wrangler.jsonc"].body, `"name": "inkan-myapp"`, "one name per product")
 		assert.Contains(t, byName["wrangler.jsonc"].body, `"main": "cloudflare.js"`)
+		assert.NotRegexp(
+			t,
+			`(?m)^\s*"limits"`,
+			byName["wrangler.jsonc"].body,
+			"the free plan refuses a deploy with cpu limits",
+		)
 	}
 }
 
