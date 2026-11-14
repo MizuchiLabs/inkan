@@ -73,6 +73,10 @@
 	--accent-foreground: oklch(0.24 0.03 268);
 	--destructive: oklch(0.56 0.2 12);
 	--destructive-foreground: oklch(1 0 0);
+	/* Status colors are used as text, so they stay dark enough to read on white. */
+	--success: oklch(0.58 0.13 155);
+	--warning: oklch(0.66 0.14 70);
+	--info: oklch(0.62 0.11 220);
 	--border: oklch(0.905 0.012 264);
 	--input: oklch(0.905 0.012 264);
 	--ring: oklch(0.38 0.11 268);
@@ -120,6 +124,9 @@
 	--accent-foreground: oklch(0.93 0.012 265);
 	--destructive: oklch(0.66 0.19 12);
 	--destructive-foreground: oklch(1 0 0);
+	--success: oklch(0.74 0.13 155);
+	--warning: oklch(0.78 0.14 75);
+	--info: oklch(0.74 0.1 220);
 	--border: oklch(0.3 0.035 268);
 	--input: oklch(0.3 0.035 268);
 	--ring: oklch(0.74 0.11 268);
@@ -164,6 +171,9 @@
 	--color-accent-foreground: var(--accent-foreground);
 	--color-destructive: var(--destructive);
 	--color-destructive-foreground: var(--destructive-foreground);
+	--color-success: var(--success);
+	--color-warning: var(--warning);
+	--color-info: var(--info);
 	--color-border: var(--border);
 	--color-input: var(--input);
 	--color-ring: var(--ring);
@@ -264,6 +274,11 @@
 	}
 	html {
 		@apply font-sans;
+	}
+	/* JetBrains Mono draws != as ≠, which misleads in keys and commands. */
+	pre,
+	code {
+		font-variant-ligatures: none;
 	}
 }
 

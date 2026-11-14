@@ -12,10 +12,9 @@ export const stateLabel: Record<LicenseState, string> = {
 	expired: 'Expired'
 };
 
-// chart-3 is fine, chart-4 needs a look.
 export const stateDot: Record<LicenseState, string> = {
-	active: 'bg-chart-3',
-	ending: 'bg-chart-4',
+	active: 'bg-success',
+	ending: 'bg-warning',
 	expired: 'bg-muted-foreground/50'
 };
 

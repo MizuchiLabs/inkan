@@ -5,7 +5,7 @@
 	import Inkan from '#lib/assets/inkan.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { LogOut, Moon, Sun } from '@lucide/svelte';
-	import { mode, toggleMode } from 'mode-watcher';
+	import { toggleMode } from 'mode-watcher';
 
 	const productsQuery = useProducts();
 	const session = useSession();
@@ -45,7 +45,7 @@
 				>
 					{link.label}
 					{#if link.alert}
-						<span class="size-1.5 rounded-full bg-chart-4" title="A Stripe sync failed">
+						<span class="size-1.5 rounded-full bg-warning" title="A Stripe sync failed">
 							<span class="sr-only">A Stripe sync failed</span>
 						</span>
 					{/if}
@@ -57,11 +57,8 @@
 			class="pointer-events-auto flex h-10 shrink-0 items-center rounded-full border bg-background/80 px-1.5 shadow-sm backdrop-blur-md"
 		>
 			<Button variant="ghost" size="icon-sm" onclick={toggleMode} aria-label="Toggle theme">
-				{#if mode.current === 'light'}
-					<Moon />
-				{:else}
-					<Sun />
-				{/if}
+				<Moon class="dark:hidden" />
+				<Sun class="hidden dark:block" />
 			</Button>
 			{#if session.data && session.data.mode !== 'none'}
 				<Button
