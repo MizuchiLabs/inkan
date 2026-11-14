@@ -1,19 +1,18 @@
 <script lang="ts">
 	import Github from '#lib/assets/github.svelte';
-	import { Button } from '#lib/components/ui/button/index.js';
 </script>
 
-<!-- In the flow of the page. Fixed to a corner it sat on top of the table on a phone. -->
-<footer class="mx-auto flex w-full max-w-5xl justify-end px-4 pb-3 sm:px-6">
-	<Button
+<!-- GitHub on the left, every other link on the right. In the page flow, a fixed one covers content on a phone. -->
+<footer
+	class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 pb-3 text-xs text-muted-foreground"
+>
+	<a
 		href="https://github.com/mizuchilabs/inkan"
 		target="_blank"
 		rel="noopener noreferrer"
-		variant="ghost"
-		size="icon-sm"
-		aria-label="inkan on GitHub"
-		title="Powered by inkan"
+		class="flex items-center gap-1.5 rounded-sm font-mono transition-colors outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
 	>
-		<Github />
-	</Button>
+		<Github class="size-4" />
+		<span>mizuchilabs/<span class="font-medium text-foreground">inkan</span></span>
+	</a>
 </footer>
