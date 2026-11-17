@@ -38,7 +38,7 @@ type License struct {
 	Meta         map[string]string `json:"meta"          doc:"Extra claims signed into the key"`
 	Fingerprint  string            `json:"fingerprint"   doc:"The machine the key is bound to, empty binds to nothing"`
 	Note         string            `json:"note"`
-	Status       string            `json:"status"        doc:"Subscription status at the provider, paid or refunded for a one time purchase, empty for a manual license"`
+	Status       string            `json:"status"        doc:"Subscription status at the provider, paid, refunded or disputed for a one time purchase, empty for a manual license"`
 	Renews       bool              `json:"renews"        doc:"Whether the provider will bill another period"`
 	Key          string            `json:"key"           doc:"The signed license key. A paid license has the one its worker hands out"`
 	CreatedAt    time.Time         `json:"created_at"`

@@ -63,6 +63,10 @@ type Subscription = {
 	created?: number;
 	ended_at?: number | null;
 	cancel_at_period_end?: boolean;
+	cancel_at?: number | null;
+	trial_end?: number | null;
+	latest_invoice?: { status?: string | null } | null;
+	pause_collection?: object | null;
 	current_period_start?: number;
 	current_period_end?: number;
 	metadata?: Record<string, string> | null;
@@ -85,7 +89,7 @@ type Session = {
 	created?: number;
 	metadata?: Record<string, string> | null;
 	customer_details?: { email?: string | null; name?: string | null } | null;
-	payment_intent?: { latest_charge?: { refunded?: boolean } | null } | null;
+	payment_intent?: { latest_charge?: { refunded?: boolean; disputed?: boolean } | null } | null;
 	line_items?: { data: { quantity?: number; price: Price }[] };
 };
 
@@ -101,8 +105,12 @@ export function subscriptionLicense(sub: Subscription, settings: Settings, now: 
 	let paid = item.current_period_end || sub.current_period_end || 0;
 	const period = paid - start;
 
+	const invoice = sub.latest_invoice?.status;
 	switch (sub.status) {
 		case 'active':
+			// A new period opens about an hour before Stripe charges it. Paused collection is free on purpose.
+			if ((invoice === 'draft' || invoice === 'open') && !sub.pause_collection) paid = start;
+			break;
 		case 'trialing':
 			break;
 		case 'incomplete':
@@ -119,8 +127,12 @@ export function subscriptionLicense(sub: Subscription, settings: Settings, now: 
 	if (paid === 0) throw new NotOwed();
 
 	const active = sub.status === 'active' || sub.status === 'trialing';
-	// The grace keeps the old key alive until the renewed one is in place.
-	const ends = paid + settings.grace_days * day;
+	const ending = sub.cancel_at_period_end || (!!sub.cancel_at && sub.cancel_at <= paid);
+	const renews = active && !ending;
+	// Grace is the time a payment has, and up to a trial end nothing was paid, so a day reaches the first one.
+	let grace = renews || sub.status === 'past_due' ? settings.grace_days : 0;
+	if ((sub.trial_end ?? 0) >= paid) grace = Math.min(grace, 1);
+	const ends = paid + grace * day;
 	return {
 		id: sub.id,
 		kind: 'subscription',
@@ -134,7 +146,7 @@ export function subscriptionLicense(sub: Subscription, settings: Settings, now: 
 		key_expires_at: capped(ends, settings.max_key_days, now),
 		period,
 		status: sub.status,
-		renews: active && !sub.cancel_at_period_end,
+		renews,
 		created_at: sub.created ?? 0
 	};
 }
@@ -148,9 +160,12 @@ export function sessionLicense(session: Session, settings: Settings, now: number
 	const created = session.created ?? 0;
 	const text = session.metadata?.days ?? product.metadata.days ?? '';
 	const days = /^\d+$/.test(text) ? Number(text) : 0;
-	const refunded = session.payment_intent?.latest_charge?.refunded === true;
+	const charge = session.payment_intent?.latest_charge;
+	// A dispute takes the money back like a refund, also one that is still open.
+	const status = charge?.refunded ? 'refunded' : charge?.disputed ? 'disputed' : 'paid';
 	let expires = 0;
-	if (refunded) expires = created + settings.grace_days * day;
+	// 0 would be a key that never expires.
+	if (status !== 'paid') expires = Math.max(created, 1);
 	else if (days > 0) expires = created + (days + settings.grace_days) * day;
 
 	return {
@@ -165,7 +180,7 @@ export function sessionLicense(session: Session, settings: Settings, now: number
 		expires_at: expires,
 		key_expires_at: capped(expires, settings.max_key_days, now),
 		period: 0,
-		status: refunded ? 'refunded' : 'paid',
+		status,
 		renews: false,
 		created_at: created
 	};
@@ -217,7 +232,7 @@ export async function owed(
 		const [session, s] = await Promise.all([get<Session>(stripeKey, path), settings]);
 		return sessionLicense(session, s, now);
 	}
-	const path = `/v1/subscriptions/${encodeURIComponent(id)}?expand[]=customer`;
+	const path = `/v1/subscriptions/${encodeURIComponent(id)}?expand[]=customer&expand[]=latest_invoice`;
 	const [sub, s] = await Promise.all([get<Subscription>(stripeKey, path), settings]);
 	return subscriptionLicense(sub, s, now);
 }
@@ -261,6 +276,7 @@ export async function list(
 	if (!purchases) {
 		query.set('status', 'all');
 		query.append('expand[]', 'data.customer');
+		query.append('expand[]', 'data.latest_invoice');
 		const page = await get<List<Subscription>>(stripeKey, '/v1/subscriptions?' + query);
 		return {
 			licenses: decided(page.data, (sub) => subscriptionLicense(sub, settings, now)),

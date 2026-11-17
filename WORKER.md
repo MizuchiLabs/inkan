@@ -24,13 +24,13 @@ day.
 An app sends the key it has as the plain text body and gets back the key its
 license is owed now.
 
-| Status | Body                                                  |
-| ------ | ----------------------------------------------------- |
-| `200`  | A key as plain text                                   |
-| `400`  | Not a key of this product                             |
-| `404`  | The key is real, there is no paid license behind it   |
-| `413`  | Longer than 8 kB                                      |
-| `502`  | The payment provider could not be asked, try again    |
+| Status | Body                                                |
+| ------ | --------------------------------------------------- |
+| `200`  | A key as plain text                                 |
+| `400`  | Not a key of this product                           |
+| `404`  | The key is real, there is no paid license behind it |
+| `413`  | Longer than 8 kB                                    |
+| `502`  | The payment provider could not be asked, try again  |
 
 1. Clean and verify the key like any verifier does, against the current
    public key and the old ones from before a rotation. An expired key is fine,
@@ -52,11 +52,11 @@ provider, and a change at the provider must not wait long.
 The payment provider reports a payment and the worker mails the key. This one
 belongs to the provider, the reference takes these Stripe events:
 
-| Event                                      |                                 |
-| ------------------------------------------ | ------------------------------- |
-| `invoice.paid`                             | A subscription was paid         |
+| Event                                      |                                  |
+| ------------------------------------------ | -------------------------------- |
+| `invoice.paid`                             | A subscription was paid          |
 | `checkout.session.completed`               | A one time purchase went through |
-| `checkout.session.async_payment_succeeded` | A slow payment method paid      |
+| `checkout.session.async_payment_succeeded` | A slow payment method paid       |
 
 It checks the `Stripe-Signature` header and takes events that are at most five
 minutes old. It looks the license up again instead of trusting the event. What
@@ -77,78 +77,78 @@ fewer licenses than the limit, or none, and still have a `next`.
 
 ```json
 {
-  "product": {
-    "provider": "stripe",
-    "prefix": "MYAPP",
-    "public_key": "03a107bf…",
-    "old_public_keys": [],
-    "plan": "pro",
-    "name": "My App",
-    "grace_days": 14,
-    "max_key_days": 0,
-    "provider_product": "prod_a=pro,prod_b=enterprise",
-    "mail": {
-      "from": "My App <licenses@example.com>",
-      "reply_to": "",
-      "logo": "",
-      "accent": "",
-      "footer": "",
-      "company": "",
-      "custom": false
-    }
-  },
-  "licenses": [
-    {
-      "id": "sub_…",
-      "kind": "subscription",
-      "email": "ops@acme.io",
-      "customer": "Acme",
-      "customer_gone": false,
-      "plan": "team",
-      "meta": { "seats": "5" },
-      "fingerprint": "",
-      "expires_at": 1801209600,
-      "status": "active",
-      "renews": true,
-      "created_at": 1700000000,
-      "key": "MYAPP-AXsid-…"
-    }
-  ],
-  "skipped": [],
-  "next": "s:sub_…"
+	"product": {
+		"provider": "stripe",
+		"prefix": "MYAPP",
+		"public_key": "03a107bf…",
+		"old_public_keys": [],
+		"plan": "pro",
+		"name": "My App",
+		"grace_days": 14,
+		"max_key_days": 0,
+		"provider_product": "prod_a=pro,prod_b=enterprise",
+		"mail": {
+			"from": "My App <licenses@example.com>",
+			"reply_to": "",
+			"logo": "",
+			"accent": "",
+			"footer": "",
+			"company": "",
+			"custom": false
+		}
+	},
+	"licenses": [
+		{
+			"id": "sub_…",
+			"kind": "subscription",
+			"email": "ops@acme.io",
+			"customer": "Acme",
+			"customer_gone": false,
+			"plan": "team",
+			"meta": { "seats": "5" },
+			"fingerprint": "",
+			"expires_at": 1801209600,
+			"status": "active",
+			"renews": true,
+			"created_at": 1700000000,
+			"key": "MYAPP-AXsid-…"
+		}
+	],
+	"skipped": [],
+	"next": "s:sub_…"
 }
 ```
 
-| Field             |                                                                       |
-| ----------------- | --------------------------------------------------------------------- |
-| `product`         | What the worker runs with, the same on every page                     |
-| `provider`        | Who is asked what is paid, never `manual`. Shown as the source        |
-| `old_public_keys` | Hex keys from before a rotation that a refresh still takes            |
-| `plan`, `name`    | The plan and the name of the product the worker was exported with     |
-| `provider_product` | What is sold at the provider, each with the plan it gives right now  |
-| `mail`            | How the key mail is set up, `null` when the worker sends none         |
-| `mail.custom`     | The worker was built with a mail of its own                           |
-| `id`              | Id at the provider, never `lic_…`. The key carries it as its `id`     |
-| `kind`            | `subscription` or `purchase`                                          |
-| `email`           | Who the license is for                                                |
-| `customer`        | Display name, not part of the key                                     |
-| `customer_gone`   | The provider deleted the customer, `email` and `customer` are empty   |
-| `plan`, `meta`    | As signed into the key                                                |
-| `fingerprint`     | The machine the key is bound to, as signed into the key, empty is none |
-| `expires_at`      | When the license ends, unix seconds, 0 never. The `key` may end sooner |
-| `status`          | Status at the provider, like `active`, `canceled`, `paid`, `refunded` |
-| `renews`          | Whether the provider will bill another period                         |
-| `created_at`      | Unix seconds                                                          |
-| `key`             | The key a refresh gives this license right now                        |
-| `skipped`         | The kinds the worker could not list. `purchase` is the one there is   |
-| `next`            | Cursor of the next page, `null` on the last one                       |
+| Field              |                                                                                   |
+| ------------------ | --------------------------------------------------------------------------------- |
+| `product`          | What the worker runs with, the same on every page                                 |
+| `provider`         | Who is asked what is paid, never `manual`. Shown as the source                    |
+| `old_public_keys`  | Hex keys from before a rotation that a refresh still takes                        |
+| `plan`, `name`     | The plan and the name of the product the worker was exported with                 |
+| `provider_product` | What is sold at the provider, each with the plan it gives right now               |
+| `mail`             | How the key mail is set up, `null` when the worker sends none                     |
+| `mail.custom`      | The worker was built with a mail of its own                                       |
+| `id`               | Id at the provider, never `lic_…`. The key carries it as its `id`                 |
+| `kind`             | `subscription` or `purchase`                                                      |
+| `email`            | Who the license is for                                                            |
+| `customer`         | Display name, not part of the key                                                 |
+| `customer_gone`    | The provider deleted the customer, `email` and `customer` are empty               |
+| `plan`, `meta`     | As signed into the key                                                            |
+| `fingerprint`      | The machine the key is bound to, as signed into the key, empty is none            |
+| `expires_at`       | When the license ends, unix seconds, 0 never. The `key` may end sooner            |
+| `status`           | Status at the provider, like `active`, `canceled`, `paid`, `refunded`, `disputed` |
+| `renews`           | Whether the provider will bill another period                                     |
+| `created_at`       | Unix seconds                                                                      |
+| `key`              | The key a refresh gives this license right now                                    |
+| `skipped`          | The kinds the worker could not list. `purchase` is the one there is               |
+| `next`             | Cursor of the next page, `null` on the last one                                   |
 
-| Status | Body                                                    |
-| ------ | ------------------------------------------------------- |
-| `200`  | A page                                                  |
-| `401`  | The token does not match                                |
-| `404`  | The worker has no token, so it serves no `/licenses`    |
-| `502`  | Why the payment provider could not be read, as text     |
+| Status | Body                                                 |
+| ------ | ---------------------------------------------------- |
+| `200`  | A page                                               |
+| `401`  | The token does not match                             |
+| `404`  | The worker has no token, so it serves no `/licenses` |
+| `502`  | Why the payment provider could not be read, as text  |
 
 What the dashboard does with it:
 

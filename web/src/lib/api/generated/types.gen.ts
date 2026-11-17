@@ -170,7 +170,7 @@ export type License = {
      */
     source: string;
     /**
-     * Subscription status at the provider, paid or refunded for a one time purchase, empty for a manual license
+     * Subscription status at the provider, paid, refunded or disputed for a one time purchase, empty for a manual license
      */
     status: string;
 };
@@ -260,7 +260,7 @@ export type Product = {
 
 export type Report = {
     /**
-     * Days a paid license stays valid past its paid period
+     * Days a renewal has to get paid
      */
     grace_days: number;
     /**

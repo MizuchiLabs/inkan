@@ -200,7 +200,21 @@
     "settings": {"products": [{"id": "prod_app", "plan": "pro", "metadata": {}}], "grace_days": 14, "max_key_days": 0},
     "now": 1790000000,
     "want": {"id": "cs_3", "email": "buyer@acme.io", "customer": "", "plan": "pro", "meta": {"seats": "1"},
-      "expires_at": 1781209600, "key_expires_at": 1781209600, "period": 0, "status": "refunded", "renews": false, "created_at": 1780000000}
+      "expires_at": 1780000000, "key_expires_at": 1780000000, "period": 0, "status": "refunded", "renews": false, "created_at": 1780000000}
+  },
+  {
+    "name": "disputed purchase ran out when it was bought, also when the dispute is open",
+    "kind": "session",
+    "object": {
+      "id": "cs_7", "mode": "payment", "payment_status": "paid", "created": 1780000000,
+      "customer_details": {"email": "buyer@acme.io", "name": null},
+      "payment_intent": {"latest_charge": {"refunded": false, "disputed": true}},
+      "line_items": {"data": [{"quantity": 1, "price": {"product": "prod_app"}}]}
+    },
+    "settings": {"products": [{"id": "prod_app", "plan": "pro", "metadata": {"days": "365"}}], "grace_days": 14, "max_key_days": 30},
+    "now": 1790000000,
+    "want": {"id": "cs_7", "email": "buyer@acme.io", "customer": "", "plan": "pro", "meta": {"seats": "1"},
+      "expires_at": 1780000000, "key_expires_at": 1780000000, "period": 0, "status": "disputed", "renews": false, "created_at": 1780000000}
   },
   {
     "name": "free purchase has no payment",

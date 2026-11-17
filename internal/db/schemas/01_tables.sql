@@ -31,7 +31,7 @@ CREATE TABLE licenses (
   meta TEXT NOT NULL DEFAULT '{}', -- json object of strings, signed into the key
   fingerprint TEXT NOT NULL DEFAULT '', -- the machine the key is bound to, signed into the key, empty binds to nothing
   note TEXT NOT NULL DEFAULT '',
-  status TEXT NOT NULL DEFAULT '', -- subscription status at the provider, paid or refunded for a one time purchase, empty for manual
+  status TEXT NOT NULL DEFAULT '', -- subscription status at the provider, paid, refunded or disputed for a one time purchase, empty for manual
   renews BOOLEAN NOT NULL DEFAULT 0, -- the provider will bill another period
   key TEXT NOT NULL DEFAULT '', -- the key the worker hands out, empty for manual
   seen_at INTEGER NOT NULL DEFAULT 0, -- start of the last sync that found it at the worker

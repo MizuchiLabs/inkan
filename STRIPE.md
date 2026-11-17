@@ -38,6 +38,7 @@ repository, the worker comes out of the `inkan` binary.
    For Scaleway Serverless Functions, create a function on a Node runtime
    from `scaleway.zip`, switch its secrets to JSON, paste `worker.keys.json`
    and add your settings to it.
+
 4. **Enter the url** of the worker under Edit on the Products page, in the
    Worker tab. Its licenses show up on the Licenses page, and the tab shows
    what the worker runs with.
@@ -57,16 +58,17 @@ like one and delete them once the worker has them.
   with three names. Put them on the Stripe product and they hold for everyone
   who buys it.
 
-  | Metadata      | In the key                                              |
-  | ------------- | ------------------------------------------------------- |
-  | `plan=team`   | The plan. Without it the key gets the plan of the product in inkan |
-  | `meta_…`      | An extra claim, `meta_tier=gold` becomes `tier=gold`    |
-  | `days=365`    | A one time purchase lasts that long, without it forever |
+  | Metadata    | In the key                                                         |
+  | ----------- | ------------------------------------------------------------------ |
+  | `plan=team` | The plan. Without it the key gets the plan of the product in inkan |
+  | `meta_…`    | An extra claim, `meta_tier=gold` becomes `tier=gold`               |
+  | `days=365`  | A one time purchase lasts that long, without it forever            |
 
   All prices of a Stripe product, monthly or yearly, give the same key.
   Metadata on prices is not read, the Stripe dashboard locks a price once it
   has been used. An upgrade to another product keeps the subscription, so the
   next refresh brings a key of the new plan.
+
 - **One customer, another deal.** The same three names on a single
   subscription or Checkout session win over the product. A customer who gets
   enterprise features on a team price is `plan=enterprise` on that
@@ -75,12 +77,23 @@ like one and delete them once the worker has them.
   gets its metadata from the code that creates it, so never copy what a
   buyer typed into it.
 - **One time purchases.** A paid Checkout session in payment mode is a
-  license. A refunded purchase gets a key that ran out when it was bought.
+  license. A refunded or disputed purchase gets a key that ran out when it
+  was bought.
   The Stripe key needs read access to Checkout sessions, payment intents and
   charges for this, without it only subscriptions are licenses.
 - **Expiry.** A paid key is valid until the paid period ends, plus the grace
-  days of the worker. A subscription that falls behind on a payment keeps its
-  last key and gets no new one.
+  days of the worker. The grace is the time a renewal has to get paid, so
+  only a subscription that renews gets it. One that is canceled, set to
+  cancel, paused or marked unpaid ends with its paid period. A trial gets one
+  day, enough for the first paid period to take over. A subscription that
+  falls behind on a payment keeps its last key and gets no new one.
+  A new period counts once its invoice is paid. Stripe opens it about an
+  hour before it charges, until then a refresh brings the last key. A
+  customer who pays by invoice has the grace days to pay it.
+- **Failed payments.** Let Stripe cancel a subscription once every retry
+  failed, under Manage failed payments in its settings. A subscription left
+  past due moves to a new period every billing cycle without a payment, and
+  each one gets the grace days again.
 - **Seats.** The quantity bought is signed into the key as the claim `seats`.
   It is always the quantity, `meta_seats` is left out.
 - **Machines.** The metadata `fingerprint` on a subscription or a Checkout
@@ -127,17 +140,18 @@ worker serves one product, each export has a name of its own.
 The Stripe key is best a restricted key. Read access to these is all the
 worker needs, it never writes to Stripe.
 
-| Read access to    | For                                                 |
-| ----------------- | --------------------------------------------------- |
+| Read access to    | For                                                    |
+| ----------------- | ------------------------------------------------------ |
 | Products          | The metadata of the products: `plan`, `meta_…`, `days` |
-| Subscriptions     | Subscriptions are licenses                          |
-| Customers         | The email and the name of a license                 |
-| Checkout Sessions | One time purchases, leave it out if you sell none   |
-| Payment Intents   | Whether a one time purchase was refunded            |
-| Charges           | Whether a one time purchase was refunded            |
+| Subscriptions     | Subscriptions are licenses                             |
+| Customers         | The email and the name of a license                    |
+| Invoices          | Whether a new period is paid yet                       |
+| Checkout Sessions | One time purchases, leave it out if you sell none      |
+| Payment Intents   | Whether a one time purchase was refunded               |
+| Charges           | Whether a one time purchase was refunded or disputed   |
 
-A key without Products makes the worker fail with Stripe's own words on the
-Products page, the apps keep the keys they have.
+A key without Products or Invoices makes the worker fail with Stripe's own
+words on the Products page, the apps keep the keys they have.
 
 | Env Var                       | Default    | Description                                    |
 | ----------------------------- | ---------- | ---------------------------------------------- |
@@ -149,7 +163,7 @@ Products page, the apps keep the keys they have.
 | `INKAN_PRODUCT_NAME`          | the prefix | How the key mail calls the product             |
 | `INKAN_STRIPE_KEY`            | -          | Restricted key with the read access above      |
 | `INKAN_STRIPE_PRODUCT`        | -          | Stripe product ids like `prod_a,prod_b`        |
-| `INKAN_GRACE_DAYS`            | `14`       | Days a key outlives its paid period            |
+| `INKAN_GRACE_DAYS`            | `14`       | Days a renewal has to get paid                 |
 | `INKAN_MAX_KEY_DAYS`          | `0`        | Days a key lives before a refresh, 0 no limit  |
 | `INKAN_STRIPE_WEBHOOK_SECRET` | -          | Signing secret of the webhook endpoint         |
 | `INKAN_MAIL_FROM`             | -          | Sender of the key mails                        |
@@ -212,7 +226,12 @@ from the settings, the logo and the accent are part of its design.
 
 - **Mails.** The first payment always sends the key. A renewal only sends one
   when its period is longer than a month. Nobody pastes a key every month, and
-  an app that is online refreshes on its own.
+  an app that is online refreshes on its own. So a monthly plan needs an app
+  that refreshes. An airgapped install gets a yearly plan or a one time
+  purchase.
+- **Trials.** A trial is the first payment, so its key goes out when it
+  starts. The first paid period counts as a renewal. A yearly plan mails its
+  key then, a monthly one leaves it to the refresh.
 - **Refresh.** The answer is the key the subscription is owed now. After a
   renewal that is a new key with a later expiry. If nothing new was paid it is
   the same key again, so an old key never stops working as a ticket. With max
@@ -225,6 +244,11 @@ from the settings, the logo and the accent are part of its design.
 - **Refunds.** Cancel a refunded subscription right away and its next key ends
   with the cancellation. A refunded purchase gets an expired key. An app that
   refreshes picks that up, see max key days above.
+- **Chargebacks.** A disputed purchase gets an expired key like a refunded
+  one, already while the dispute is open. It stays that way when you win, so
+  send that customer a hand issued key then. A disputed subscription keeps
+  running at Stripe. Let Stripe cancel it under Manage disputed payments in
+  its settings, then its next key ends with the cancellation.
 - **Stripe is asked about a license every 30 seconds at most** by one
   running worker, also about a license that is gone. A key that leaks is no
   easy way to spend your Stripe rate limit. A change in Stripe, like new

@@ -199,7 +199,7 @@
 						"type": "string"
 					},
 					"status": {
-						"description": "Subscription status at the provider, paid or refunded for a one time purchase, empty for a manual license",
+						"description": "Subscription status at the provider, paid, refunded or disputed for a one time purchase, empty for a manual license",
 						"type": "string"
 					}
 				},
@@ -339,7 +339,7 @@
 				"additionalProperties": false,
 				"properties": {
 					"grace_days": {
-						"description": "Days a paid license stays valid past its paid period",
+						"description": "Days a renewal has to get paid",
 						"format": "int64",
 						"type": "integer"
 					},

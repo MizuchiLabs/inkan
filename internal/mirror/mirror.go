@@ -62,7 +62,7 @@ type Report struct {
 	OldPublicKeys   []string `json:"old_public_keys"  doc:"Keys from before a rotation that a refresh still takes"                             nullable:"false"`
 	Plan            string   `json:"plan"             doc:"Plan for Stripe products that set none"`
 	Name            string   `json:"name"             doc:"How the key mail calls the product"`
-	GraceDays       int64    `json:"grace_days"       doc:"Days a paid license stays valid past its paid period"`
+	GraceDays       int64    `json:"grace_days"       doc:"Days a renewal has to get paid"`
 	MaxKeyDays      int64    `json:"max_key_days"     doc:"Days a paid key lives before the app has to refresh, 0 has no limit"`
 	ProviderProduct string   `json:"provider_product" doc:"The products at the provider with the plan each gives, like prod_a=team,prod_b=pro"`
 	Mail            *Mail    `json:"mail,omitempty"   doc:"The key mail, missing when the worker sends none"`

@@ -151,7 +151,10 @@ function fakeFetch(t: TestContext) {
 		const after = url.searchParams.get('starting_after');
 		if (url.pathname === '/v1/subscriptions') {
 			assert.equal(url.searchParams.get('status'), 'all');
-			assert.equal(url.searchParams.get('expand[]'), 'data.customer');
+			assert.deepEqual(url.searchParams.getAll('expand[]'), [
+				'data.customer',
+				'data.latest_invoice'
+			]);
 			if (!after) {
 				const data = [paidSub('sub_ok_1'), subscriptions.sub_other, subscriptions.sub_unpaid];
 				return Response.json({ has_more: true, data });
@@ -167,6 +170,9 @@ function fakeFetch(t: TestContext) {
 			return Response.json({ has_more: false, data: Object.values(sessions) });
 		}
 
+		if (url.pathname.startsWith('/v1/subscriptions/')) {
+			assert.deepEqual(url.searchParams.getAll('expand[]'), ['customer', 'latest_invoice']);
+		}
 		if (id === 'sub_down') return new Response('', { status: 500 });
 		const found = url.pathname.startsWith('/v1/checkout/sessions/')
 			? sessions[id]
@@ -306,12 +312,55 @@ for (const c of cases) {
 	});
 }
 
-// A key must never reach further than what was paid. 0 means no key is owed.
+// A key never reaches past what was paid plus the grace a payment has, 0 means no key is owed.
 const paidUntil: [string, object, number][] = [
-	['active', { status: 'active' }, periodEnd],
-	['trialing', { status: 'trialing' }, periodEnd],
-	['renewal not paid yet', { status: 'past_due' }, periodStart],
-	['renewal never paid', { status: 'unpaid' }, periodStart],
+	['active', { status: 'active' }, periodEnd + grace],
+	['renewal paid', { status: 'active', latest_invoice: { status: 'paid' } }, periodEnd + grace],
+	[
+		'renewal not charged yet',
+		{ status: 'active', latest_invoice: { status: 'draft' } },
+		periodStart + grace
+	],
+	[
+		'renewal charge failed a moment ago',
+		{ status: 'active', latest_invoice: { status: 'open' } },
+		periodStart + grace
+	],
+	[
+		'collection paused',
+		{
+			status: 'active',
+			pause_collection: { behavior: 'keep_as_draft' },
+			latest_invoice: { status: 'draft' }
+		},
+		periodEnd + grace
+	],
+	['set to cancel', { status: 'active', cancel_at_period_end: true }, periodEnd],
+	['set to cancel on a date', { status: 'active', cancel_at: periodEnd }, periodEnd],
+	[
+		'set to cancel in a later period',
+		{ status: 'active', cancel_at: periodEnd + 1 },
+		periodEnd + grace
+	],
+	['trialing', { status: 'trialing', trial_end: periodEnd }, periodEnd + 86400],
+	[
+		'trial set to cancel',
+		{ status: 'trialing', trial_end: periodEnd, cancel_at_period_end: true },
+		periodEnd
+	],
+	['renewal not paid yet', { status: 'past_due' }, periodStart + grace],
+	[
+		'first payment after a trial failed',
+		{ status: 'past_due', trial_end: periodStart },
+		periodStart + 86400
+	],
+	['paid after a trial', { status: 'active', trial_end: periodStart }, periodEnd + grace],
+	[
+		'first period after a trial not charged yet',
+		{ status: 'active', trial_end: periodStart, latest_invoice: { status: 'draft' } },
+		periodStart + 86400
+	],
+	['retries ran out', { status: 'unpaid' }, periodStart],
 	['trial ended without a card', { status: 'paused' }, periodStart],
 	['canceled at period end', { status: 'canceled', ended_at: periodEnd }, periodEnd],
 	['canceled mid period', { status: 'canceled', ended_at: 1_798_000_000 }, 1_798_000_000],
@@ -323,6 +372,15 @@ const paidUntil: [string, object, number][] = [
 			cancellation_details: { reason: 'payment_failed' }
 		},
 		periodStart
+	],
+	[
+		'canceled for a dispute',
+		{
+			status: 'canceled',
+			ended_at: 1_798_000_000,
+			cancellation_details: { reason: 'payment_disputed' }
+		},
+		1_798_000_000
 	],
 	['first payment open', { status: 'incomplete' }, 0],
 	['first payment never came', { status: 'incomplete_expired' }, 0]
@@ -339,7 +397,7 @@ for (const [name, fields, want] of paidUntil) {
 			assert.throws(() => subscriptionLicense(sub, settings, 0), NotOwed);
 			return;
 		}
-		assert.equal(subscriptionLicense(sub, settings, 0).expires_at, want + grace);
+		assert.equal(subscriptionLicense(sub, settings, 0).expires_at, want);
 	});
 }
 
@@ -374,7 +432,7 @@ test('refresh trades a key for the one that is owed now', async (t) => {
 	const orphan = await keyFor('sub_deleted', { email: 'left@acme.io' });
 	const kept = await claimsOf(await (await post('/refresh', orphan)).text());
 	assert.equal(kept.email, 'left@acme.io', 'Stripe forgot the deleted customer, the key did not');
-	assert.equal(kept.exp, 3_999_000_000 + grace);
+	assert.equal(kept.exp, 3_999_000_000, 'a canceled subscription gets no grace');
 	assert.equal(kept.fp, 'machine-1', 'the metadata of the subscription binds the key');
 
 	const manual = await keyFor('lic_abc', { exp: 0, email: 'a@x.io' });
