@@ -1,9 +1,11 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 
 	_ "modernc.org/sqlite"
@@ -53,6 +55,11 @@ func main() {
 				Value:   "data",
 				Sources: cli.EnvVars("INKAN_DATA_DIR"),
 			},
+			&cli.StringFlag{
+				Name:    "backup-dir",
+				Usage:   "Directory for the daily backups of the database, best on another disk. Defaults to backups in the data dir",
+				Sources: cli.EnvVars("INKAN_BACKUP_DIR"),
+			},
 		},
 	}
 
@@ -67,14 +74,20 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return err
 	}
-	q, closeDB, err := db.Open(ctx, cmd.String("data-dir"))
+	dataDir := cmd.String("data-dir")
+	q, closeDB, err := db.Open(ctx, dataDir)
 	if err != nil {
 		return err
 	}
 	defer closeDB()
-	// A sync that is still writing must end before the database closes.
-	var syncing sync.WaitGroup
-	defer syncing.Wait()
-	syncing.Go(func() { mirror.Run(ctx, q) })
+	// The jobs end with the server, also when it fails to start, and before the database closes.
+	var jobs sync.WaitGroup
+	defer jobs.Wait()
+	ctx, stop := context.WithCancel(ctx)
+	defer stop()
+	jobs.Go(func() { mirror.Run(ctx, q) })
+	jobs.Go(func() {
+		db.KeepBackups(ctx, dataDir, cmp.Or(cmd.String("backup-dir"), filepath.Join(dataDir, "backups")))
+	})
 	return api.New(q, guard).Start(ctx, cmd.String("addr"))
 }

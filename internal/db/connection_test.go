@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -50,6 +51,41 @@ func TestBackup(t *testing.T) {
 	assert.Equal(t, named, got)
 	_, err = Backup(t.Context(), dir, named)
 	require.Error(t, err, "a backup must not replace a file that is there")
+}
+
+func TestDailyBackupKeepsTheLastThirty(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	_, closeDB, err := Open(t.Context(), dir)
+	require.NoError(t, err)
+	t.Cleanup(closeDB)
+
+	backups := filepath.Join(dir, "backups[1]")
+	require.NoError(t, os.MkdirAll(backups, 0o700))
+	mine := filepath.Join(backups, "inkan-before-the-move.db")
+	require.NoError(t, os.WriteFile(mine, nil, 0o600))
+	cut := filepath.Join(backups, "inkan-2026-01-01.db.tmp")
+	require.NoError(t, os.WriteFile(cut, []byte("half a copy"), 0o600))
+
+	first := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	for i := range backupsKept + 2 {
+		require.NoError(t, dailyBackup(t.Context(), dir, backups, first.AddDate(0, 0, i)))
+	}
+	last := first.AddDate(0, 0, backupsKept+1)
+	require.NoError(
+		t,
+		dailyBackup(t.Context(), dir, backups, last),
+		"a second run on the same day keeps the copy it has",
+	)
+
+	entries, err := os.ReadDir(backups)
+	require.NoError(t, err)
+	assert.Len(t, entries, backupsKept+1, "30 copies and the file of the user, no leftover of a crash")
+	assert.NoFileExists(t, filepath.Join(backups, "inkan-2026-01-02.db"), "the oldest copies go first")
+	assert.FileExists(t, filepath.Join(backups, "inkan-2026-01-03.db"))
+	assert.FileExists(t, filepath.Join(backups, "inkan-2026-02-01.db"))
+	assert.FileExists(t, mine, "a file of the user is not a daily copy")
+	assert.NoFileExists(t, cut)
 }
 
 // The data directory of a container is often there before inkan, readable by

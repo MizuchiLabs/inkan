@@ -124,16 +124,17 @@ another name needs the sign in too.
 
 ## Configuration
 
-| Env Var                                                                 | Flag         | Default          | Description                                                      |
-| ----------------------------------------------------------------------- | ------------ | ---------------- | ---------------------------------------------------------------- |
-| `INKAN_ADDR`                                                            | `--addr`     | `127.0.0.1:3000` | Address to listen on                                             |
-| `INKAN_DATA_DIR`                                                        | `--data-dir` | `data`           | Directory for the database                                       |
-| `INKAN_PASSWORD`                                                        | -            | -                | Password for the UI, at least 12 characters                      |
-| `INKAN_OIDC_ISSUER`, `INKAN_OIDC_CLIENT_ID`, `INKAN_OIDC_CLIENT_SECRET` | -            | -                | Sign in through an OIDC provider instead of a password           |
-| `INKAN_OIDC_GROUP`, `INKAN_PUBLIC_URL`                                  | -            | -                | Optional sign in group, and the URL browsers reach Inkan on      |
-| `INKAN_API_TOKEN`                                                       | -            | -                | Bearer token for scripts, at least 32 characters                 |
-| `INKAN_TRUSTED_PROXIES`                                                 | -            | -                | Proxy IPs or ranges, any proxy on a private network without this |
-| `INKAN_DEBUG`                                                           | `--debug`    | `false`          | Enable debug logging                                             |
+| Env Var                                                                 | Flag           | Default          | Description                                                      |
+| ----------------------------------------------------------------------- | -------------- | ---------------- | ---------------------------------------------------------------- |
+| `INKAN_ADDR`                                                            | `--addr`       | `127.0.0.1:3000` | Address to listen on                                             |
+| `INKAN_DATA_DIR`                                                        | `--data-dir`   | `data`           | Directory for the database                                       |
+| `INKAN_PASSWORD`                                                        | -              | -                | Password for the UI, at least 12 characters                      |
+| `INKAN_OIDC_ISSUER`, `INKAN_OIDC_CLIENT_ID`, `INKAN_OIDC_CLIENT_SECRET` | -              | -                | Sign in through an OIDC provider instead of a password           |
+| `INKAN_OIDC_GROUP`, `INKAN_PUBLIC_URL`                                  | -              | -                | Optional sign in group, and the URL browsers reach Inkan on      |
+| `INKAN_API_TOKEN`                                                       | -              | -                | Bearer token for scripts, at least 32 characters                 |
+| `INKAN_TRUSTED_PROXIES`                                                 | -              | -                | Proxy IPs or ranges, any proxy on a private network without this |
+| `INKAN_BACKUP_DIR`                                                      | `--backup-dir` | `data/backups`   | Directory for the daily backups, best on another disk            |
+| `INKAN_DEBUG`                                                           | `--debug`      | `false`          | Enable debug logging                                             |
 
 Sign in comes from [nushi](https://github.com/mizuchilabs/nushi). See there for
 OIDC, for secrets from files and for pinning your proxy.
@@ -202,7 +203,8 @@ The `Keeper` asks right away and then once a day, or sooner for a key that
 runs out before that. Every new key goes to `save`, so the app can store it
 for its next start. The last argument gets the error of a try that did not
 work, for an app that wants to log it. The package itself logs nothing.
-Airgapped installs skip this and paste the key from the mail.
+Airgapped installs skip this and paste the key from the mail, see
+[which renewals mail one](STRIPE.md#how-it-behaves).
 
 It is a plain POST with the key as the body, so any language can do it:
 
@@ -233,10 +235,10 @@ Stripe, signs the keys of the paid licenses, mails them and refreshes them.
 The dashboard reads the paid licenses from the worker, it never talks to
 Stripe.
 
-| Part      | Runs                                  | Holds                             | You set there                        |
-| --------- | ------------------------------------- | --------------------------------- | ------------------------------------ |
-| Dashboard | Private, on your machine or network   | Signing keys, hand issued licenses | Products, their name, plan and keys  |
-| Worker    | Public, one per product               | Its signing key, your Stripe key  | Everything about selling, in its env |
+| Part      | Runs                                | Holds                              | You set there                        |
+| --------- | ----------------------------------- | ---------------------------------- | ------------------------------------ |
+| Dashboard | Private, on your machine or network | Signing keys, hand issued licenses | Products, their name, plan and keys  |
+| Worker    | Public, one per product             | Its signing key, your Stripe key   | Everything about selling, in its env |
 
 Keys you issue by hand need no worker. [STRIPE.md](STRIPE.md) has everything
 about the paid ones.
@@ -269,6 +271,9 @@ inkan backup /mnt/safe/inkan.db
 - **Keys.** `inkan keys` prints secrets. Put its lines into a password
   manager. To get a product back, add one with the same prefix and paste the
   key as its existing private key.
+- **Daily.** Inkan writes a copy of the database to `backups` in the data
+  directory once a day and keeps the last 30. `INKAN_BACKUP_DIR` puts them
+  somewhere else. Pick another disk, a copy on the same disk dies with it.
 - **Database.** `inkan backup` also works while Inkan runs. The copy holds the
   signing keys, the hand issued licenses and the notes. To restore it, stop
   Inkan and put the copy in place of `inkan.db`. Delete `inkan.db-wal` and

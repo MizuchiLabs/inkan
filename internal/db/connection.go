@@ -11,10 +11,14 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/mizuchilabs/sqlite-schema-diff/pkg/diff"
 )
+
+// A bad edit or a rotation is often noticed late.
+const backupsKept = 30
 
 //go:embed schemas/*.sql
 var schemaFS embed.FS
@@ -115,6 +119,52 @@ func Backup(ctx context.Context, dataDir, out string) (string, error) {
 // backupName is dated, so a backup never replaces an older one.
 func backupName(path string) string {
 	return path + "." + time.Now().UTC().Format("20060102-150405") + ".backup"
+}
+
+// KeepBackups copies inkan.db into dir once a day and keeps the last backupsKept, until ctx is done.
+func KeepBackups(ctx context.Context, dataDir, dir string) {
+	for {
+		if err := dailyBackup(ctx, dataDir, dir, time.Now()); err != nil && ctx.Err() == nil {
+			slog.Error("The daily backup failed", "dir", dir, "error", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(time.Hour):
+		}
+	}
+}
+
+// dailyBackup writes the copy of the day unless it is there and drops the oldest beyond backupsKept.
+func dailyBackup(ctx context.Context, dataDir, dir string, now time.Time) error {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return fmt.Errorf("creating backup directory: %w", err)
+	}
+	out := filepath.Join(dir, "inkan-"+now.UTC().Format(time.DateOnly)+".db")
+	if _, err := os.Stat(out); err == nil {
+		return nil
+	}
+	// A copy cut short by a crash must not pass for the one of the day.
+	tmp := out + ".tmp"
+	_ = os.Remove(tmp)
+	if _, err := Backup(ctx, dataDir, tmp); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, out); err != nil {
+		return fmt.Errorf("finishing backup: %w", err)
+	}
+
+	copies, err := fs.Glob(os.DirFS(dir), "inkan-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].db")
+	if err != nil {
+		return err
+	}
+	slices.Sort(copies)
+	for _, old := range copies[:max(0, len(copies)-backupsKept)] {
+		if err := os.Remove(filepath.Join(dir, old)); err != nil {
+			return fmt.Errorf("removing an old backup: %w", err)
+		}
+	}
+	return nil
 }
 
 // migrate applies the embedded schema. A backup is only written when a path is
