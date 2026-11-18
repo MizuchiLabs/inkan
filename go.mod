@@ -3,7 +3,7 @@ module github.com/mizuchilabs/inkan
 go 1.27.4
 
 require (
-	github.com/danielgtaylor/huma/v2 v2.40.0
+	github.com/danielgtaylor/huma/v2 v2.41.0
 	github.com/go-chi/httplog/v3 v3.5.0
 	github.com/mizuchilabs/inkan/license v0.3.0
 	github.com/mizuchilabs/kata v0.2.0
@@ -25,7 +25,7 @@ require (
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/ncruces/go-strftime v1.1.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	go.yaml.in/yaml/v3 v3.0.5 // indirect
+	go.yaml.in/yaml/v3 v3.0.6 // indirect
 	golang.org/x/oauth2 v0.38.0 // indirect
 	golang.org/x/sys v0.50.0 // indirect
 	modernc.org/libc v1.80.2 // indirect
