@@ -156,7 +156,7 @@ import "github.com/mizuchilabs/inkan/license"
 // The public key from the Products page. It is no secret.
 const publicKey = "03a107bf…"
 
-lic := license.NewKeeper("MYAPP", publicKey)
+lic := license.NewKeeper("MYAPP", publicKey, "")
 _, err := lic.Set(os.Getenv("MYAPP_LICENSE_KEY"))
 
 ok := lic.Valid()             // is there a license right now
@@ -168,15 +168,16 @@ claims, err = lic.Set(pasted) // a new key came by mail
   app notices when its key runs out.
 - **Swap.** `Set` replaces the key while the app runs. It is what a settings
   page calls with a pasted key. A key it turns down changes nothing.
-- **Once.** `license.Verify(key, "MYAPP", publicKey)` checks a single
+- **Once.** `license.Verify(key, "MYAPP", publicKey, "")` checks a single
   key, for an app that needs no more than that.
-- **Bound.** `Verify` and `NewKeeper` take the fingerprint of this machine as
-  an optional last argument, in whatever way the app names it, like a hash of
-  its machine id or an install id it writes to its data directory at first
-  start. A key issued with that fingerprint works nowhere else, a key without
-  one works everywhere, and an app that passes none checks nothing. Show the fingerprint on the license
-  page so the customer can send it to you, then set it on the license under
-  Edit, or in the Stripe metadata, see [STRIPE.md](STRIPE.md).
+- **Bound.** The last argument of `Verify` and `NewKeeper` is the fingerprint
+  of this machine, in whatever way the app names it, like a hash of its
+  machine id or an install id it writes to its data directory at first start.
+  A key issued with that fingerprint works nowhere else, a key without one
+  works everywhere, and an app that passes `""` checks nothing. Show the
+  fingerprint on the license page so the customer can send it to you, then
+  set it on the license under Edit, or in the Stripe metadata, see
+  [STRIPE.md](STRIPE.md).
 - **Open source.** An app whose source is public can keep the key out of it,
   so that only its own builds take licenses. Declare `var publicKey string`
   and set it in the release build:
