@@ -128,6 +128,8 @@ export function subscriptionLicense(sub: Subscription, settings: Settings, now: 
 
 	const active = sub.status === 'active' || sub.status === 'trialing';
 	const ending = sub.cancel_at_period_end || (!!sub.cancel_at && sub.cancel_at <= paid);
+	// Stripe normally moves the period end to the cancel date, this covers an item it left longer.
+	if (ending && sub.cancel_at) paid = Math.min(paid, sub.cancel_at);
 	const renews = active && !ending;
 	// Grace is the time a payment has, and up to a trial end nothing was paid, so a day reaches the first one.
 	let grace = renews || sub.status === 'past_due' ? settings.grace_days : 0;

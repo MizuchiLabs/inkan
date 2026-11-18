@@ -338,6 +338,11 @@ const paidUntil: [string, object, number][] = [
 	['set to cancel', { status: 'active', cancel_at_period_end: true }, periodEnd],
 	['set to cancel on a date', { status: 'active', cancel_at: periodEnd }, periodEnd],
 	[
+		'set to cancel before the period ends',
+		{ status: 'active', cancel_at: 1_798_000_000 },
+		1_798_000_000
+	],
+	[
 		'set to cancel in a later period',
 		{ status: 'active', cancel_at: periodEnd + 1 },
 		periodEnd + grace
