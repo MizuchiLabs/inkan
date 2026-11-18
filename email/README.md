@@ -1,7 +1,6 @@
 # inkan email
 
-A key mail of your own, designed with [React Email](https://react.email) and
-built into the worker.
+A key mail of your own, designed with [React Email](https://react.email).
 
 ```sh
 pnpm install
@@ -16,41 +15,34 @@ mail.
 
 ```sh
 pnpm build
+inkan worker export MYAPP --mail mail.html
 ```
 
-This renders the mail with placeholders where the key and the customer go and
-writes it into the worker, as `../worker/src/template.ts`. Then build the
-worker and deploy it.
+The build renders the mail with placeholders where the key and the customer
+go and writes it as `mail.html`. The export puts it into the worker and keeps
+a copy in the folder it writes, so every later export sends it too. Deploy
+from that folder as before. The Worker tab of the product then says that the
+worker sends a mail of its own. Keep the component somewhere safe, it is the
+source.
 
-```sh
-cd ../worker
-pnpm install
-pnpm build
-```
-
-Copy the files from `worker/bundle` over the ones in the folder that
-`inkan worker export` wrote, and deploy from there as before. The Worker tab
-of the product then says that the worker sends a mail of its own. Keep the
-component somewhere safe, it is the source.
-
-Run `git checkout ../worker/src/template.ts` and build again to get the
+Delete `mail.html` from the folder of the worker and export again to get the
 built-in mail back.
 
 ## What the worker fills in
 
-| Prop         | Placeholder   |                                      |
-| ------------ | ------------- | ------------------------------------ |
-| `licenseKey` | `{{key}}`     | The key                              |
-| `name`       | `{{name}}`    | `INKAN_PRODUCT_NAME` or the prefix   |
-| `plan`       | `{{plan}}`    | The plan of the license              |
-| `email`      | `{{email}}`   | Who the license is for               |
-| `expires`    | `{{expires}}` | End of the license, or Never         |
-| `footer`     | `{{footer}}`  | `INKAN_MAIL_FOOTER`, may be empty    |
-| `company`    | `{{company}}` | `INKAN_MAIL_COMPANY`, may be empty   |
+| Prop         | Placeholder   |                                    |
+| ------------ | ------------- | ---------------------------------- |
+| `licenseKey` | `{{key}}`     | The key                            |
+| `name`       | `{{name}}`    | `INKAN_PRODUCT_NAME` or the prefix |
+| `plan`       | `{{plan}}`    | The plan of the license            |
+| `email`      | `{{email}}`   | Who the license is for             |
+| `expires`    | `{{expires}}` | End of the license, or Never       |
+| `footer`     | `{{footer}}`  | `INKAN_MAIL_FOOTER`, may be empty  |
+| `company`    | `{{company}}` | `INKAN_MAIL_COMPANY`, may be empty |
 
 The props are plain text, so show them and do not branch on them. During the
 build they hold the placeholder, not a value, so a condition on a prop is
-always true. The logo and accent settings shape only the built-in mail.
+always true.
 
 The `<title>` is the subject of the mail. The plain text part stays the one of
 the worker.

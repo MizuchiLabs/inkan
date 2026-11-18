@@ -12,6 +12,7 @@ import (
 	"github.com/mizuchilabs/nushi"
 
 	"github.com/mizuchilabs/inkan/internal/db"
+	"github.com/mizuchilabs/inkan/internal/mirror"
 )
 
 const (
@@ -29,7 +30,7 @@ func guardFor(t *testing.T, c nushi.Config) *nushi.Guard {
 
 func protectedServer(t *testing.T, q *db.Queries) *Server {
 	t.Helper()
-	return New(q, guardFor(t, nushi.Config{Password: testPassword}))
+	return New(q, mirror.New(q), guardFor(t, nushi.Config{Password: testPassword}))
 }
 
 // do sends one request straight to the handler, with a session cookie if given.
@@ -59,7 +60,7 @@ func TestOpenWithoutPassword(t *testing.T) {
 	q, closeDB, err := db.Open(t.Context(), t.TempDir())
 	require.NoError(t, err)
 	t.Cleanup(closeDB)
-	srv := New(q, guardFor(t, nushi.Config{}))
+	srv := New(q, mirror.New(q), guardFor(t, nushi.Config{}))
 
 	assert.Equal(t, http.StatusOK, do(t, srv, http.MethodGet, "/api/licenses", "", "").Code)
 	assert.JSONEq(t, `{"mode": "none", "signed_in": true}`,
@@ -110,7 +111,11 @@ func TestSignIn(t *testing.T) {
 
 func TestNoSignInStaysOnThisMachine(t *testing.T) {
 	t.Parallel()
-	require.ErrorContains(t, New(nil, guardFor(t, nushi.Config{})).Start(t.Context(), ":0"), "INKAN_PASSWORD")
+	require.ErrorContains(
+		t,
+		New(nil, mirror.New(nil), guardFor(t, nushi.Config{})).Start(t.Context(), ":0"),
+		"INKAN_PASSWORD",
+	)
 }
 
 // A site that points its own name at this machine is the same origin to the
@@ -121,7 +126,7 @@ func TestNoSignInTakesOnlyLocalHosts(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", nil)
 		req.Host = host
 		rec := httptest.NewRecorder()
-		New(nil, guardFor(t, c)).Handler().ServeHTTP(rec, req)
+		New(nil, mirror.New(nil), guardFor(t, c)).Handler().ServeHTTP(rec, req)
 		return rec.Code
 	}
 
@@ -147,7 +152,7 @@ func TestAPIToken(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(closeDB)
 	const token = "0123456789abcdef0123456789abcdef"
-	srv := New(q, guardFor(t, nushi.Config{Password: testPassword, APITokens: []string{token}}))
+	srv := New(q, mirror.New(q), guardFor(t, nushi.Config{Password: testPassword, APITokens: []string{token}}))
 
 	get := func(srv *Server, header string) int {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/licenses", nil)

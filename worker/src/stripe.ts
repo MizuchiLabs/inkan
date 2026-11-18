@@ -55,7 +55,7 @@ export class OtherProduct extends Error {}
 export class NotFound extends Error {}
 export class Forbidden extends Error {}
 
-type Price = { product: string };
+type Price = { id?: string; product: string };
 
 type Subscription = {
 	id: string;
@@ -256,37 +256,92 @@ export async function productMetadata(
 }
 
 /**
+ * The recurring prices of a product, the archived ones too. null when there
+ * are more than a page of either, too many to ask about one by one.
+ *
+ * Stripe leaves inline prices out of this list. A subscription that was made
+ * with price_data is only found by reading the whole account.
+ */
+export async function productPrices(stripeKey: string, id: string): Promise<string[] | null> {
+	const pages = await Promise.all(
+		['true', 'false'].map((active) => {
+			const query = new URLSearchParams({ product: id, type: 'recurring', active, limit: '100' });
+			return get<List<{ id: string }>>(stripeKey, '/v1/prices?' + query);
+		})
+	);
+	if (pages.some((page) => page.has_more)) return null;
+	return pages.flatMap((page) => page.data.map((price) => price.id));
+}
+
+/**
  * Reads one page of the licenses of the products, with one call to Stripe. The
  * subscriptions come first, then the one time purchases. cursor is the next of
  * the page before, empty for the first one.
  *
- * Stripe cannot filter by product, so a page can hold fewer licenses than
- * limit, or none, and still have a next.
+ * Stripe filters subscriptions by price and not by product. When pricesOf
+ * gives prices, each one is asked about on its own, so the rest of the account
+ * costs nothing. With null every subscription of the account is read.
+ *
+ * A page can hold fewer licenses than limit, or none, and still have a next.
  */
 export async function list(
 	stripeKey: string,
 	settings: Settings,
+	pricesOf: () => Promise<string[] | null>,
 	cursor: string,
 	limit: number,
 	now: number
 ): Promise<Page> {
-	const purchases = cursor.startsWith('p:');
-	const after = cursor.slice(2);
+	if (cursor.startsWith('p:')) return purchases(stripeKey, settings, cursor.slice(2), limit, now);
+
+	const prices = await pricesOf();
+	const known = [...new Set(prices ?? [])].sort();
+	if (cursor === '' && prices && known.length === 0) {
+		return purchases(stripeKey, settings, '', limit, now);
+	}
+	// s:<after>:<price> goes on in the subscriptions of one price, s:<after> in those of the account.
+	const [, after = '', ...rest] = cursor.split(':');
+	// The id of an old plan is the seller's own and may hold a colon.
+	const given = rest.join(':');
+	if (given && !prices) {
+		// Which prices are left is unknown now, and a list that ends early drops licenses.
+		throw new Error('stripe: the prices changed in the middle of a read, the next one starts over');
+	}
+	const price = cursor === '' ? (known[0] ?? '') : given;
+
+	const query = new URLSearchParams({ limit: String(limit), status: 'all' });
+	if (after) query.set('starting_after', after);
+	if (price) query.set('price', price);
+	query.append('expand[]', 'data.customer');
+	query.append('expand[]', 'data.latest_invoice');
+	const page = await get<List<Subscription>>(stripeKey, '/v1/subscriptions?' + query);
+
+	// A subscription with two of the prices was listed under the first one.
+	const earlier = known.filter((other) => other < price);
+	const subs = page.data.filter(
+		(sub) => !sub.items.data.some((item) => earlier.includes(item.price.id ?? ''))
+	);
+	const ahead = price ? known.find((other) => other > price) : undefined;
+	let next = 'p:';
+	if (more(page)) next = 's:' + page.data.at(-1)!.id + (price ? ':' + price : '');
+	else if (ahead) next = 's::' + ahead;
+	return {
+		licenses: decided(subs, (sub) => subscriptionLicense(sub, settings, now)),
+		skipped: [],
+		next
+	};
+}
+
+// Checkout has no filter by product or price, so every completed session is read.
+async function purchases(
+	stripeKey: string,
+	settings: Settings,
+	after: string,
+	limit: number,
+	now: number
+): Promise<Page> {
 	const query = new URLSearchParams({ limit: String(limit) });
 	if (after) query.set('starting_after', after);
-
-	if (!purchases) {
-		query.set('status', 'all');
-		query.append('expand[]', 'data.customer');
-		query.append('expand[]', 'data.latest_invoice');
-		const page = await get<List<Subscription>>(stripeKey, '/v1/subscriptions?' + query);
-		return {
-			licenses: decided(page.data, (sub) => subscriptionLicense(sub, settings, now)),
-			skipped: [],
-			next: more(page) ? 's:' + page.data.at(-1)!.id : 'p:'
-		};
-	}
-
 	query.set('status', 'complete');
 	query.append('expand[]', 'data.line_items');
 	query.append('expand[]', 'data.payment_intent.latest_charge');

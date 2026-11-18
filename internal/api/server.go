@@ -20,6 +20,7 @@ import (
 	"github.com/mizuchilabs/nushi"
 
 	"github.com/mizuchilabs/inkan/internal/db"
+	"github.com/mizuchilabs/inkan/internal/mirror"
 	"github.com/mizuchilabs/inkan/web"
 )
 
@@ -31,7 +32,7 @@ type Server struct {
 
 // New builds the server. With a sign in the API needs a session, without one
 // it is open and Start only listens on this machine.
-func New(q *db.Queries, guard *nushi.Guard) *Server {
+func New(q *db.Queries, m *mirror.Mirror, guard *nushi.Guard) *Server {
 	routes := http.NewServeMux()
 
 	cfg := huma.DefaultConfig("Inkan API", "1.0.0")
@@ -39,7 +40,7 @@ func New(q *db.Queries, guard *nushi.Guard) *Server {
 	// Under /api, so the sign in covers them too.
 	cfg.DocsPath, cfg.OpenAPIPath, cfg.SchemasPath = "/api/docs", "/api/openapi", "/api/schemas"
 	api := humago.New(routes, cfg)
-	registerProducts(api, q)
+	registerProducts(api, q, m)
 	registerLicenses(api, q)
 	registerCheck(api, q)
 	registerStats(api, q)
@@ -57,7 +58,7 @@ func New(q *db.Queries, guard *nushi.Guard) *Server {
 func Spec() *huma.OpenAPI {
 	// Only the settings can fail, and there are none.
 	guard, _ := nushi.New("inkan", nushi.Config{})
-	return New(nil, guard).api.OpenAPI()
+	return New(nil, mirror.New(nil), guard).api.OpenAPI()
 }
 
 func (s *Server) Handler() http.Handler {

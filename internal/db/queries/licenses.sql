@@ -78,8 +78,10 @@ SET
   status = excluded.status,
   renews = excluded.renews,
   key = excluded.key,
-  -- Two syncs can overlap, the later one must not lose what it saw.
-  seen_at = max(licenses.seen_at, excluded.seen_at);
+  seen_at = excluded.seen_at
+WHERE
+  -- The dashboard signs a manual row, so nothing a worker lists may change one.
+  licenses.source != 'manual';
 
 -- What the worker no longer lists is gone at the provider. A worker that may
 -- not read purchases says nothing about them, so they stay.

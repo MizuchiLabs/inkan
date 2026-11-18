@@ -5,7 +5,6 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"net/http"
 	"strings"
@@ -31,6 +30,7 @@ type Product struct {
 	WorkerURL       string         `json:"worker_url"              doc:"Where the worker of the product runs. Its paid licenses are mirrored from there"`
 	WorkerConnected bool           `json:"worker_connected"        doc:"Whether a worker url is stored"`
 	WorkerReport    *mirror.Report `json:"worker_report,omitempty" doc:"What the worker said it runs with at the last sync, null before the first one. Its settings live in its env"`
+	Syncing         bool           `json:"syncing"                 doc:"A read of the worker is asked for or running. Its outcome shows in the fields below once it is done"`
 	SyncedAt        *time.Time     `json:"synced_at"               doc:"Last time the worker was read"`
 	SyncError       string         `json:"sync_error"              doc:"Why the worker could not be read at the last try. Empty when it could"`
 	SyncNotice      string         `json:"sync_notice"             doc:"What is off with a worker that could be read, like an export that was not deployed yet"`
@@ -68,25 +68,16 @@ type UpdateProductInput struct {
 	}
 }
 
-type SyncOutput struct {
-	Body struct {
-		Licenses int `json:"licenses" doc:"Paid licenses the worker hands out"`
-	}
-}
-
-const (
-	// A sync inside a request has to answer before the server gives up on writing.
-	syncTimeout = 45 * time.Second
-	// SQLITE_CONSTRAINT_UNIQUE, the driver exports no name for it.
-	sqliteUnique = 2067
-)
+// SQLITE_CONSTRAINT_UNIQUE, the driver exports no name for it.
+const sqliteUnique = 2067
 
 type productHandlers struct {
-	q *db.Queries
+	q      *db.Queries
+	mirror *mirror.Mirror
 }
 
-func registerProducts(api huma.API, q *db.Queries) {
-	h := &productHandlers{q: q}
+func registerProducts(api huma.API, q *db.Queries, m *mirror.Mirror) {
+	h := &productHandlers{q: q, mirror: m}
 	huma.Register(api, huma.Operation{
 		OperationID: "list-products",
 		Method:      http.MethodGet,
@@ -108,7 +99,7 @@ func registerProducts(api huma.API, q *db.Queries) {
 		Method:      http.MethodPut,
 		Path:        "/api/products/{id}",
 		Summary:     "Update a product",
-		Description: "A product with a worker is synced with it right away, the outcome is on the returned product. The name and the plan only reach the worker once inkan worker export ran and it is deployed.",
+		Description: "The name and the plan only reach the worker once inkan worker export ran and it is deployed. A product with a worker is read again in the background, it says syncing until what the worker makes of the change shows on it.",
 		Tags:        []string{"Products"},
 	}, h.update)
 	huma.Register(api, huma.Operation{
@@ -137,11 +128,13 @@ func registerProducts(api huma.API, q *db.Queries) {
 		Tags:        []string{"Products"},
 	}, h.dropOldKeys)
 	huma.Register(api, huma.Operation{
-		OperationID: "sync-product",
-		Method:      http.MethodPost,
-		Path:        "/api/products/{id}/sync",
-		Summary:     "Sync a product with its worker",
-		Tags:        []string{"Products"},
+		OperationID:   "sync-product",
+		Method:        http.MethodPost,
+		Path:          "/api/products/{id}/sync",
+		Summary:       "Sync a product with its worker",
+		Description:   "Asks for a read of the paid licenses and the settings of the worker and answers right away, a big Stripe account takes a while. The product says syncing until the read is done. A failed read is stored on it as sync_error, a worker that is behind an export as sync_notice.",
+		Tags:          []string{"Products"},
+		DefaultStatus: http.StatusAccepted,
 	}, h.sync)
 }
 
@@ -152,7 +145,7 @@ func (h *productHandlers) list(ctx context.Context, _ *struct{}) (*ProductsOutpu
 	}
 	out := make([]Product, len(products))
 	for i, p := range products {
-		out[i] = toProduct(p)
+		out[i] = h.output(p)
 	}
 	return &ProductsOutput{Body: out}, nil
 }
@@ -187,7 +180,7 @@ func (h *productHandlers) create(ctx context.Context, in *CreateProductInput) (*
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to create product")
 	}
-	return &ProductOutput{Body: toProduct(p)}, nil
+	return &ProductOutput{Body: h.output(p)}, nil
 }
 
 func (h *productHandlers) update(ctx context.Context, in *UpdateProductInput) (*ProductOutput, error) {
@@ -217,8 +210,7 @@ func (h *productHandlers) update(ctx context.Context, in *UpdateProductInput) (*
 			return nil, huma.Error500InternalServerError("failed to drop the licenses of the worker")
 		}
 	}
-
-	return h.synced(ctx, p)
+	return h.changed(p), nil
 }
 
 func (h *productHandlers) rotate(ctx context.Context, in *ProductPath) (*ProductOutput, error) {
@@ -226,7 +218,7 @@ func (h *productHandlers) rotate(ctx context.Context, in *ProductPath) (*Product
 	if err != nil {
 		return nil, err
 	}
-	priv, err := license.ParsePrivateKey(p.PrivateKey)
+	current, err := p.PublicKey()
 	if err != nil {
 		return nil, huma.Error500InternalServerError("the product has a broken signing key")
 	}
@@ -234,8 +226,7 @@ func (h *productHandlers) rotate(ctx context.Context, in *ProductPath) (*Product
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to generate a keypair")
 	}
-	old := append([]string{hex.EncodeToString(publicKey(priv))}, p.OldKeys()...)
-	return h.setKeys(ctx, p.ID, fresh, old)
+	return h.setKeys(ctx, p.ID, fresh, append([]string{current}, p.OldKeys()...))
 }
 
 func (h *productHandlers) dropOldKeys(ctx context.Context, in *ProductPath) (*ProductOutput, error) {
@@ -260,23 +251,15 @@ func (h *productHandlers) setKeys(
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to store the keys")
 	}
-	return h.synced(ctx, p)
+	return h.changed(p), nil
 }
 
-// synced reads the worker of a product that was just changed, so the answer
-// says what the worker makes of it. A failed sync is not a failed change, it
-// shows up as sync_error or sync_notice.
-func (h *productHandlers) synced(ctx context.Context, p *db.Product) (*ProductOutput, error) {
+// changed has the worker of a changed product read, so the product soon says what the worker makes of it.
+func (h *productHandlers) changed(p *db.Product) *ProductOutput {
 	if mirror.Connected(p) {
-		ctx, cancel := context.WithTimeout(ctx, syncTimeout)
-		defer cancel()
-		_, _ = mirror.Sync(ctx, h.q, p)
-		var err error
-		if p, err = h.get(ctx, p.ID); err != nil {
-			return nil, err
-		}
+		h.mirror.SyncSoon(p.ID)
 	}
-	return &ProductOutput{Body: toProduct(p)}, nil
+	return &ProductOutput{Body: h.output(p)}
 }
 
 func (h *productHandlers) delete(ctx context.Context, in *ProductPath) (*struct{}, error) {
@@ -286,7 +269,7 @@ func (h *productHandlers) delete(ctx context.Context, in *ProductPath) (*struct{
 	return nil, nil
 }
 
-func (h *productHandlers) sync(ctx context.Context, in *ProductPath) (*SyncOutput, error) {
+func (h *productHandlers) sync(ctx context.Context, in *ProductPath) (*struct{}, error) {
 	p, err := h.get(ctx, in.ID)
 	if err != nil {
 		return nil, err
@@ -294,15 +277,8 @@ func (h *productHandlers) sync(ctx context.Context, in *ProductPath) (*SyncOutpu
 	if !mirror.Connected(p) {
 		return nil, huma.Error409Conflict("the product has no worker")
 	}
-	ctx, cancel := context.WithTimeout(ctx, syncTimeout)
-	defer cancel()
-	n, err := mirror.Sync(ctx, h.q, p)
-	if err != nil {
-		return nil, huma.Error502BadGateway(err.Error())
-	}
-	out := &SyncOutput{}
-	out.Body.Licenses = n
-	return out, nil
+	h.mirror.SyncSoon(p.ID)
+	return nil, nil
 }
 
 func (h *productHandlers) get(ctx context.Context, id int64) (*db.Product, error) {
@@ -316,7 +292,7 @@ func (h *productHandlers) get(ctx context.Context, id int64) (*db.Product, error
 	return p, nil
 }
 
-func toProduct(p *db.Product) Product {
+func (h *productHandlers) output(p *db.Product) Product {
 	out := Product{
 		ID:              p.ID,
 		Name:            p.Name,
@@ -325,24 +301,19 @@ func toProduct(p *db.Product) Product {
 		WorkerURL:       p.WorkerUrl,
 		WorkerConnected: mirror.Connected(p),
 		WorkerReport:    mirror.LastReport(p),
+		Syncing:         h.mirror.Syncing(p.ID),
 		SyncError:       p.SyncError,
 		SyncNotice:      p.SyncNotice,
 		CreatedAt:       time.Unix(p.CreatedAt, 0),
 		// Never null, the UI joins it with the current key.
 		OldPublicKeys: append([]string{}, p.OldKeys()...),
 	}
-	if priv, err := license.ParsePrivateKey(p.PrivateKey); err == nil {
-		out.PublicKey = hex.EncodeToString(publicKey(priv))
-	}
+	// A broken signing key shows as no public key.
+	out.PublicKey, _ = p.PublicKey()
 	if p.SyncedAt != nil {
 		out.SyncedAt = new(time.Unix(*p.SyncedAt, 0))
 	}
 	return out
-}
-
-func publicKey(priv ed25519.PrivateKey) ed25519.PublicKey {
-	pub, _ := priv.Public().(ed25519.PublicKey)
-	return pub
 }
 
 func isUnique(err error) bool {

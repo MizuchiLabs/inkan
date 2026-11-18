@@ -4,7 +4,7 @@ import { type InfiniteData, infiniteQueryOptions, type MutationOptions, queryOpt
 
 import { client } from '../client.gen';
 import { checkKey, createLicense, createProduct, deleteLicense, deleteProduct, dropOldProductKeys, listLicenses, listProducts, listStats, type Options, rotateProductKey, syncProduct, updateLicense, updateProduct } from '../sdk.gen';
-import type { CheckKeyData, CheckKeyError, CheckKeyResponse, CreateLicenseData, CreateLicenseError, CreateLicenseResponse, CreateProductData, CreateProductError, CreateProductResponse, DeleteLicenseData, DeleteLicenseError, DeleteLicenseResponse, DeleteProductData, DeleteProductError, DeleteProductResponse, DropOldProductKeysData, DropOldProductKeysError, DropOldProductKeysResponse, ListLicensesData, ListLicensesError, ListLicensesResponse, ListProductsData, ListProductsError, ListProductsResponse, ListStatsData, ListStatsError, ListStatsResponse, RotateProductKeyData, RotateProductKeyError, RotateProductKeyResponse, SyncProductData, SyncProductError, SyncProductResponse, UpdateLicenseData, UpdateLicenseError, UpdateLicenseResponse, UpdateProductData, UpdateProductError, UpdateProductResponse } from '../types.gen';
+import type { CheckKeyData, CheckKeyError, CheckKeyResponse, CreateLicenseData, CreateLicenseError, CreateLicenseResponse, CreateProductData, CreateProductError, CreateProductResponse, DeleteLicenseData, DeleteLicenseError, DeleteLicenseResponse, DeleteProductData, DeleteProductError, DeleteProductResponse, DropOldProductKeysData, DropOldProductKeysError, DropOldProductKeysResponse, ListLicensesData, ListLicensesError, ListLicensesResponse, ListProductsData, ListProductsError, ListProductsResponse, ListStatsData, ListStatsError, ListStatsResponse, RotateProductKeyData, RotateProductKeyError, RotateProductKeyResponse, SyncProductData, SyncProductError, UpdateLicenseData, UpdateLicenseError, UpdateLicenseResponse, UpdateProductData, UpdateProductError, UpdateProductResponse } from '../types.gen';
 
 /**
  * Check a license key
@@ -215,7 +215,7 @@ export const deleteProductMutation = (options?: Partial<Options<DeleteProductDat
 /**
  * Update a product
  *
- * A product with a worker is synced with it right away, the outcome is on the returned product. The name and the plan only reach the worker once inkan worker export ran and it is deployed.
+ * The name and the plan only reach the worker once inkan worker export ran and it is deployed. A product with a worker is read again in the background, it says syncing until what the worker makes of the change shows on it.
  */
 export const updateProductMutation = (options?: Partial<Options<UpdateProductData>>): MutationOptions<UpdateProductResponse, UpdateProductError, Options<UpdateProductData>> => {
     const mutationOptions: MutationOptions<UpdateProductResponse, UpdateProductError, Options<UpdateProductData>> = {
@@ -271,9 +271,11 @@ export const rotateProductKeyMutation = (options?: Partial<Options<RotateProduct
 
 /**
  * Sync a product with its worker
+ *
+ * Asks for a read of the paid licenses and the settings of the worker and answers right away, a big Stripe account takes a while. The product says syncing until the read is done. A failed read is stored on it as sync_error, a worker that is behind an export as sync_notice.
  */
-export const syncProductMutation = (options?: Partial<Options<SyncProductData>>): MutationOptions<SyncProductResponse, SyncProductError, Options<SyncProductData>> => {
-    const mutationOptions: MutationOptions<SyncProductResponse, SyncProductError, Options<SyncProductData>> = {
+export const syncProductMutation = (options?: Partial<Options<SyncProductData>>): MutationOptions<unknown, SyncProductError, Options<SyncProductData>> => {
+    const mutationOptions: MutationOptions<unknown, SyncProductError, Options<SyncProductData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await syncProduct({
                 ...options,

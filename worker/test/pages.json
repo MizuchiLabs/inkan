@@ -13,8 +13,6 @@
 			"mail": {
 				"from": "Keys <keys@example.com>",
 				"reply_to": "support@example.com",
-				"logo": "",
-				"accent": "red; background: url(x)",
 				"footer": "",
 				"company": "",
 				"custom": false
@@ -57,8 +55,6 @@
 			"mail": {
 				"from": "Keys <keys@example.com>",
 				"reply_to": "support@example.com",
-				"logo": "",
-				"accent": "red; background: url(x)",
 				"footer": "",
 				"company": "",
 				"custom": false
@@ -101,8 +97,6 @@
 			"mail": {
 				"from": "Keys <keys@example.com>",
 				"reply_to": "support@example.com",
-				"logo": "",
-				"accent": "red; background: url(x)",
 				"footer": "",
 				"company": "",
 				"custom": false

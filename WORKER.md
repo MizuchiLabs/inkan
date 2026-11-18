@@ -90,8 +90,6 @@ fewer licenses than the limit, or none, and still have a `next`.
 		"mail": {
 			"from": "My App <licenses@example.com>",
 			"reply_to": "",
-			"logo": "",
-			"accent": "",
 			"footer": "",
 			"company": "",
 			"custom": false
@@ -127,7 +125,7 @@ fewer licenses than the limit, or none, and still have a `next`.
 | `plan`, `name`     | The plan and the name of the product the worker was exported with                 |
 | `provider_product` | What is sold at the provider, each with the plan it gives right now               |
 | `mail`             | How the key mail is set up, `null` when the worker sends none                     |
-| `mail.custom`      | The worker was built with a mail of its own                                       |
+| `mail.custom`      | The worker sends a mail of its own, not the built-in one                          |
 | `id`               | Id at the provider, never `lic_…`. The key carries it as its `id`                 |
 | `kind`             | `subscription` or `purchase`                                                      |
 | `email`            | Who the license is for                                                            |

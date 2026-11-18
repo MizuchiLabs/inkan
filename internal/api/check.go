@@ -79,14 +79,14 @@ func (h *checkHandlers) check(ctx context.Context, in *CheckInput) (*CheckOutput
 	}
 	res.ProductID = &p.ID
 
-	priv, err := license.ParsePrivateKey(p.PrivateKey)
+	current, err := p.PublicKey()
 	if err != nil {
 		return nil, huma.Error500InternalServerError("the product has a broken signing key")
 	}
 	// A key from before a rotation is still a key of the product.
-	pubs := []ed25519.PublicKey{publicKey(priv)}
-	for _, old := range p.OldKeys() {
-		if pub, err := hex.DecodeString(old); err == nil {
+	var pubs []ed25519.PublicKey
+	for _, known := range append([]string{current}, p.OldKeys()...) {
+		if pub, err := hex.DecodeString(known); err == nil {
 			pubs = append(pubs, pub)
 		}
 	}

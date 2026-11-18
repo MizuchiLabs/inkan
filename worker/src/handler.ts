@@ -13,7 +13,7 @@ import {
 	verify,
 	type Claims as SignedClaims
 } from '../../sdk/ts/src/index.ts';
-import { render } from './mail.ts';
+import { render, usable } from './mail.ts';
 import { sender, type Send, type SendEnv } from './send.ts';
 import { importPrivateKey, issue, publicKeyHex, type Claims } from './sign.ts';
 import { template } from './template.ts';
@@ -24,6 +24,7 @@ import {
 	OtherProduct,
 	owed,
 	productMetadata,
+	productPrices,
 	type License,
 	type Page,
 	type Settings
@@ -39,6 +40,8 @@ export type Env = SendEnv & {
 	// Stripe product ids like prod_a,prod_b. What their keys say is set in the
 	// metadata of each at Stripe. A product without a plan there gets INKAN_PLAN.
 	INKAN_STRIPE_PRODUCT: string;
+	// 1 lists subscriptions price by price. Not for products sold with inline prices, see STRIPE.md.
+	INKAN_STRIPE_BY_PRICE?: string;
 	INKAN_PLAN?: string;
 	INKAN_GRACE_DAYS?: string;
 	INKAN_MAX_KEY_DAYS?: string;
@@ -49,10 +52,8 @@ export type Env = SendEnv & {
 	INKAN_MAIL_FROM?: string;
 	// Where an answer to the key mail goes, for a sender that reads none.
 	INKAN_MAIL_REPLY_TO?: string;
-	// How the key mail looks, all optional.
+	// What the key mail says, all optional.
 	INKAN_PRODUCT_NAME?: string;
-	INKAN_MAIL_LOGO?: string;
-	INKAN_MAIL_ACCENT?: string;
 	INKAN_MAIL_FOOTER?: string;
 	INKAN_MAIL_COMPANY?: string;
 };
@@ -60,7 +61,7 @@ export type Env = SendEnv & {
 const webhookTolerance = 5 * 60;
 // A renewal only sends a key when its period is longer than a month.
 const shortPeriod = 32 * 86400;
-// How long a key or the metadata of a product is answered from memory. A
+// How long a key, or the metadata and prices of a product, is answered from memory. A
 // leaked key must not be a way to spend the Stripe rate limit, and a change
 // in Stripe, like new seats, must reach every copy of the worker soon.
 const cacheFor = 30_000;
@@ -75,6 +76,7 @@ const minTokenLength = 32;
 const keys = new Map<string, { key: string; at: number }>();
 const events = new Map<string, number>();
 const products = new Map<string, { metadata: Record<string, string>; at: number }>();
+const prices = new Map<string, { ids: string[] | null; at: number }>();
 
 /** The settings a worker cannot run without and does not have. */
 export function missing(env: Env): string[] {
@@ -260,7 +262,10 @@ async function licenses(request: Request, env: Env, mails: boolean): Promise<Res
 	let settings: Settings, page: Page;
 	try {
 		settings = await settingsOf(env);
-		page = await list(env.INKAN_STRIPE_KEY, settings, query.get('cursor') ?? '', limit, now());
+		const cursor = query.get('cursor') ?? '';
+		// Asked for by list, a page of purchases needs no prices.
+		const byPrice = () => pricesOf(env, settings);
+		page = await list(env.INKAN_STRIPE_KEY, settings, byPrice, cursor, limit, now());
 	} catch (err) {
 		console.error('licenses: Stripe could not be read', err);
 		// Stripe's own words, they tell the dashboard what is wrong with the key.
@@ -285,11 +290,9 @@ async function licenses(request: Request, env: Env, mails: boolean): Promise<Res
 				? {
 						from: env.INKAN_MAIL_FROM ?? '',
 						reply_to: env.INKAN_MAIL_REPLY_TO ?? '',
-						logo: env.INKAN_MAIL_LOGO ?? '',
-						accent: env.INKAN_MAIL_ACCENT ?? '',
 						footer: env.INKAN_MAIL_FOOTER ?? '',
 						company: env.INKAN_MAIL_COMPANY ?? '',
-						custom: template !== ''
+						custom: usable(template)
 					}
 				: null
 		},
@@ -392,12 +395,27 @@ async function settingsOf(env: Env): Promise<Settings> {
 	};
 }
 
+// The prices to list the subscriptions by, null to read the whole account:
+// when the setting is off, or a product has too many prices to ask each one.
+async function pricesOf(env: Env, settings: Settings): Promise<string[] | null> {
+	if (env.INKAN_STRIPE_BY_PRICE?.trim() !== '1') return null;
+	const found = await Promise.all(
+		settings.products.map(async ({ id }) => {
+			let known = prices.get(id);
+			if (!known || Date.now() - known.at >= cacheFor) {
+				known = { ids: await productPrices(env.INKAN_STRIPE_KEY, id), at: Date.now() };
+				prices.set(id, known);
+			}
+			return known.ids;
+		})
+	);
+	return found.includes(null) ? null : found.flatMap((ids) => ids ?? []);
+}
+
 // ends is when the license ends. The key can run out before that, see max key days.
 function mail(env: Env, key: string, claims: Claims, ends: number) {
 	const brand = {
 		name: env.INKAN_PRODUCT_NAME,
-		logo: env.INKAN_MAIL_LOGO,
-		accent: env.INKAN_MAIL_ACCENT,
 		footer: env.INKAN_MAIL_FOOTER,
 		company: env.INKAN_MAIL_COMPANY
 	};

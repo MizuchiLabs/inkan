@@ -118,11 +118,9 @@
 					}
 				},
 				{
-					onSuccess: (saved) => {
+					onSuccess: () => {
 						onclose();
-						const off = saved.sync_error || saved.sync_notice;
-						if (off) toast.warning(`Saved. ${off}`);
-						else toast.success('Saved the product');
+						toast.success('Saved the product');
 					}
 				}
 			);
@@ -323,16 +321,12 @@
 												{#if runs.mail.reply_to}
 													{@render setting('Reply to', runs.mail.reply_to)}
 												{/if}
-												{#if runs.mail.custom}
-													{@render setting('Mail', 'A mail of its own, built into the worker')}
-												{:else}
-													{#if runs.mail.logo}
-														{@render setting('Logo', runs.mail.logo)}
-													{/if}
-													{#if runs.mail.accent}
-														{@render setting('Accent color', runs.mail.accent)}
-													{/if}
-												{/if}
+												{@render setting(
+													'Mail',
+													runs.mail.custom
+														? 'A mail of its own, from mail.html'
+														: 'The built-in mail'
+												)}
 												{#if runs.mail.footer}
 													{@render setting('Footer', runs.mail.footer)}
 												{/if}

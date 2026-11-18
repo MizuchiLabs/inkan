@@ -1,7 +1,8 @@
 // Renders the mail with the placeholders the worker fills in and writes it
-// into the worker, which sends it from its next build on.
+// as mail.html, for inkan worker export to put into a worker.
 
 import { writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 import { createElement } from 'react';
 import { render } from 'react-email';
@@ -21,10 +22,6 @@ const html = await render(
 );
 if (!html.includes('{{key}}')) throw new Error('the mail shows no licenseKey');
 
-const out = new URL('../worker/src/template.ts', import.meta.url);
-writeFileSync(
-	out,
-	'// Written by pnpm build in the email folder. Empty sends the built-in mail.\n' +
-		`export const template: string =\n\t${JSON.stringify(html)};\n`
-);
-console.log(`wrote ${out.pathname}, build and deploy the worker to send it`);
+const out = fileURLToPath(new URL('./mail.html', import.meta.url));
+writeFileSync(out, html);
+console.log(`wrote ${out}\nsend it with: inkan worker export <PREFIX> --mail '${out}'`);

@@ -32,8 +32,7 @@ const env: Env = {
 	INKAN_MAIL_FROM: 'Keys <keys@example.com>',
 	INKAN_MAIL_REPLY_TO: 'support@example.com',
 	RESEND_API_KEY: 're_test',
-	INKAN_PRODUCT_NAME: 'My <App>',
-	INKAN_MAIL_ACCENT: 'red; background: url(x)'
+	INKAN_PRODUCT_NAME: 'My <App>'
 };
 
 const periodStart = 1_797_000_000;
@@ -110,7 +109,32 @@ const sessions: Record<string, object> = {
 const products: Record<string, Record<string, string>> = {
 	prod_app: { plan: 'team', meta_tier: 'gold' },
 	prod_lifetime: { plan: 'lifetime' },
-	prod_plain: {}
+	prod_plain: {},
+	prod_many: {}
+};
+
+// The recurring prices of the products, price_old is archived.
+const prices: Record<string, { id: string; active: boolean }[]> = {
+	prod_app: [
+		{ id: 'price_month', active: true },
+		{ id: 'price_old', active: false }
+	],
+	prod_plain: [{ id: 'price_plain', active: true }]
+};
+const bothPrices = {
+	...paidSub('sub_ok_both'),
+	items: {
+		data: [
+			{ ...item, price: { id: 'price_month', product: 'prod_app' } },
+			{ ...item, price: { id: 'price_plain', product: 'prod_plain' } }
+		]
+	}
+};
+// What Stripe lists for a price, page by page.
+const byPrice: Record<string, object[][]> = {
+	price_month: [[paidSub('sub_ok_1')], [bothPrices]],
+	price_old: [[subscriptions.sub_deleted]],
+	price_plain: [[bothPrices, subscriptions.sub_monthly]]
 };
 
 type Sent = { url: string; headers: Record<string, string>; body: Record<string, any> };
@@ -146,6 +170,13 @@ function fakeFetch(t: TestContext) {
 			const metadata = products[id];
 			return metadata ? Response.json({ id, metadata }) : failure(404, 'No such product');
 		}
+		if (url.pathname === '/v1/prices') {
+			assert.equal(url.searchParams.get('type'), 'recurring');
+			const product = url.searchParams.get('product')!;
+			const active = url.searchParams.get('active') === 'true';
+			const data = (prices[product] ?? []).filter((price) => price.active === active);
+			return Response.json({ has_more: product === 'prod_many', data });
+		}
 		asked.push(url.pathname);
 
 		const after = url.searchParams.get('starting_after');
@@ -155,6 +186,12 @@ function fakeFetch(t: TestContext) {
 				'data.customer',
 				'data.latest_invoice'
 			]);
+			const price = url.searchParams.get('price');
+			if (price) {
+				const pages = byPrice[price];
+				const at = after ? 1 : 0;
+				return Response.json({ has_more: at < pages.length - 1, data: pages[at] });
+			}
 			if (!after) {
 				const data = [paidSub('sub_ok_1'), subscriptions.sub_other, subscriptions.sub_unpaid];
 				return Response.json({ has_more: true, data });
@@ -238,8 +275,6 @@ test('the mail holds the key and nothing a setting smuggles in', () => {
 	};
 	const mail = render('MYAPP-KEY', claims, {
 		name: 'My <App>',
-		accent: 'red; background: url(x)',
-		logo: 'javascript:alert(1)',
 		footer: 'Ask <us> at https://example.com/help.',
 		company: 'Example GmbH, mail@example.com'
 	});
@@ -248,11 +283,6 @@ test('the mail holds the key and nothing a setting smuggles in', () => {
 	assert.match(mail.text, /Valid until: 16 October 2096/);
 	assert.ok(mail.html.includes('MYAPP-KEY'), 'the html mail holds the same key');
 	assert.ok(mail.html.includes('My &lt;App&gt;'), 'a product name cannot bring markup');
-	assert.ok(
-		mail.html.includes('#2f3e8f') && !mail.html.includes('red;'),
-		'only a hex color gets in'
-	);
-	assert.ok(!mail.html.includes('javascript:'), 'only an https logo gets in');
 	assert.ok(mail.html.includes('Ask &lt;us&gt; at <a href="https://example.com/help"'));
 	assert.ok(mail.html.includes('href="mailto:mail@example.com"'));
 
@@ -657,8 +687,6 @@ test('licenses hands the dashboard what the worker hands out', async (t) => {
 		const response = await get('?cursor=' + encodeURIComponent(cursor));
 		assert.equal(response.status, 200);
 		const page = (await response.json()) as Page;
-		// A clone with a mail of its own in template.ts reads the same fixture.
-		page.product.mail.custom = false;
 		pages.push(page);
 		cursor = page.next;
 	}
@@ -685,6 +713,32 @@ test('licenses hands the dashboard what the worker hands out', async (t) => {
 	assert.equal((await get('', { Authorization: 'Bearer ' + 'x'.repeat(40) })).status, 401);
 	assert.equal((await get('', auth, { ...env, INKAN_WORKER_TOKEN: undefined })).status, 404);
 	assert.equal((await get('', auth, { ...env, INKAN_WORKER_TOKEN: 'short' })).status, 500);
+
+	const cheap = { ...env, INKAN_STRIPE_BY_PRICE: '1' };
+	const byPrices: [string, string[]][] = [];
+	for (let next: string | null = ''; next !== null; ) {
+		const response = await get('?cursor=' + encodeURIComponent(next), auth, cheap);
+		assert.equal(response.status, 200);
+		const page = (await response.json()) as Page;
+		byPrices.push([next, page.licenses.map((license) => license.id)]);
+		next = page.next;
+	}
+	assert.deepEqual(
+		byPrices,
+		[
+			['', ['sub_ok_1']],
+			['s:sub_ok_1:price_month', ['sub_ok_both']],
+			['s::price_old', ['sub_deleted']],
+			['s::price_plain', ['sub_monthly']],
+			['p:', ['cs_1']]
+		],
+		'price by price, the archived one too, and a subscription with two of them once'
+	);
+	const many = { ...cheap, INKAN_STRIPE_PRODUCT: 'prod_app,prod_many' };
+	const whole = (await (await get('', auth, many)).json()) as Page;
+	assert.equal(whole.next, 's:sub_unpaid', 'too many prices to ask each one, so the account is read');
+	const lost = await get('?cursor=' + encodeURIComponent('s::price_old'), auth, many);
+	assert.equal(lost.status, 502, 'a read that lost its prices does not end early');
 
 	const subsOnly = await get('?cursor=p%3A', auth, { ...env, INKAN_STRIPE_KEY: 'sk_subs_only' });
 	assert.deepEqual(

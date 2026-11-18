@@ -85,9 +85,10 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	defer jobs.Wait()
 	ctx, stop := context.WithCancel(ctx)
 	defer stop()
-	jobs.Go(func() { mirror.Run(ctx, q) })
+	workers := mirror.New(q)
+	jobs.Go(func() { workers.Run(ctx) })
 	jobs.Go(func() {
 		db.KeepBackups(ctx, dataDir, cmp.Or(cmd.String("backup-dir"), filepath.Join(dataDir, "backups")))
 	})
-	return api.New(q, guard).Start(ctx, cmd.String("addr"))
+	return api.New(q, workers, guard).Start(ctx, cmd.String("addr"))
 }

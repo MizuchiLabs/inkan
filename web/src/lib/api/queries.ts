@@ -18,6 +18,7 @@ import {
 	updateProductMutation
 } from './generated/@tanstack/svelte-query.gen';
 import { client } from './generated/client.gen';
+import { listProducts } from './generated/sdk.gen';
 
 export type { CheckResult, License, LicenseFields, Product } from './generated/types.gen';
 
@@ -26,9 +27,21 @@ export type Session = { mode: 'none' | 'password' | 'oidc'; signed_in: boolean }
 
 const sessionUrl = '/api/session';
 
-// The workers are read in the background, so both lists keep themselves fresh.
+// The workers are read in the background. Products are asked often while one is, and a finished read loads its licenses.
 export function useProducts() {
-	return createQuery(() => ({ ...listProductsOptions(), refetchInterval: 60_000 }));
+	return createQuery(() => ({
+		...listProductsOptions(),
+		queryFn: async ({ signal }) => {
+			const { data } = await listProducts({ signal, throwOnError: true });
+			const was = queryClient.getQueryData(listProductsOptions().queryKey);
+			const read = was?.some(
+				(p) => data?.find((now) => now.id === p.id)?.synced_at !== p.synced_at
+			);
+			if (read) void refreshLicenses();
+			return data;
+		},
+		refetchInterval: (query) => (query.state.data?.some((p) => p.syncing) ? 2_000 : 60_000)
+	}));
 }
 
 export function useLicenses() {
@@ -44,12 +57,13 @@ function refreshLicenses() {
 	return queryClient.invalidateQueries({ queryKey: listLicensesQueryKey() });
 }
 
+function refreshProducts() {
+	return queryClient.invalidateQueries({ queryKey: listProductsQueryKey() });
+}
+
 // Products shape their licenses (plan, grace, deletion), so both lists reload.
 function refreshAll() {
-	return Promise.all([
-		queryClient.invalidateQueries({ queryKey: listProductsQueryKey() }),
-		refreshLicenses()
-	]);
+	return Promise.all([refreshProducts(), refreshLicenses()]);
 }
 
 export function useSession() {
@@ -124,7 +138,7 @@ export function useDropOldProductKeys() {
 	return createMutation(() => ({ ...dropOldProductKeysMutation(), onSuccess: refreshAll }));
 }
 
-// A failed sync is stored on the product, so the lists reload either way.
+// The sync runs in the background. The product says that it is syncing, and how it went after.
 export function useSyncProduct() {
-	return createMutation(() => ({ ...syncProductMutation(), onSettled: refreshAll }));
+	return createMutation(() => ({ ...syncProductMutation(), onSuccess: refreshProducts }));
 }

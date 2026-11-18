@@ -200,15 +200,13 @@ export type LicenseFields = {
 };
 
 export type Mail = {
-    accent: string;
     company: string;
     /**
-     * The worker was built with a mail of its own
+     * The worker sends a mail of its own, not the built-in one
      */
     custom: boolean;
     footer: string;
     from: string;
-    logo: string;
     reply_to: string;
 };
 
@@ -244,6 +242,10 @@ export type Product = {
      * Last time the worker was read
      */
     synced_at: string | null;
+    /**
+     * A read of the worker is asked for or running. Its outcome shows in the fields below once it is done
+     */
+    syncing: boolean;
     /**
      * Whether a worker url is stored
      */
@@ -309,13 +311,6 @@ export type Snapshot = {
     day: string;
     plan: string;
     product_id: number;
-};
-
-export type SyncOutputBody = {
-    /**
-     * Paid licenses the worker hands out
-     */
-    licenses: number;
 };
 
 export type UpdateProductInputBody = {
@@ -589,12 +584,10 @@ export type SyncProductError = SyncProductErrors[keyof SyncProductErrors];
 
 export type SyncProductResponses = {
     /**
-     * OK
+     * Accepted
      */
-    200: SyncOutputBody;
+    202: unknown;
 };
-
-export type SyncProductResponse = SyncProductResponses[keyof SyncProductResponses];
 
 export type DeleteLicenseData = {
     body?: never;

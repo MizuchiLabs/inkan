@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -21,6 +23,7 @@ import (
 	"github.com/mizuchilabs/nushi"
 
 	"github.com/mizuchilabs/inkan/internal/db"
+	"github.com/mizuchilabs/inkan/internal/mirror"
 )
 
 func TestSpecBuilds(t *testing.T) {
@@ -37,7 +40,12 @@ func newTestServer(t *testing.T) (*httptest.Server, *db.Queries) {
 	q, closeDB, err := db.Open(t.Context(), t.TempDir())
 	require.NoError(t, err)
 	t.Cleanup(closeDB)
-	srv := httptest.NewServer(New(q, guardFor(t, nushi.Config{})).Handler())
+	// Registered after the database, so the reader is done before it closes.
+	workers := mirror.New(q)
+	var reader sync.WaitGroup
+	reader.Go(func() { workers.Run(t.Context()) })
+	t.Cleanup(reader.Wait)
+	srv := httptest.NewServer(New(q, workers, guardFor(t, nushi.Config{})).Handler())
 	t.Cleanup(srv.Close)
 	return srv, q
 }
@@ -185,7 +193,7 @@ func TestListLicensesInPages(t *testing.T) {
 }
 
 // A product knows where its worker runs and shows what it reported. Saving
-// reads the worker right away.
+// does not wait for the worker, it is read in the background.
 func TestProductWorker(t *testing.T) {
 	t.Parallel()
 	srv, q := newTestServer(t)
@@ -209,8 +217,12 @@ func TestProductWorker(t *testing.T) {
 	assert.True(t, saved.WorkerConnected)
 	assert.Equal(t, "team", saved.Plan)
 	assert.Nil(t, saved.WorkerReport, "nothing was read yet")
-	assert.Contains(t, saved.SyncError, "Invalid API Key provided", "a failed sync is not a failed update")
-	assert.Equal(t, http.StatusBadGateway, call(t, srv, http.MethodPost, path+"/sync", nil, nil))
+	require.Eventually(t, func() bool {
+		var all []Product
+		call(t, srv, http.MethodGet, "/api/products", nil, &all)
+		return len(all) == 1 && !all[0].Syncing && strings.Contains(all[0].SyncError, "Invalid API Key provided")
+	}, 5*time.Second, 10*time.Millisecond, "saving has the worker read in the background, how it went shows on the product")
+	assert.Equal(t, http.StatusAccepted, call(t, srv, http.MethodPost, path+"/sync", nil, nil))
 
 	resp, err := srv.Client().Get(srv.URL + "/api/products")
 	require.NoError(t, err)

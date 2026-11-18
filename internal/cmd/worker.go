@@ -2,11 +2,14 @@ package cmd
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +17,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -38,6 +42,10 @@ func workerCommand() *cli.Command {
 						Name:  "new-token",
 						Usage: "Replace the token the dashboard reads the worker with. The old one stops working once the worker is deployed with the new one",
 					},
+					&cli.StringFlag{
+						Name:  "mail",
+						Usage: "An html `file` to send as the key mail, with {{key}} where the key goes. It is kept as mail.html in the folder, later exports send it too",
+					},
 				},
 				Action: workerExport,
 			},
@@ -56,56 +64,66 @@ func workerExport(ctx context.Context, cmd *cli.Command) error {
 		return err
 	}
 	defer closeDB()
-	p, err := productFor(ctx, q, prefix, cmd.Bool("new-token"))
+	p, err := q.GetProductByPrefix(ctx, prefix)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("no product has the prefix %s", prefix)
+	}
 	if err != nil {
 		return err
 	}
-	files, err := workerFiles(p)
-	if err != nil {
-		return err
+	fresh := p.WorkerToken == "" || cmd.Bool("new-token")
+	if fresh {
+		// Two of them, a worker wants at least 32 characters.
+		p.WorkerToken = rand.Text() + rand.Text()
 	}
 
 	folder := "inkan-worker-" + strings.ToLower(p.Prefix)
-	steps := nextSteps(folder, len(files) > 3)
+	dir := cmp.Or(cmd.Args().Get(1), folder)
 	// A container has no way to hand files out, a pipe into tar on the host has.
-	if cmd.Args().Get(1) == "-" {
-		if err := writeTar(os.Stdout, folder, files); err != nil {
+	toTar := dir == "-"
+	mailFile := cmd.String("mail")
+	if mailFile == "" && !toTar {
+		mailFile = filepath.Join(dir, mailName)
+	}
+	mail, err := ownMail(mailFile, cmd.IsSet("mail"))
+	if err != nil {
+		return err
+	}
+	files, err := workerFiles(p, mail)
+	if err != nil {
+		return err
+	}
+	if toTar {
+		err = writeTar(os.Stdout, folder, files)
+	} else {
+		err = writeDir(dir, files)
+	}
+	if err != nil {
+		return err
+	}
+	// Stored last. A token that no written file carries cuts the deployed worker off.
+	if fresh {
+		err := q.SetProductWorkerToken(ctx, &db.SetProductWorkerTokenParams{WorkerToken: p.WorkerToken, ID: p.ID})
+		if err != nil {
 			return err
 		}
+	}
+
+	steps := nextSteps(folder, len(files) > 3)
+	if toTar {
 		fmt.Fprint(os.Stderr, steps)
+		if mail == "" {
+			fmt.Fprint(
+				os.Stderr,
+				"These workers send the built-in key mail. A mail of your own is not kept with -, name it with --mail every time.\n",
+			)
+		}
 		return nil
-	}
-	dir := cmd.Args().Get(1)
-	if dir == "" {
-		dir = folder
-	}
-	if err := writeDir(dir, files); err != nil {
-		return err
 	}
 	fmt.Printf("Wrote the worker of %s to %s.\n", p.Prefix, dir)
 	fmt.Print(steps)
+	fmt.Println("A mail.html in the folder is sent in place of the built-in key mail, --mail puts one there.")
 	return nil
-}
-
-// productFor finds the product and gives it a token when it has none or a
-// new one is asked for.
-func productFor(ctx context.Context, q *db.Queries, prefix string, newToken bool) (*db.Product, error) {
-	p, err := q.GetProductByPrefix(ctx, prefix)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, fmt.Errorf("no product has the prefix %s", prefix)
-	}
-	if err != nil {
-		return nil, err
-	}
-	if p.WorkerToken == "" || newToken {
-		// Two of them, a worker wants at least 32 characters.
-		p.WorkerToken = rand.Text() + rand.Text()
-		err := q.SetProductWorkerToken(ctx, &db.SetProductWorkerTokenParams{WorkerToken: p.WorkerToken, ID: p.ID})
-		if err != nil {
-			return nil, err
-		}
-	}
-	return p, nil
 }
 
 type exported struct {
@@ -120,9 +138,37 @@ const (
 	envExampleName = "worker.env.example"
 )
 
+const (
+	// A mail of the user's own, kept next to the settings.
+	mailName = "mail.html"
+	// Where a built worker holds its mail, see worker/src/template.ts.
+	mailMark = `"<!--inkan:mail-->"`
+)
+
+var mailKey = regexp.MustCompile(`\{\{\s*key\s*\}\}`)
+
+// ownMail reads the html a worker sends in place of the built-in key mail.
+// Without the file there is none, unless it was asked for by name.
+func ownMail(file string, asked bool) (string, error) {
+	if file == "" {
+		return "", nil
+	}
+	html, err := os.ReadFile(file)
+	if errors.Is(err, fs.ErrNotExist) && !asked {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("reading the mail: %w", err)
+	}
+	if !mailKey.Match(html) {
+		return "", fmt.Errorf("%s has no {{key}} in it, a mail without the key is worth nothing", file)
+	}
+	return string(html), nil
+}
+
 // workerFiles is the keys of the product in two spellings, the settings to
-// fill in and the built worker for every platform.
-func workerFiles(p *db.Product) ([]exported, error) {
+// fill in and the built worker for every platform, each with the mail when there is one.
+func workerFiles(p *db.Product, mail string) ([]exported, error) {
 	keysJSON, err := keysJSON(p)
 	if err != nil {
 		return nil, err
@@ -133,17 +179,88 @@ func workerFiles(p *db.Product) ([]exported, error) {
 		{envExampleName, 0o644, worker.EnvExample},
 	}
 	for _, name := range []string{"cloudflare.js", "node.js", "scaleway.zip"} {
-		body, err := worker.Bundle.ReadFile("bundle/" + name)
-		// A build without go generate. The keys are still worth writing.
+		raw, err := worker.Bundle.ReadFile("bundle/" + name)
 		if errors.Is(err, fs.ErrNotExist) {
+			if mail != "" {
+				return nil, errors.New("this build of inkan carries no worker to put the mail into")
+			}
+			// A build without go generate. The keys are still worth writing.
 			return files, nil
 		}
 		if err != nil {
 			return nil, err
 		}
-		files = append(files, exported{name, 0o644, string(body)})
+		body := string(raw)
+		if mail != "" {
+			put := withMail
+			if name == "scaleway.zip" {
+				put = zipWithMail
+			}
+			if body, err = put(body, mail); err != nil {
+				return nil, fmt.Errorf("%s: %w", name, err)
+			}
+		}
+		files = append(files, exported{name, 0o644, body})
+	}
+	if mail != "" {
+		files = append(files, exported{mailName, 0o644, mail})
 	}
 	return append(files, exported{"wrangler.jsonc", 0o644, wrangler(p)}), nil
+}
+
+// withMail puts the mail into a built worker, as the string its mark stands for.
+func withMail(built, mail string) (string, error) {
+	if strings.Count(built, mailMark) != 1 {
+		return "", errors.New("it has no place for a mail of your own")
+	}
+	// A JSON string is a JavaScript string too.
+	literal, err := json.Marshal(mail, jsontext.EscapeForJS(true))
+	if err != nil {
+		return "", fmt.Errorf("the mail is no text: %w", err)
+	}
+	return strings.Replace(built, mailMark, string(literal), 1), nil
+}
+
+// zipWithMail is withMail for the handler.js inside scaleway.zip.
+func zipWithMail(built, mail string) (string, error) {
+	r, err := zip.NewReader(strings.NewReader(built), int64(len(built)))
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	w := zip.NewWriter(&buf)
+	put := false
+	for _, f := range r.File {
+		if f.Name != "handler.js" {
+			if err := w.Copy(f); err != nil {
+				return "", err
+			}
+			continue
+		}
+		handler, err := fs.ReadFile(r, f.Name)
+		if err != nil {
+			return "", err
+		}
+		with, err := withMail(string(handler), mail)
+		if err != nil {
+			return "", err
+		}
+		out, err := w.CreateHeader(&zip.FileHeader{Name: f.Name, Method: zip.Deflate, Modified: f.Modified})
+		if err != nil {
+			return "", err
+		}
+		if _, err := io.WriteString(out, with); err != nil {
+			return "", err
+		}
+		put = true
+	}
+	if !put {
+		return "", errors.New("it has no handler.js to put the mail into")
+	}
+	if err := w.Close(); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
 }
 
 // wrangler is the Cloudflare config of the repository under a name of the

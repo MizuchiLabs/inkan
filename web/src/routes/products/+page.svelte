@@ -50,13 +50,6 @@
 	let createdId = $state<number>();
 	let deleting = $state<Product>();
 
-	function syncNow(p: Product) {
-		sync.mutate(
-			{ path: { id: p.id } },
-			{ onSuccess: (res) => toast.success(`Read ${res.licenses} licenses from the worker`) }
-		);
-	}
-
 	function deleteProduct() {
 		if (!deleting) return;
 		const name = deleting.name;
@@ -185,6 +178,8 @@
 						<p class="text-sm text-muted-foreground">
 							{#if !product.worker_connected}
 								No worker, so no paid licenses.
+							{:else if product.syncing}
+								Reading the worker.
 							{:else if product.synced_at}
 								Read from the worker {formatRelativeTime(product.synced_at)}.
 							{:else}
@@ -192,13 +187,15 @@
 							{/if}
 						</p>
 						{#if product.worker_connected}
+							{@const syncing =
+								product.syncing || (sync.isPending && sync.variables?.path.id === product.id)}
 							<Button
 								variant="outline"
 								size="sm"
-								onclick={() => syncNow(product)}
-								disabled={sync.isPending}
+								onclick={() => sync.mutate({ path: { id: product.id } })}
+								disabled={syncing}
 							>
-								{#if sync.isPending && sync.variables?.path.id === product.id}
+								{#if syncing}
 									<Spinner data-icon="inline-start" />
 								{:else}
 									<RefreshCwIcon data-icon="inline-start" />

@@ -256,18 +256,16 @@
 			"Mail": {
 				"additionalProperties": false,
 				"properties": {
-					"accent": { "type": "string" },
 					"company": { "type": "string" },
 					"custom": {
-						"description": "The worker was built with a mail of its own",
+						"description": "The worker sends a mail of its own, not the built-in one",
 						"type": "boolean"
 					},
 					"footer": { "type": "string" },
 					"from": { "type": "string" },
-					"logo": { "type": "string" },
 					"reply_to": { "type": "string" }
 				},
-				"required": ["from", "reply_to", "logo", "accent", "footer", "company", "custom"],
+				"required": ["from", "reply_to", "footer", "company", "custom"],
 				"type": "object"
 			},
 			"Product": {
@@ -306,6 +304,10 @@
 						"format": "date-time",
 						"type": ["string", "null"]
 					},
+					"syncing": {
+						"description": "A read of the worker is asked for or running. Its outcome shows in the fields below once it is done",
+						"type": "boolean"
+					},
 					"worker_connected": {
 						"description": "Whether a worker url is stored",
 						"type": "boolean"
@@ -328,6 +330,7 @@
 					"old_public_keys",
 					"worker_url",
 					"worker_connected",
+					"syncing",
 					"synced_at",
 					"sync_error",
 					"sync_notice",
@@ -399,18 +402,6 @@
 					"product_id": { "format": "int64", "type": "integer" }
 				},
 				"required": ["day", "product_id", "plan", "active"],
-				"type": "object"
-			},
-			"SyncOutputBody": {
-				"additionalProperties": false,
-				"properties": {
-					"licenses": {
-						"description": "Paid licenses the worker hands out",
-						"format": "int64",
-						"type": "integer"
-					}
-				},
-				"required": ["licenses"],
 				"type": "object"
 			},
 			"UpdateProductInputBody": {
@@ -635,7 +626,7 @@
 				"tags": ["Products"]
 			},
 			"put": {
-				"description": "A product with a worker is synced with it right away, the outcome is on the returned product. The name and the plan only reach the worker once inkan worker export ran and it is deployed.",
+				"description": "The name and the plan only reach the worker once inkan worker export ran and it is deployed. A product with a worker is read again in the background, it says syncing until what the worker makes of the change shows on it.",
 				"operationId": "update-product",
 				"parameters": [
 					{
@@ -739,6 +730,7 @@
 		},
 		"/api/products/{id}/sync": {
 			"post": {
+				"description": "Asks for a read of the paid licenses and the settings of the worker and answers right away, a big Stripe account takes a while. The product says syncing until the read is done. A failed read is stored on it as sync_error, a worker that is behind an export as sync_notice.",
 				"operationId": "sync-product",
 				"parameters": [
 					{
@@ -749,12 +741,7 @@
 					}
 				],
 				"responses": {
-					"200": {
-						"content": {
-							"application/json": { "schema": { "$ref": "#/components/schemas/SyncOutputBody" } }
-						},
-						"description": "OK"
-					},
+					"202": { "description": "Accepted" },
 					"default": {
 						"content": {
 							"application/problem+json": {

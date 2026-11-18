@@ -6,14 +6,14 @@ package mirror
 import (
 	"cmp"
 	"context"
-	"crypto/ed25519"
 	"crypto/tls"
-	"encoding/hex"
+	"database/sql"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"net"
 	"net/http"
 	"net/netip"
@@ -21,17 +21,16 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
-
-	"github.com/mizuchilabs/inkan/license"
 
 	"github.com/mizuchilabs/inkan/internal/db"
 )
 
 const (
 	// A sync reads every subscription and purchase of the Stripe account, so
-	// it is not cheap. The dashboard has a button for when it has to be now.
+	// it is not cheap. The dashboard has a button for when it has to be soon.
 	syncEvery = time.Hour
 	// The most a worker hands out, fewer pages are fewer calls to Stripe.
 	pageSize = 100
@@ -72,11 +71,9 @@ type Report struct {
 type Mail struct {
 	From    string `json:"from"`
 	ReplyTo string `json:"reply_to"`
-	Logo    string `json:"logo"`
-	Accent  string `json:"accent"`
 	Footer  string `json:"footer"`
 	Company string `json:"company"`
-	Custom  bool   `json:"custom"   doc:"The worker was built with a mail of its own"`
+	Custom  bool   `json:"custom"   doc:"The worker sends a mail of its own, not the built-in one"`
 }
 
 type listed struct {
@@ -95,44 +92,120 @@ type listed struct {
 	Key          string            `json:"key"`
 }
 
-// Run syncs every product that has a worker on start and then every hour,
-// until ctx is done.
-func Run(ctx context.Context, q *db.Queries) {
-	for {
-		products, err := q.ListProducts(ctx)
-		if err != nil {
-			slog.Error("worker sync: listing products failed", "error", err)
-		}
-		for _, p := range products {
-			if !Connected(p) {
-				continue
-			}
-			n, err := Sync(ctx, q, p)
-			if err != nil {
-				slog.Warn("worker sync failed", "product", p.Name, "error", err)
-				continue
-			}
-			slog.Debug("worker sync done", "product", p.Name, "licenses", n)
-		}
-		if err := snapshot(ctx, q); err != nil && ctx.Err() == nil {
-			slog.Error("taking the daily snapshot failed", "error", err)
-		}
+// Mirror reads the workers in the background, one product at a time. A big
+// Stripe account takes minutes to read, so nobody waits for it in a request.
+type Mirror struct {
+	q    *db.Queries
+	wake chan struct{}
 
+	mu      sync.Mutex
+	asked   map[int64]bool // products to read as soon as the reader is free
+	reading int64          // the product being read, 0 is none
+}
+
+func New(q *db.Queries) *Mirror {
+	return &Mirror{q: q, wake: make(chan struct{}, 1), asked: map[int64]bool{}}
+}
+
+// Run reads every product that has a worker on start and then every hour, and
+// in between the ones SyncSoon names, until ctx is done.
+func (m *Mirror) Run(ctx context.Context) {
+	every := time.Tick(syncEvery)
+	m.readAll(ctx)
+	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(syncEvery):
+		case <-every:
+			m.readAll(ctx)
+		case <-m.wake:
+			m.readAsked(ctx)
 		}
 	}
+}
+
+// SyncSoon has the product read once the reader is free. How it went shows
+// on the product.
+func (m *Mirror) SyncSoon(id int64) {
+	m.mu.Lock()
+	m.asked[id] = true
+	m.mu.Unlock()
+	select {
+	case m.wake <- struct{}{}:
+	default:
+	}
+}
+
+// Syncing says whether a read of the product is asked for or running.
+func (m *Mirror) Syncing(id int64) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.asked[id] || m.reading == id
+}
+
+func (m *Mirror) readAsked(ctx context.Context) {
+	m.mu.Lock()
+	ids := slices.Collect(maps.Keys(m.asked))
+	m.mu.Unlock()
+	for _, id := range ids {
+		m.read(ctx, id)
+	}
+}
+
+func (m *Mirror) readAll(ctx context.Context) {
+	products, err := m.q.ListProducts(ctx)
+	if err != nil && ctx.Err() == nil {
+		slog.Error("worker sync: listing products failed", "error", err)
+	}
+	for _, p := range products {
+		// Whoever asked is waiting, the round is not.
+		m.readAsked(ctx)
+		m.read(ctx, p.ID)
+	}
+	if err := snapshot(ctx, m.q); err != nil && ctx.Err() == nil {
+		slog.Error("taking the daily snapshot failed", "error", err)
+	}
+}
+
+// read syncs one product as it is now. One asked for again meanwhile is read once more after.
+func (m *Mirror) read(ctx context.Context, id int64) {
+	m.mu.Lock()
+	delete(m.asked, id)
+	m.reading = id
+	m.mu.Unlock()
+	defer func() {
+		m.mu.Lock()
+		m.reading = 0
+		m.mu.Unlock()
+	}()
+
+	p, err := m.q.GetProduct(ctx, id)
+	if err != nil {
+		// The product may be deleted by now, that is no failure.
+		if !errors.Is(err, sql.ErrNoRows) && ctx.Err() == nil {
+			slog.Error("worker sync: loading the product failed", "product", id, "error", err)
+		}
+		return
+	}
+	if !Connected(p) {
+		return
+	}
+	n, err := syncProduct(ctx, m.q, p)
+	if err != nil {
+		slog.Warn("worker sync failed", "product", p.Name, "error", err)
+		return
+	}
+	slog.Debug("worker sync done", "product", p.Name, "licenses", n)
 }
 
 func Connected(p *db.Product) bool {
 	return p.WorkerUrl != ""
 }
 
-// Sync mirrors the licenses the worker of a product hands out and returns how
-// many there are. The outcome is recorded on the product, so the UI can show it.
-func Sync(ctx context.Context, q *db.Queries, p *db.Product) (int, error) {
+// syncProduct mirrors the licenses the worker of a product hands out and
+// returns how many there are. The outcome is recorded on the product, so the
+// UI can show it.
+func syncProduct(ctx context.Context, q *db.Queries, p *db.Product) (int, error) {
 	n, runs, err := pull(ctx, q, p)
 	if errors.Is(err, context.DeadlineExceeded) {
 		err = errors.New("worker: reading it took too long, the next sync tries again")
@@ -170,7 +243,7 @@ func LastReport(p *db.Product) *Report {
 
 // pull reads every page of the worker and returns what it runs with.
 func pull(ctx context.Context, q *db.Queries, p *db.Product) (n int, runs *Report, err error) {
-	current, err := publicKey(p)
+	current, err := p.PublicKey()
 	if err != nil {
 		return 0, nil, err
 	}
@@ -225,15 +298,6 @@ func pull(ctx context.Context, q *db.Queries, p *db.Product) (n int, runs *Repor
 		Purchases: purchases,
 	})
 	return n, runs, err
-}
-
-func publicKey(p *db.Product) (string, error) {
-	priv, err := license.ParsePrivateKey(p.PrivateKey)
-	if err != nil {
-		return "", err
-	}
-	pub, _ := priv.Public().(ed25519.PublicKey)
-	return hex.EncodeToString(pub), nil
 }
 
 func handIssued(l listed) bool {
@@ -362,7 +426,7 @@ func health(ctx context.Context, p *db.Product) string {
 // plan and the name come from the dashboard, the rest is the worker's own.
 func drift(p *db.Product, runs *Report) string {
 	const again = " Run inkan worker export again and deploy it."
-	current, _ := publicKey(p)
+	current, _ := p.PublicKey()
 	switch {
 	case runs.PublicKey != current:
 		return "The worker still signs with the key from before the rotation." + again

@@ -11,7 +11,9 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -141,7 +143,7 @@ func TestSync(t *testing.T) {
 	w, url := newWorker(t)
 	p := newProduct(t, q, url+"/")
 
-	n, err := Sync(ctx, q, p)
+	n, err := syncProduct(ctx, q, p)
 	require.NoError(t, err)
 	assert.Equal(t, 3, n)
 	assert.Equal(t, []string{"", "s:sub_unpaid", "p:"}, w.asked, "every page is read")
@@ -177,7 +179,7 @@ func TestSync(t *testing.T) {
 
 	_, err = q.SetLicenseNote(ctx, &db.SetLicenseNoteParams{Note: "vip", ProductID: p.ID, ID: "sub_ok_1"})
 	require.NoError(t, err)
-	_, err = Sync(ctx, q, p)
+	_, err = syncProduct(ctx, q, p)
 	require.NoError(t, err)
 	sub, err = q.GetLicense(ctx, &db.GetLicenseParams{ProductID: p.ID, ID: "sub_ok_1"})
 	require.NoError(t, err)
@@ -229,14 +231,14 @@ func TestSyncDropsWhatTheWorkerNoLongerLists(t *testing.T) {
 	// This worker may not read Checkout sessions, so it knows nothing about purchases.
 	w.pages[2].Licenses = nil
 	w.pages[2].Skipped = []string{"purchase"}
-	_, err = Sync(ctx, q, p)
+	_, err = syncProduct(ctx, q, p)
 	require.NoError(t, err)
 	assert.False(t, has(t, q, p, "sub_test_mode"))
 	assert.True(t, has(t, q, p, "cs_test_mode"), "purchases stay while nobody can say they are gone")
 	assert.True(t, has(t, q, p, "lic_manual"), "manual licenses are not the worker's")
 
 	w.pages[2].Skipped = nil
-	_, err = Sync(ctx, q, p)
+	_, err = syncProduct(ctx, q, p)
 	require.NoError(t, err)
 	assert.False(t, has(t, q, p, "cs_test_mode"))
 	assert.True(t, has(t, q, p, "sub_ok_1"))
@@ -254,7 +256,7 @@ func TestSyncDeletedCustomer(t *testing.T) {
 	p := newProduct(t, q, url)
 	stale(t, q, p, "sub_deleted", "left@acme.io")
 
-	_, err = Sync(ctx, q, p)
+	_, err = syncProduct(ctx, q, p)
 	require.NoError(t, err)
 	l, err := q.GetLicense(ctx, &db.GetLicenseParams{ProductID: p.ID, ID: "sub_deleted"})
 	require.NoError(t, err)
@@ -276,7 +278,7 @@ func TestSyncFailures(t *testing.T) {
 
 	failed := func(wantErr, why string) {
 		t.Helper()
-		_, err := Sync(ctx, q, p)
+		_, err := syncProduct(ctx, q, p)
 		require.ErrorContains(t, err, wantErr, why)
 		stored, err := q.GetProduct(ctx, p.ID)
 		require.NoError(t, err)
@@ -326,7 +328,7 @@ func TestSyncNoticesAnOldExport(t *testing.T) {
 	stale(t, q, p, "sub_stale", "a@x.io")
 	notice := func() string {
 		t.Helper()
-		n, err := Sync(ctx, q, p)
+		n, err := syncProduct(ctx, q, p)
 		require.NoError(t, err, "the licenses are still what the worker hands out")
 		assert.Equal(t, 3, n)
 		stored, err := q.GetProduct(ctx, p.ID)
@@ -371,7 +373,7 @@ func TestSyncAfterRotation(t *testing.T) {
 	p := newProduct(t, q, url)
 	sync := func() string {
 		t.Helper()
-		n, err := Sync(ctx, q, p)
+		n, err := syncProduct(ctx, q, p)
 		require.NoError(t, err)
 		assert.Equal(t, 3, n)
 		stored, err := q.GetProduct(ctx, p.ID)
@@ -423,14 +425,14 @@ func TestSyncLeavesHandIssuedRowsAlone(t *testing.T) {
 		assert.Equal(t, byHand, now, "the hand issued row is as it was")
 	}
 
-	_, err = Sync(ctx, q, p)
+	_, err = syncProduct(ctx, q, p)
 	require.NoError(t, err)
 	unchanged()
 
 	refused := func(why string) {
 		t.Helper()
 		stale(t, q, p, "sub_kept", "a@x.io")
-		_, err := Sync(ctx, q, p)
+		_, err := syncProduct(ctx, q, p)
 		require.ErrorContains(t, err, "hand issued", why)
 		unchanged()
 		assert.True(t, has(t, q, p, "sub_kept"), "a refused sync drops nothing")
@@ -461,6 +463,48 @@ func TestSyncLeavesHandIssuedRowsAlone(t *testing.T) {
 	w.pages[0].Licenses[0].ExpiresAt = 0
 	refused("a worker that lists a hand issued id would rewrite its row")
 	w.pages[0].Licenses[0] = mine
+
+	// The id is only how a hand issued row usually looks. The row is safe under any id.
+	require.NoError(t, q.DeleteProviderLicenses(ctx, p.ID))
+	odd, err := q.CreateLicense(ctx, &db.CreateLicenseParams{
+		ID: mine.ID, ProductID: p.ID, Email: "a@x.io", Plan: "pro", Meta: "{}",
+	})
+	require.NoError(t, err)
+	_, err = syncProduct(ctx, q, p)
+	require.NoError(t, err)
+	now, err := q.GetLicense(ctx, &db.GetLicenseParams{ProductID: p.ID, ID: mine.ID})
+	require.NoError(t, err)
+	assert.Equal(t, odd, now, "a worker cannot rewrite a hand issued row by listing its id")
+}
+
+// A read that was asked for runs in the background, and the product says so
+// until it is done.
+func TestSyncSoon(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	q, closeDB, err := db.Open(ctx, t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(closeDB)
+	_, url := newWorker(t)
+	p := newProduct(t, q, url)
+
+	m := New(q)
+	var reader sync.WaitGroup
+	reader.Go(func() { m.Run(ctx) })
+	t.Cleanup(reader.Wait)
+	idle := func() bool { return !m.Syncing(p.ID) }
+	require.Eventually(t, func() bool { return idle() && has(t, q, p, "sub_ok_1") },
+		5*time.Second, 5*time.Millisecond, "every product is read on start")
+
+	stale(t, q, p, "sub_gone", "a@x.io")
+	m.SyncSoon(p.ID)
+	require.Eventually(t, func() bool { return idle() && !has(t, q, p, "sub_gone") },
+		5*time.Second, 5*time.Millisecond, "the read that was asked for ran")
+
+	// No reader runs here, so the product stays asked for.
+	waiting := New(q)
+	waiting.SyncSoon(p.ID)
+	assert.True(t, waiting.Syncing(p.ID), "asked for counts as syncing")
 }
 
 func TestCheckURL(t *testing.T) {
@@ -507,11 +551,11 @@ func TestSyncFollowsNoRedirect(t *testing.T) {
 	t.Cleanup(moved.Close)
 	p := newProduct(t, q, moved.URL)
 
-	_, err = Sync(ctx, q, p)
+	_, err = syncProduct(ctx, q, p)
 	require.ErrorContains(t, err, "redirects to "+elsewhere.URL)
 	assert.False(t, reached, "the token stayed where it was sent")
 
 	p.WorkerUrl = "http://worker.example.com"
-	_, err = Sync(ctx, q, p)
+	_, err = syncProduct(ctx, q, p)
 	require.ErrorContains(t, err, "needs https", "a url from before the rule is not called either")
 }

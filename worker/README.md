@@ -21,15 +21,16 @@ built worker and writes it out, ready to deploy.
 inkan worker export MYAPP
 ```
 
-| File                 |                                                             |
-| -------------------- | ----------------------------------------------------------- |
-| `worker.keys.env`    | Prefix, signing key, token, plan and name of the product    |
-| `worker.keys.json`   | The same for a console that takes JSON                      |
-| `worker.env`         | Your settings. Made once, an export never touches it again  |
-| `worker.env.example` | Every setting with what it does                             |
-| `cloudflare.js`      | The worker for Cloudflare Workers, with `wrangler.jsonc`    |
-| `node.js`            | The worker for Node, one file without dependencies          |
-| `scaleway.zip`       | The worker for Scaleway Serverless Functions                |
+| File                 |                                                            |
+| -------------------- | ---------------------------------------------------------- |
+| `worker.keys.env`    | Prefix, signing key, token, plan and name of the product   |
+| `worker.keys.json`   | The same for a console that takes JSON                     |
+| `worker.env`         | Your settings. Made once, an export never touches it again |
+| `worker.env.example` | Every setting with what it does                            |
+| `cloudflare.js`      | The worker for Cloudflare Workers, with `wrangler.jsonc`   |
+| `node.js`            | The worker for Node, one file without dependencies         |
+| `scaleway.zip`       | The worker for Scaleway Serverless Functions               |
+| `mail.html`          | Only with a mail of your own, see below                    |
 
 The two keys files hold the private key. Delete them once the worker has
 them.
@@ -72,12 +73,19 @@ HTTP API. `src/send.ts` has one small function per service. Add yours there.
 
 ## A mail of your own
 
-[`email`](../email) builds one from a React Email component and writes it
-into `src/template.ts`. Build the worker after that. Any other html works
-too: put it into `src/template.ts` with `{{key}}`, `{{name}}`, `{{plan}}`,
-`{{email}}`, `{{expires}}`, `{{footer}}` and `{{company}}` in it. The worker
-fills the placeholders in, and the `<title>` is the subject. `{{expires}}` is
-when the license ends, a date like 16 October 2096, or Never. The footer and
-the company details come from the settings, as for the built-in mail. A mail
-without `{{key}}` is not used. The logo and accent settings only shape the
-built-in mail.
+```sh
+inkan worker export MYAPP --mail mail.html
+```
+
+The mail is any html with `{{key}}`, `{{name}}`, `{{plan}}`, `{{email}}`,
+`{{expires}}`, `{{footer}}` and `{{company}}` in it. The worker fills the
+placeholders in, and the `<title>` is the subject. `{{expires}}` is when the
+license ends, a date like 16 October 2096, or Never. The footer and the
+company details come from the settings, as for the built-in mail. A mail
+without `{{key}}` is turned down. [`email`](../email) builds one from a React
+Email component.
+
+The export keeps the mail as `mail.html` in the folder and puts it into every
+worker it writes there from then on. No build is needed for it. A built
+worker holds the string `"<!--inkan:mail-->"` once, from `src/template.ts`,
+and the export swaps the mail in for it.

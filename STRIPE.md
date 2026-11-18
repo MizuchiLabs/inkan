@@ -52,8 +52,9 @@ like one and delete them once the worker has them.
   sells. Every subscription and one time purchase of them is a license.
   Stripe stays the source of truth, the worker only reads. Once an hour the
   dashboard reads the list from the worker, Sync now on the Products page
-  reads it right away. One read goes through every subscription and purchase
-  of the Stripe account.
+  asks for a read right away. One read goes through every subscription and
+  purchase of the Stripe account, in the background. On a big account
+  [reading by price](#a-big-stripe-account) keeps that short.
 - **Metadata is the one source.** What a key says is set in Stripe metadata
   with three names. Put them on the Stripe product and they hold for everyone
   who buys it.
@@ -149,6 +150,7 @@ worker needs, it never writes to Stripe.
 | Checkout Sessions | One time purchases, leave it out if you sell none      |
 | Payment Intents   | Whether a one time purchase was refunded               |
 | Charges           | Whether a one time purchase was refunded or disputed   |
+| Prices            | Only with `INKAN_STRIPE_BY_PRICE`, to list by price    |
 
 A key without Products or Invoices makes the worker fail with Stripe's own
 words on the Products page, the apps keep the keys they have.
@@ -163,6 +165,7 @@ words on the Products page, the apps keep the keys they have.
 | `INKAN_PRODUCT_NAME`          | the prefix | How the key mail calls the product             |
 | `INKAN_STRIPE_KEY`            | -          | Restricted key with the read access above      |
 | `INKAN_STRIPE_PRODUCT`        | -          | Stripe product ids like `prod_a,prod_b`        |
+| `INKAN_STRIPE_BY_PRICE`       | -          | `1` reads subscriptions price by price         |
 | `INKAN_GRACE_DAYS`            | `14`       | Days a renewal has to get paid                 |
 | `INKAN_MAX_KEY_DAYS`          | `0`        | Days a key lives before a refresh, 0 no limit  |
 | `INKAN_STRIPE_WEBHOOK_SECRET` | -          | Signing secret of the webhook endpoint         |
@@ -172,8 +175,6 @@ words on the Products page, the apps keep the keys they have.
 | `INKAN_SCW_SECRET_KEY`        | -          | Or through Scaleway Transactional Email        |
 | `INKAN_SCW_PROJECT_ID`        | -          | Project of the Scaleway key                    |
 | `INKAN_SCW_REGION`            | `fr-par`   | Region of Scaleway Transactional Email         |
-| `INKAN_MAIL_LOGO`             | -          | https url of a logo for the dark header        |
-| `INKAN_MAIL_ACCENT`           | `#2f3e8f`  | Color of the key mail                          |
 | `INKAN_MAIL_FOOTER`           | -          | One line under the key, like where to get help |
 | `INKAN_MAIL_COMPANY`          | -          | Last line of the mail, your company details    |
 
@@ -186,7 +187,7 @@ setting, edit it where the worker runs and deploy. The dashboard shows what
 the worker reports, it does not edit it.
 
 A value with a space or a `#` needs quotes in an env file, like
-`INKAN_MAIL_ACCENT='#2f3e8f'`.
+`INKAN_MAIL_FROM='My App <licenses@example.com>'`.
 
 For the mails, add a webhook endpoint in Stripe for `https://<worker>/webhook`
 that sends `invoice.paid`, plus `checkout.session.completed` and
@@ -198,16 +199,33 @@ the worker on port 4242 with the Stripe CLI forwarding the three events to
 it. It takes the Stripe key and the mail service from your environment or
 from `worker/worker.env`.
 
+### A big Stripe account
+
+Stripe can list subscriptions by price but not by product. So by default a
+read goes through every subscription of the account and keeps the ones of
+your products. That is always complete, and slow when the account holds many
+subscriptions of other products.
+
+With `INKAN_STRIPE_BY_PRICE=1` the worker asks Stripe for the recurring prices
+of your products, the archived ones too, and then only for the subscriptions
+of each price. The rest of the account costs nothing then.
+
+Only turn it on when every subscription of the products was made with a
+price from the catalog. Stripe does not list inline prices, the ones a
+checkout or an API call makes on the spot with `price_data`. A subscription
+on such a price would be missing from the dashboard. Its key keeps working
+and refreshing, the worker looks those up by id.
+
+A product with more than a hundred active or a hundred archived prices is
+read the default way. One time purchases have no such filter at Stripe, every
+completed Checkout session of the account is read either way.
+
 ### The key mail
 
 The mail shows the key, its plan, how long it is valid and who it is for, as
-HTML with a plain text twin. A dark header carries the name of the product or
-its logo. These settings in `worker.env` make it yours.
+HTML with a plain text twin. A dark header carries the name of the product.
+Two settings in `worker.env` add your words to it.
 
-- **Logo.** An https url. It sits on the dark header, 32 pixels high, so it
-  has to read on a dark background.
-- **Accent color.** Tints the key and colors the plan and the links. A pale or
-  a dark color is adjusted where it would be hard to read.
 - **Footer.** One line under the key, like where to get help.
 - **Company details.** The last line of the mail. Many countries want a
   business to state who it is in its mail, in Germany that is the legal name,
@@ -217,10 +235,21 @@ its logo. These settings in `worker.env` make it yours.
 Links and email addresses in the footer and the company details can be
 clicked.
 
-For a mail of your own, design it in [`email`](email) in a clone of the
-repository. Its build writes the mail into the worker, see
-[its README](email/README.md). It gets the footer and the company details
-from the settings, the logo and the accent are part of its design.
+For your own logo, colors and words, send a mail of your own. Any html file
+with `{{key}}` in it works:
+
+```sh
+inkan worker export MYAPP --mail mail.html
+```
+
+The export puts the mail into the worker and keeps it as `mail.html` in the
+folder, so every later export sends it too. Delete the file and export again
+to get the built-in mail back. With `-` as the dir there is no folder to look
+in, so name the mail every time. From a container that is
+`--mail /dev/stdin < mail.html` with `docker exec -i`.
+
+[`email`](email) builds such a file from a React Email component, see
+[its README](email/README.md) for the placeholders a mail can use.
 
 ### How it behaves
 
