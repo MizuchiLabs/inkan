@@ -215,7 +215,7 @@ export const deleteProductMutation = (options?: Partial<Options<DeleteProductDat
 /**
  * Update a product
  *
- * The name and the plan only reach the worker once inkan worker export ran and it is deployed. A product with a worker is read again in the background, it says syncing until what the worker makes of the change shows on it.
+ * The name and the plan only reach the worker once inkan worker export ran and it is deployed, sync_notice says so until then. A new worker url is read in the background, the product says syncing meanwhile.
  */
 export const updateProductMutation = (options?: Partial<Options<UpdateProductData>>): MutationOptions<UpdateProductResponse, UpdateProductError, Options<UpdateProductData>> => {
     const mutationOptions: MutationOptions<UpdateProductResponse, UpdateProductError, Options<UpdateProductData>> = {
@@ -272,7 +272,7 @@ export const rotateProductKeyMutation = (options?: Partial<Options<RotateProduct
 /**
  * Sync a product with its worker
  *
- * Asks for a read of the paid licenses and the settings of the worker and answers right away, a big Stripe account takes a while. The product says syncing until the read is done. A failed read is stored on it as sync_error, a worker that is behind an export as sync_notice.
+ * Asks for a read of the paid licenses and the settings of the worker and answers right away, a big Stripe account takes a while. The product says syncing until the read is done. A failed read is stored on it as sync_error.
  */
 export const syncProductMutation = (options?: Partial<Options<SyncProductData>>): MutationOptions<unknown, SyncProductError, Options<SyncProductData>> => {
     const mutationOptions: MutationOptions<unknown, SyncProductError, Options<SyncProductData>> = {

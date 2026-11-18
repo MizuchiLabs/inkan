@@ -118,9 +118,10 @@
 					}
 				},
 				{
-					onSuccess: () => {
+					onSuccess: (saved) => {
 						onclose();
-						toast.success('Saved the product');
+						if (saved.sync_notice) toast.warning(`Saved. ${saved.sync_notice}`);
+						else toast.success('Saved the product');
 					}
 				}
 			);

@@ -335,7 +335,7 @@ func TestSyncNoticesAnOldExport(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, stored.SyncedAt)
 		assert.Empty(t, stored.SyncError, "the worker was read")
-		return stored.SyncNotice
+		return Drift(p, LastReport(stored))
 	}
 
 	p.Plan = "team"
@@ -379,7 +379,7 @@ func TestSyncAfterRotation(t *testing.T) {
 		stored, err := q.GetProduct(ctx, p.ID)
 		require.NoError(t, err)
 		assert.Empty(t, stored.SyncError, "the worker was read")
-		return stored.SyncNotice
+		return Drift(p, LastReport(stored))
 	}
 
 	fresh, freshPub, err := license.GenerateKey()

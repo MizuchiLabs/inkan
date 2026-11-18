@@ -235,7 +235,7 @@ export type Product = {
      */
     sync_error: string;
     /**
-     * What is off with a worker that could be read, like an export that was not deployed yet
+     * What is off with the worker going by its last report, like an export that was not deployed yet
      */
     sync_notice: string;
     /**

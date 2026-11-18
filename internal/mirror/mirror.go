@@ -224,11 +224,7 @@ func syncProduct(ctx context.Context, q *db.Queries, p *db.Product) (int, error)
 	if err != nil {
 		return 0, err
 	}
-	return n, q.SetProductSynced(ctx, &db.SetProductSyncedParams{
-		SyncNotice:   drift(p, runs),
-		WorkerReport: string(report),
-		ID:           p.ID,
-	})
+	return n, q.SetProductSynced(ctx, &db.SetProductSyncedParams{WorkerReport: string(report), ID: p.ID})
 }
 
 // LastReport is what the worker of a product said at its last sync, nil
@@ -422,9 +418,13 @@ func health(ctx context.Context, p *db.Product) string {
 	return string(body)
 }
 
-// drift says what the worker got from an older export. Only the keys, the
-// plan and the name come from the dashboard, the rest is the worker's own.
-func drift(p *db.Product, runs *Report) string {
+// Drift says what the worker got from an older export, going by its last
+// report. Only the keys, the plan and the name come from the dashboard, the
+// rest is the worker's own.
+func Drift(p *db.Product, runs *Report) string {
+	if runs == nil {
+		return ""
+	}
 	const again = " Run inkan worker export again and deploy it."
 	current, _ := p.PublicKey()
 	switch {

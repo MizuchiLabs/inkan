@@ -33,7 +33,7 @@ type Product struct {
 	Syncing         bool           `json:"syncing"                 doc:"A read of the worker is asked for or running. Its outcome shows in the fields below once it is done"`
 	SyncedAt        *time.Time     `json:"synced_at"               doc:"Last time the worker was read"`
 	SyncError       string         `json:"sync_error"              doc:"Why the worker could not be read at the last try. Empty when it could"`
-	SyncNotice      string         `json:"sync_notice"             doc:"What is off with a worker that could be read, like an export that was not deployed yet"`
+	SyncNotice      string         `json:"sync_notice"             doc:"What is off with the worker going by its last report, like an export that was not deployed yet"`
 	CreatedAt       time.Time      `json:"created_at"`
 }
 
@@ -99,7 +99,7 @@ func registerProducts(api huma.API, q *db.Queries, m *mirror.Mirror) {
 		Method:      http.MethodPut,
 		Path:        "/api/products/{id}",
 		Summary:     "Update a product",
-		Description: "The name and the plan only reach the worker once inkan worker export ran and it is deployed. A product with a worker is read again in the background, it says syncing until what the worker makes of the change shows on it.",
+		Description: "The name and the plan only reach the worker once inkan worker export ran and it is deployed, sync_notice says so until then. A new worker url is read in the background, the product says syncing meanwhile.",
 		Tags:        []string{"Products"},
 	}, h.update)
 	huma.Register(api, huma.Operation{
@@ -132,7 +132,7 @@ func registerProducts(api huma.API, q *db.Queries, m *mirror.Mirror) {
 		Method:        http.MethodPost,
 		Path:          "/api/products/{id}/sync",
 		Summary:       "Sync a product with its worker",
-		Description:   "Asks for a read of the paid licenses and the settings of the worker and answers right away, a big Stripe account takes a while. The product says syncing until the read is done. A failed read is stored on it as sync_error, a worker that is behind an export as sync_notice.",
+		Description:   "Asks for a read of the paid licenses and the settings of the worker and answers right away, a big Stripe account takes a while. The product says syncing until the read is done. A failed read is stored on it as sync_error.",
 		Tags:          []string{"Products"},
 		DefaultStatus: http.StatusAccepted,
 	}, h.sync)
@@ -190,15 +190,16 @@ func (h *productHandlers) update(ctx context.Context, in *UpdateProductInput) (*
 			return nil, huma.Error422UnprocessableEntity(err.Error())
 		}
 	}
+	before, err := h.get(ctx, in.ID)
+	if err != nil {
+		return nil, err
+	}
 	p, err := h.q.UpdateProduct(ctx, &db.UpdateProductParams{
 		Name:      in.Body.Name,
 		Plan:      in.Body.Plan,
 		WorkerUrl: workerURL,
 		ID:        in.ID,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, huma.Error404NotFound("product not found")
-	}
 	if isUnique(err) {
 		return nil, huma.Error409Conflict("a product with this name already exists")
 	}
@@ -209,8 +210,10 @@ func (h *productHandlers) update(ctx context.Context, in *UpdateProductInput) (*
 		if err := h.q.DeleteProviderLicenses(ctx, p.ID); err != nil {
 			return nil, huma.Error500InternalServerError("failed to drop the licenses of the worker")
 		}
+	} else if p.WorkerUrl != before.WorkerUrl {
+		h.mirror.SyncSoon(p.ID)
 	}
-	return h.changed(p), nil
+	return &ProductOutput{Body: h.output(p)}, nil
 }
 
 func (h *productHandlers) rotate(ctx context.Context, in *ProductPath) (*ProductOutput, error) {
@@ -251,15 +254,7 @@ func (h *productHandlers) setKeys(
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to store the keys")
 	}
-	return h.changed(p), nil
-}
-
-// changed has the worker of a changed product read, so the product soon says what the worker makes of it.
-func (h *productHandlers) changed(p *db.Product) *ProductOutput {
-	if mirror.Connected(p) {
-		h.mirror.SyncSoon(p.ID)
-	}
-	return &ProductOutput{Body: h.output(p)}
+	return &ProductOutput{Body: h.output(p)}, nil
 }
 
 func (h *productHandlers) delete(ctx context.Context, in *ProductPath) (*struct{}, error) {
@@ -293,6 +288,7 @@ func (h *productHandlers) get(ctx context.Context, id int64) (*db.Product, error
 }
 
 func (h *productHandlers) output(p *db.Product) Product {
+	report := mirror.LastReport(p)
 	out := Product{
 		ID:              p.ID,
 		Name:            p.Name,
@@ -300,11 +296,12 @@ func (h *productHandlers) output(p *db.Product) Product {
 		Plan:            p.Plan,
 		WorkerURL:       p.WorkerUrl,
 		WorkerConnected: mirror.Connected(p),
-		WorkerReport:    mirror.LastReport(p),
+		WorkerReport:    report,
 		Syncing:         h.mirror.Syncing(p.ID),
 		SyncError:       p.SyncError,
-		SyncNotice:      p.SyncNotice,
-		CreatedAt:       time.Unix(p.CreatedAt, 0),
+		// Worked out here, so it is right the moment the product changes.
+		SyncNotice: mirror.Drift(p, report),
+		CreatedAt:  time.Unix(p.CreatedAt, 0),
 		// Never null, the UI joins it with the current key.
 		OldPublicKeys: append([]string{}, p.OldKeys()...),
 	}

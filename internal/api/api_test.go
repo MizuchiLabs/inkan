@@ -255,6 +255,57 @@ func TestProductWorker(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, call(t, srv, http.MethodPut, "/api/products/999", settings, nil))
 }
 
+// What is off with a worker shows the moment the product changes. It is
+// worked out from the last report, reading Stripe again would tell nothing new.
+func TestSyncNotice(t *testing.T) {
+	t.Parallel()
+	srv, q := newTestServer(t)
+	p := createProduct(t, srv)
+	path := fmt.Sprintf("/api/products/%d", p.ID)
+	idle := func() bool {
+		var all []Product
+		call(t, srv, http.MethodGet, "/api/products", nil, &all)
+		return len(all) == 1 && !all[0].Syncing
+	}
+
+	// Nobody listens there, so the read a new url asks for fails at once.
+	settings := map[string]any{"name": "App", "plan": "pro", "worker_url": "http://127.0.0.1:1"}
+	var saved Product
+	require.Equal(t, http.StatusOK, call(t, srv, http.MethodPut, path, settings, &saved))
+	require.Eventually(t, idle, 5*time.Second, 10*time.Millisecond)
+	report, err := json.Marshal(mirror.Report{
+		Prefix: "APP", PublicKey: p.PublicKey, OldPublicKeys: []string{}, Plan: "pro", Name: "App",
+	})
+	require.NoError(t, err)
+	require.NoError(t, q.SetProductSynced(t.Context(), &db.SetProductSyncedParams{
+		WorkerReport: string(report), ID: p.ID,
+	}))
+
+	require.Equal(t, http.StatusOK, call(t, srv, http.MethodPut, path, settings, &saved))
+	assert.Empty(t, saved.SyncNotice, "the worker runs with what the product has")
+
+	settings["name"] = "Renamed"
+	require.Equal(t, http.StatusOK, call(t, srv, http.MethodPut, path, settings, &saved))
+	assert.Contains(t, saved.SyncNotice, `calls the product "App", here it is "Renamed"`)
+	assert.False(t, saved.Syncing, "a new name is no reason to read the worker")
+
+	require.Equal(t, http.StatusOK, call(t, srv, http.MethodPost, path+"/rotate-key", nil, &saved))
+	assert.Contains(t, saved.SyncNotice, "still signs with the key from before the rotation")
+	assert.False(t, saved.Syncing, "neither is a new key")
+
+	// A fresh one, a report that is left out of the answer would keep the old one in saved.
+	var moved Product
+	settings["worker_url"] = "http://127.0.0.1:2"
+	require.Equal(t, http.StatusOK, call(t, srv, http.MethodPut, path, settings, &moved))
+	assert.Nil(t, moved.WorkerReport, "the report was the one of the other worker")
+	assert.Empty(t, moved.SyncNotice)
+	require.Eventually(t, func() bool {
+		var all []Product
+		call(t, srv, http.MethodGet, "/api/products", nil, &all)
+		return len(all) == 1 && !all[0].Syncing && all[0].SyncError != ""
+	}, 5*time.Second, 10*time.Millisecond, "a new url is read")
+}
+
 func TestIssueAndCheck(t *testing.T) {
 	t.Parallel()
 	srv, _ := newTestServer(t)

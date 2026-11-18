@@ -11,7 +11,6 @@ CREATE TABLE products (
   worker_report TEXT NOT NULL DEFAULT '', -- json, what the worker said it runs with at the last sync. Its settings live in its env alone
   synced_at INTEGER, -- last time the worker was read
   sync_error TEXT NOT NULL DEFAULT '', -- why the worker could not be read at the last try
-  sync_notice TEXT NOT NULL DEFAULT '', -- what is off with a worker that could be read, like an export that was not deployed
   created_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
 

@@ -28,16 +28,15 @@ INSERT INTO
 VALUES
   (?, ?, ?, ?, ?) RETURNING *;
 
--- A product without a worker url has no report to show.
+-- The report and the error are those of the worker at the url, another url starts without them.
 -- name: UpdateProduct :one
 UPDATE products
 SET
   name = sqlc.arg (name),
   plan = sqlc.arg (plan),
   worker_url = sqlc.arg (worker_url),
-  worker_report = CASE sqlc.arg (worker_url) WHEN '' THEN '' ELSE worker_report END,
-  sync_notice = CASE sqlc.arg (worker_url) WHEN '' THEN '' ELSE sync_notice END,
-  sync_error = CASE sqlc.arg (worker_url) WHEN '' THEN '' ELSE sync_error END
+  worker_report = CASE worker_url WHEN sqlc.arg (worker_url) THEN worker_report ELSE '' END,
+  sync_error = CASE worker_url WHEN sqlc.arg (worker_url) THEN sync_error ELSE '' END
 WHERE
   id = sqlc.arg (id) RETURNING *;
 
@@ -62,13 +61,11 @@ SET
 WHERE
   id = ?;
 
--- The worker was read. The notice is empty, or what is off with it all the same.
 -- name: SetProductSynced :exec
 UPDATE products
 SET
   synced_at = unixepoch(),
   sync_error = '',
-  sync_notice = ?,
   worker_report = ?
 WHERE
   id = ?;
