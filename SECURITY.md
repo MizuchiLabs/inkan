@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Please do not open a public issue. Use "Report a vulnerability" under the
-[Security tab](https://github.com/MizuchiLabs/inkan/security) of this
+[Security and quality tab](https://github.com/MizuchiLabs/inkan/security) of this
 repository. That reaches the maintainers in private.
 
 ## What a license key is
