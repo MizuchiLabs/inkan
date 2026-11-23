@@ -6,13 +6,13 @@ require (
 	github.com/danielgtaylor/huma/v2 v2.41.0
 	github.com/go-chi/httplog/v3 v3.5.0
 	github.com/mizuchilabs/inkan/license v0.4.0
-	github.com/mizuchilabs/kata v0.2.0
+	github.com/mizuchilabs/kata v0.2.1
 	github.com/mizuchilabs/nushi v0.3.1
 	github.com/mizuchilabs/sqlite-schema-diff v0.3.6
 	github.com/stretchr/testify v1.12.1
 	github.com/urfave/cli/v3 v3.14.0
 	github.com/vearutop/statigz v1.5.0
-	modernc.org/sqlite v1.62.0
+	modernc.org/sqlite v1.63.0
 )
 
 require (
