@@ -29,7 +29,6 @@ type CheckInput struct {
 	}
 }
 
-// CheckResult is what a pasted key turns out to be.
 type CheckResult struct {
 	State       string            `json:"state"       enum:"valid,expired,invalid"`
 	Reason      string            `json:"reason"                                   doc:"Why the key is invalid, empty otherwise"`
@@ -83,7 +82,6 @@ func (h *checkHandlers) check(ctx context.Context, in *CheckInput) (*CheckOutput
 	if err != nil {
 		return nil, huma.Error500InternalServerError("the product has a broken signing key")
 	}
-	// A key from before a rotation is still a key of the product.
 	var pubs []ed25519.PublicKey
 	for _, known := range append([]string{current}, p.OldKeys()...) {
 		if pub, err := hex.DecodeString(known); err == nil {
@@ -116,6 +114,9 @@ func (h *checkHandlers) check(ctx context.Context, in *CheckInput) (*CheckOutput
 	}
 	if claims.ID != "" {
 		_, err := h.q.GetLicense(ctx, &db.GetLicenseParams{ProductID: p.ID, ID: claims.ID})
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, huma.Error500InternalServerError("failed to look up license")
+		}
 		res.Known = err == nil
 	}
 	return out, nil

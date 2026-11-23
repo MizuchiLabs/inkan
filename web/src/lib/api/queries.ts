@@ -48,7 +48,6 @@ export function useLicenses() {
 	return createQuery(() => ({ ...listLicensesOptions(), refetchInterval: 60_000 }));
 }
 
-// One count a day, so there is nothing to poll for.
 export function useStats() {
 	return createQuery(() => ({ ...listStatsOptions(), staleTime: 60 * 60_000 }));
 }
@@ -138,7 +137,6 @@ export function useDropOldProductKeys() {
 	return createMutation(() => ({ ...dropOldProductKeysMutation(), onSuccess: refreshAll }));
 }
 
-// The sync runs in the background. The product says that it is syncing, and how it went after.
 export function useSyncProduct() {
 	return createMutation(() => ({ ...syncProductMutation(), onSuccess: refreshProducts }));
 }

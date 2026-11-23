@@ -14,7 +14,6 @@ type StatsInput struct {
 	Days int `query:"days" minimum:"1" maximum:"3650" default:"90" doc:"How many days to look back"`
 }
 
-// Snapshot is the count of one day for one plan of a product.
 type Snapshot struct {
 	Day       string `json:"day"        doc:"YYYY-MM-DD in UTC"`
 	ProductID int64  `json:"product_id"`

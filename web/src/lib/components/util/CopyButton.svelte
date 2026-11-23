@@ -5,7 +5,6 @@
 
 	type Props = {
 		text: string;
-		// What gets copied, for the toast and screen readers: "key", "public key".
 		what: string;
 		label?: string;
 		variant?: ButtonProps['variant'];

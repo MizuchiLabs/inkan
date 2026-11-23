@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 
 	"github.com/urfave/cli/v3"
@@ -37,6 +36,6 @@ func openapi(_ context.Context, cmd *cli.Command) error {
 	if err := os.WriteFile(out, b, 0o600); err != nil {
 		return fmt.Errorf("writing spec: %w", err)
 	}
-	slog.Info("OpenAPI spec written", "path", out)
+	fmt.Println("OpenAPI spec written to", out)
 	return nil
 }

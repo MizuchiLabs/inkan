@@ -140,10 +140,7 @@ func (k *Keeper) Renew(ctx context.Context, endpoint string, save func(key strin
 	}
 }
 
-// renewWait is how long Renew waits before its next try. exp is the expiry of
-// the held key, failures counts the tries in a row that did not work. The
-// rule is in FORMAT.md and pinned by the test vectors, the keepers of the
-// other languages follow the same one.
+// The rule is in FORMAT.md and pinned by the test vectors, every SDK keeper follows it.
 func renewWait(exp int64, now time.Time, failures int) time.Duration {
 	if failures > 0 {
 		// A minute, then two, then four. Past eleven doublings it is a day anyway.
@@ -153,8 +150,6 @@ func renewWait(exp int64, now time.Time, failures int) time.Duration {
 	if exp == 0 || left <= 0 {
 		return refreshEvery
 	}
-	// A worker that cuts keys short has the next one ready for the second half
-	// of a key's life. Never under a minute, or the end of a key that nobody
-	// renews is asked about in a tight loop.
+	// Half the time left, but at least a minute so an unrenewed key cannot cause a tight loop.
 	return min(refreshEvery, max(left/2, time.Minute))
 }

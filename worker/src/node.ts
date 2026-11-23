@@ -1,9 +1,3 @@
-// Entry for Node, for a container or a server of your own:
-//
-//  node src/node.ts
-//
-// The settings come from the environment, PORT is where it listens.
-
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 
 import { handle, missing, type Env } from './handler.ts';
@@ -19,8 +13,7 @@ if (unset.length > 0) {
 }
 
 const server = createServer((req, res) => {
-	// A client that hangs up in the middle of its body ends up here. Left
-	// uncaught it takes the whole process down.
+	// A client that hangs up mid-body lands here. Left uncaught it takes the whole process down.
 	answer(req, res).catch((err) => {
 		if (!req.destroyed) console.error('the worker failed', err);
 		res.destroy();

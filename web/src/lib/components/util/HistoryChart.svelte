@@ -6,7 +6,6 @@
 	import { AreaChart } from 'layerchart';
 
 	type Props = {
-		// Every product when left out.
 		productId?: number;
 		class?: string;
 	};
@@ -35,7 +34,6 @@
 	} satisfies Chart.ChartConfig;
 </script>
 
-<!-- One day is a dot, not a trend. -->
 {#if days.length > 1}
 	<section class={cn('flex min-w-0 flex-col gap-2', className)} aria-labelledby="history-title">
 		<h2 id="history-title" class="text-sm font-medium">Active licenses</h2>

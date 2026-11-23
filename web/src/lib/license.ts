@@ -1,7 +1,6 @@
 import type { License } from '#lib/api/queries.js';
 
 const DAY = 86_400_000;
-// A license that will not renew is worth a look this long before it runs out.
 const ENDING_DAYS = 30;
 
 export type LicenseState = 'active' | 'ending' | 'expired';
@@ -23,11 +22,9 @@ export function refOf(license: Pick<License, 'product_id' | 'id'>): string {
 	return `${license.product_id}/${license.id}`;
 }
 
-// A turn of a few degrees per license, so a column of seals looks stamped by hand.
 export function tiltOf(license: Pick<License, 'id'>): number {
 	let h = 0x811c9dc5;
 	for (const c of license.id) h = Math.imul(h ^ c.charCodeAt(0), 0x01000193);
-	// Ids a character apart would land close, so the bits get mixed once more.
 	h = Math.imul(h ^ (h >>> 16), 0x45d9f3b);
 	return (((h ^ (h >>> 16)) >>> 0) % 13) - 9;
 }
@@ -42,8 +39,6 @@ export function stateOf(license: License, now = Date.now()): LicenseState {
 
 const rank: Record<LicenseState, number> = { ending: 0, active: 1, expired: 2 };
 
-// What needs a look comes first: ending soon, then active by what runs out
-// next, then expired with the latest on top.
 export function byAttention(a: License, b: License): number {
 	const now = Date.now();
 	const state = stateOf(a, now);
@@ -77,7 +72,6 @@ export function localDay(iso: string): string {
 	return `${at.getFullYear()}-${two(at.getMonth() + 1)}-${two(at.getDate())}`;
 }
 
-// "in 12 days", "3 months ago", in the coarsest unit that still says something.
 export function formatRelative(iso: string, now = Date.now()): string {
 	const days = Math.round((new Date(iso).getTime() - now) / DAY);
 	if (Math.abs(days) < 60) return relativeFormat.format(days, 'day');
@@ -85,7 +79,6 @@ export function formatRelative(iso: string, now = Date.now()): string {
 	return relativeFormat.format(Math.round(days / 365), 'year');
 }
 
-// For things that happened minutes ago, like a sync.
 export function formatRelativeTime(iso: string, now = Date.now()): string {
 	const minutes = Math.round((new Date(iso).getTime() - now) / 60_000);
 	if (Math.abs(minutes) < 1) return 'just now';
@@ -94,7 +87,6 @@ export function formatRelativeTime(iso: string, now = Date.now()): string {
 	return formatRelative(iso, now);
 }
 
-// Metadata is typed as one key=value per line.
 export function parseMeta(text: string): Record<string, string> {
 	const meta: Record<string, string> = {};
 	for (const line of text.split('\n')) {

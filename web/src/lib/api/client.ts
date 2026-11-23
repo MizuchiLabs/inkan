@@ -6,8 +6,7 @@ import { toast } from 'svelte-sonner';
 
 export const sessionKey = ['session'];
 
-// Relative base URL: same-origin in production, routed to the Go backend by
-// the Vite dev proxy in development.
+// Relative, so the Vite dev proxy routes it to the Go backend in development.
 client.setConfig({ baseUrl: '/' });
 
 // The API answers with problem details, a failed validation names the field.

@@ -1,4 +1,3 @@
-// Package db opens the SQLite database and holds the generated queries.
 package db
 
 import (
@@ -17,7 +16,6 @@ import (
 	"github.com/mizuchilabs/sqlite-schema-diff/pkg/diff"
 )
 
-// A bad edit or a rotation is often noticed late.
 const backupsKept = 30
 
 //go:embed schemas/*.sql
@@ -31,9 +29,7 @@ const pragmas = "_txlock=immediate" +
 	"&_pragma=foreign_keys(ON)" +
 	"&_pragma=temp_store(MEMORY)"
 
-// Open connects to inkan.db inside dataDir and applies the schema. Run the
-// returned func before the process ends. Until then the last writes sit in the
-// journal next to inkan.db, and a copy put in its place would meet them.
+// Open returns a close func that must run before exit, or the last writes stay in the WAL next to inkan.db.
 func Open(ctx context.Context, dataDir string) (*Queries, func(), error) {
 	// Owner only, the database holds the signing keys.
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
@@ -46,8 +42,7 @@ func Open(ctx context.Context, dataDir string) (*Queries, func(), error) {
 		backup = backupName(path)
 	}
 
-	// The directory may have been there before, with a mode of its own. The
-	// file is owner only by itself then, and SQLite gives its journal the same.
+	// The directory may predate us with a looser mode. SQLite gives the journal the mode of the file.
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, nil, fmt.Errorf("opening database: %w", err)
@@ -74,8 +69,6 @@ func Open(ctx context.Context, dataDir string) (*Queries, func(), error) {
 	}, nil
 }
 
-// OpenExisting is Open for a command that reads what inkan stored. A wrong
-// data directory is an error there, not a new empty database.
 func OpenExisting(ctx context.Context, dataDir string) (*Queries, func(), error) {
 	if _, err := os.Stat(filepath.Join(dataDir, "inkan.db")); err != nil {
 		return nil, nil, fmt.Errorf("no database in %s: %w", dataDir, err)
@@ -83,9 +76,6 @@ func OpenExisting(ctx context.Context, dataDir string) (*Queries, func(), error)
 	return Open(ctx, dataDir)
 }
 
-// Backup writes a copy of inkan.db inside dataDir, also while inkan runs. The
-// copy goes to out, or next to the database under a dated name when out is
-// empty. Backup returns where it is.
 func Backup(ctx context.Context, dataDir, out string) (string, error) {
 	path := filepath.Join(dataDir, "inkan.db")
 	if _, err := os.Stat(path); err != nil {
@@ -94,7 +84,7 @@ func Backup(ctx context.Context, dataDir, out string) (string, error) {
 	if out == "" {
 		out = backupName(path)
 	}
-	// Owner only like the data directory, the copy holds the signing keys too.
+	// Owner only, the copy holds the signing keys too.
 	f, err := os.OpenFile(out, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return "", fmt.Errorf("creating backup: %w", err)
@@ -116,12 +106,10 @@ func Backup(ctx context.Context, dataDir, out string) (string, error) {
 	return out, nil
 }
 
-// backupName is dated, so a backup never replaces an older one.
 func backupName(path string) string {
 	return path + "." + time.Now().UTC().Format("20060102-150405") + ".backup"
 }
 
-// KeepBackups copies inkan.db into dir once a day and keeps the last backupsKept, until ctx is done.
 func KeepBackups(ctx context.Context, dataDir, dir string) {
 	for {
 		if err := dailyBackup(ctx, dataDir, dir, time.Now()); err != nil && ctx.Err() == nil {
@@ -135,7 +123,6 @@ func KeepBackups(ctx context.Context, dataDir, dir string) {
 	}
 }
 
-// dailyBackup writes the copy of the day unless it is there and drops the oldest beyond backupsKept.
 func dailyBackup(ctx context.Context, dataDir, dir string, now time.Time) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("creating backup directory: %w", err)
@@ -167,8 +154,6 @@ func dailyBackup(ctx context.Context, dataDir, dir string, now time.Time) error 
 	return nil
 }
 
-// migrate applies the embedded schema. A backup is only written when a path is
-// given and the schema actually changes.
 func migrate(ctx context.Context, db *sql.DB, backupPath string) error {
 	schemas, err := fs.Sub(schemaFS, "schemas")
 	if err != nil {

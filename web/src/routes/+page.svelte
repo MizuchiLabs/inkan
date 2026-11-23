@@ -46,7 +46,6 @@
 	const stateFilter = $derived(stateFilterState.current);
 
 	let selectedRef = $state<string>();
-	// The license issued a moment ago. Its seal lands when the sheet opens.
 	let issuedRef = $state<string>();
 	// undefined is closed, null issues a new license, a license edits it.
 	let dialog = $state<License | null>();
@@ -136,12 +135,12 @@
 				}
 				variant="tile"
 				size="tile"
-				class="grid flex-[1_1_17rem] grid-cols-2 content-start items-stretch"
+				class="grid grow basis-68 grid-cols-2 content-start items-stretch"
 				aria-label="Filter by status"
 			>
 				{#each filters as f (f)}
 					<ToggleGroup.Item value={f}>
-						<span class="flex items-center gap-1.5 text-[13px] text-muted-foreground">
+						<span class="flex items-center gap-1.5 text-xs text-muted-foreground">
 							{#if f !== 'all'}
 								<span class={['size-1.5 rounded-full', stateDot[f]]}></span>
 							{/if}
@@ -156,7 +155,7 @@
 
 			<HistoryChart
 				productId={productFilter === 'all' ? undefined : Number(productFilter)}
-				class="flex-[999_1_26rem] p-3 pb-2"
+				class="grow-999 basis-104 p-3 pb-2"
 			/>
 		</section>
 
@@ -267,7 +266,6 @@
 									<div class="flex items-center gap-2">
 										<span>{product?.name}</span>
 										<Badge variant="secondary">{license.plan}</Badge>
-										<!-- Paid ones name where they come from, the rest were issued by hand. -->
 										{#if license.source !== 'manual'}
 											<Badge variant="outline">
 												{license.source.charAt(0).toUpperCase() + license.source.slice(1)}

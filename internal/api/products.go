@@ -19,7 +19,9 @@ import (
 	"github.com/mizuchilabs/inkan/internal/mirror"
 )
 
-// Product is one app that keys are issued for. Secrets never leave the server.
+// SQLITE_CONSTRAINT_UNIQUE, the driver exports no name for it.
+const sqliteUnique = 2067
+
 type Product struct {
 	ID              int64          `json:"id"`
 	Name            string         `json:"name"`
@@ -67,9 +69,6 @@ type UpdateProductInput struct {
 		WorkerURL string `json:"worker_url,omitempty"       pattern:"^(https?://.+)?$"       maxLength:"512" doc:"Where the worker runs. Empty disconnects it"`
 	}
 }
-
-// SQLITE_CONSTRAINT_UNIQUE, the driver exports no name for it.
-const sqliteUnique = 2067
 
 type productHandlers struct {
 	q      *db.Queries
@@ -160,7 +159,7 @@ func (h *productHandlers) create(ctx context.Context, in *CreateProductInput) (*
 	} else if priv, err := license.ParsePrivateKey(privateKey); err != nil {
 		return nil, huma.Error422UnprocessableEntity(err.Error())
 	} else if !priv.Equal(ed25519.NewKeyFromSeed(priv.Seed())) {
-		// The second half is the public key of the first. A key that does not fit signs what nothing verifies.
+		// An Ed25519 private key ends with its public key. A mismatch signs keys nothing verifies.
 		return nil, huma.Error422UnprocessableEntity(
 			"the halves of the private key do not fit, it was damaged on the way",
 		)
@@ -299,11 +298,9 @@ func (h *productHandlers) output(p *db.Product) Product {
 		WorkerReport:    report,
 		Syncing:         h.mirror.Syncing(p.ID),
 		SyncError:       p.SyncError,
-		// Worked out here, so it is right the moment the product changes.
-		SyncNotice: mirror.Drift(p, report),
-		CreatedAt:  time.Unix(p.CreatedAt, 0),
-		// Never null, the UI joins it with the current key.
-		OldPublicKeys: append([]string{}, p.OldKeys()...),
+		SyncNotice:      mirror.Drift(p, report),
+		CreatedAt:       time.Unix(p.CreatedAt, 0),
+		OldPublicKeys:   p.OldKeys(),
 	}
 	// A broken signing key shows as no public key.
 	out.PublicKey, _ = p.PublicKey()

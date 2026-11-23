@@ -12,7 +12,11 @@ export default defineConfig([
 		},
 		plugins: { shadcn },
 		rules: {
-			'shadcn/no-restyle': ['error', { allow: ['layout'] }]
+			'shadcn/no-restyle': ['error', { allow: ['layout'] }],
+			'shadcn/no-arbitrary-values': [
+				'error',
+				{ allow: ['grid-cols-[auto_1fr]', 'min-h-[calc(100dvh-12rem)]'] }
+			]
 		}
 	},
 	{

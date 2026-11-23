@@ -1,7 +1,4 @@
-// Zips the files of a folder, flat, the way a function upload wants them.
-// Node has no zip of its own and the zip tool is not on every machine.
-//
-//   node scripts/zip.ts <out.zip> <folder>
+// Flat, the way a function upload wants it. Node has no zip and the zip tool is not on every machine.
 
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';

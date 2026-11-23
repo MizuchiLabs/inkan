@@ -27,6 +27,22 @@ import (
 	"github.com/mizuchilabs/inkan/worker"
 )
 
+const (
+	envName        = "worker.env"
+	envExampleName = "worker.env.example"
+	mailName       = "mail.html"
+	// Where a built worker holds its mail, see worker/src/template.ts.
+	mailMark = `"<!--inkan:mail-->"`
+)
+
+var mailKey = regexp.MustCompile(`\{\{\s*key\s*\}\}`)
+
+type exported struct {
+	name string
+	mode os.FileMode
+	body string
+}
+
 func workerCommand() *cli.Command {
 	return &cli.Command{
 		Name:    "worker",
@@ -69,7 +85,7 @@ func workerExport(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("no product has the prefix %s", prefix)
 	}
 	if err != nil {
-		return err
+		return fmt.Errorf("loading product: %w", err)
 	}
 	fresh := p.WorkerToken == "" || cmd.Bool("new-token")
 	if fresh {
@@ -105,7 +121,7 @@ func workerExport(ctx context.Context, cmd *cli.Command) error {
 	if fresh {
 		err := q.SetProductWorkerToken(ctx, &db.SetProductWorkerTokenParams{WorkerToken: p.WorkerToken, ID: p.ID})
 		if err != nil {
-			return err
+			return fmt.Errorf("storing the worker token: %w", err)
 		}
 	}
 
@@ -126,29 +142,6 @@ func workerExport(ctx context.Context, cmd *cli.Command) error {
 	return nil
 }
 
-type exported struct {
-	name string
-	mode os.FileMode
-	body string
-}
-
-// The settings a user fills in. An export never replaces it.
-const (
-	envName        = "worker.env"
-	envExampleName = "worker.env.example"
-)
-
-const (
-	// A mail of the user's own, kept next to the settings.
-	mailName = "mail.html"
-	// Where a built worker holds its mail, see worker/src/template.ts.
-	mailMark = `"<!--inkan:mail-->"`
-)
-
-var mailKey = regexp.MustCompile(`\{\{\s*key\s*\}\}`)
-
-// ownMail reads the html a worker sends in place of the built-in key mail.
-// Without the file there is none, unless it was asked for by name.
 func ownMail(file string, asked bool) (string, error) {
 	if file == "" {
 		return "", nil
@@ -166,8 +159,6 @@ func ownMail(file string, asked bool) (string, error) {
 	return string(html), nil
 }
 
-// workerFiles is the keys of the product in two spellings, the settings to
-// fill in and the built worker for every platform, each with the mail when there is one.
 func workerFiles(p *db.Product, mail string) ([]exported, error) {
 	keysJSON, err := keysJSON(p)
 	if err != nil {
@@ -184,7 +175,7 @@ func workerFiles(p *db.Product, mail string) ([]exported, error) {
 			if mail != "" {
 				return nil, errors.New("this build of inkan carries no worker to put the mail into")
 			}
-			// A build without go generate. The keys are still worth writing.
+			// A build without go generate still writes the keys.
 			return files, nil
 		}
 		if err != nil {
@@ -208,7 +199,6 @@ func workerFiles(p *db.Product, mail string) ([]exported, error) {
 	return append(files, exported{"wrangler.jsonc", 0o644, wrangler(p)}), nil
 }
 
-// withMail puts the mail into a built worker, as the string its mark stands for.
 func withMail(built, mail string) (string, error) {
 	if strings.Count(built, mailMark) != 1 {
 		return "", errors.New("it has no place for a mail of your own")
@@ -221,7 +211,6 @@ func withMail(built, mail string) (string, error) {
 	return strings.Replace(built, mailMark, string(literal), 1), nil
 }
 
-// zipWithMail is withMail for the handler.js inside scaleway.zip.
 func zipWithMail(built, mail string) (string, error) {
 	r, err := zip.NewReader(strings.NewReader(built), int64(len(built)))
 	if err != nil {
@@ -263,8 +252,7 @@ func zipWithMail(built, mail string) (string, error) {
 	return buf.String(), nil
 }
 
-// wrangler is the Cloudflare config of the repository under a name of the
-// product's own, so two products do not deploy over each other.
+// One worker name per product, so two products do not deploy over each other.
 func wrangler(p *db.Product) string {
 	return strings.NewReplacer(
 		`"name": "inkan-worker"`, `"name": "inkan-`+strings.ToLower(p.Prefix)+`"`,
@@ -296,7 +284,6 @@ again. It never touches worker.env.
 `, folder)
 }
 
-// writeDir writes the files and starts worker.env from the example, once.
 func writeDir(dir string, files []exported) error {
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return err
@@ -324,8 +311,7 @@ func writeDir(dir string, files []exported) error {
 // writeTar leaves worker.env out. Unpacking would replace the one that is filled in.
 func writeTar(w io.Writer, folder string, files []exported) error {
 	tw := tar.NewWriter(w)
-	// A tar holds whole seconds and the writer rounds to the nearest one. Rounded
-	// up, tar on the host warns about a file from the future.
+	// tar rounds to whole seconds, and a time rounded up makes tar on the host warn about the future.
 	now := time.Now().Truncate(time.Second)
 	for _, f := range files {
 		err := tw.WriteHeader(&tar.Header{
@@ -344,8 +330,6 @@ func writeTar(w io.Writer, folder string, files []exported) error {
 	return tw.Close()
 }
 
-// keys is what only the dashboard knows about a worker. Everything else is
-// set where the worker runs.
 func keys(p *db.Product) [][2]string {
 	out := [][2]string{
 		{"INKAN_PREFIX", p.Prefix},
@@ -354,8 +338,7 @@ func keys(p *db.Product) [][2]string {
 		{"INKAN_PLAN", p.Plan},
 		{"INKAN_PRODUCT_NAME", p.Name},
 	}
-	// From before a rotation. A refresh trades their keys for one of the new
-	// key. Left out when empty, not every platform takes an empty secret.
+	// Left out when empty, not every platform takes an empty secret.
 	if p.OldPublicKeys != "" {
 		out = append(out, [2]string{"INKAN_OLD_PUBLIC_KEYS", p.OldPublicKeys})
 	}
@@ -391,10 +374,7 @@ func keysJSON(p *db.Product) (string, error) {
 	return buf.String(), nil
 }
 
-// envValue quotes a value that an env file would read differently bare. A #
-// starts a comment there. No parser unescapes a quote inside its own kind, so
-// the value gets one it does not hold. A value with all three loses its
-// single quotes.
+// Env parsers read # as a comment and never unescape quotes, so a value gets a quote it does not hold.
 func envValue(value string) string {
 	value = strings.NewReplacer("\r\n", " ", "\n", " ", "\r", " ").Replace(value)
 	if !strings.ContainsFunc(value, func(r rune) bool { return !envBare(r) }) {

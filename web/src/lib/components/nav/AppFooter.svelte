@@ -10,7 +10,7 @@
 		href="https://github.com/mizuchilabs/inkan"
 		target="_blank"
 		rel="noopener noreferrer"
-		class="flex items-center gap-1.5 rounded-sm font-mono transition-colors outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+		class="flex items-center gap-1.5 rounded-sm font-mono transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
 	>
 		<Github class="size-4" />
 		<span>mizuchilabs/<span class="font-medium text-foreground">inkan</span></span>

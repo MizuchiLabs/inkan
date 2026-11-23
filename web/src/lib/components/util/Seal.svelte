@@ -64,9 +64,7 @@
 	import { cn } from '#lib/utils.js';
 
 	type Props = {
-		// The seal of a product is carved from its public key.
 		publicKey?: string;
-		// A fresh impression, one whose ink ran out, or the empty spot of a missing one.
 		state?: 'sealed' | 'faded' | 'blank';
 		class?: string;
 	};

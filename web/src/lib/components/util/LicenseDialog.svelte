@@ -19,10 +19,8 @@
 
 	type Props = {
 		products: Product[];
-		// Editing when given, issuing a new license otherwise.
 		license?: License;
 		onclose: () => void;
-		// Tells a license that was just issued from one that was edited.
 		onsaved?: (license: License, issued: boolean) => void;
 	};
 	let { products, license, onclose, onsaved }: Props = $props();
@@ -39,7 +37,6 @@
 	const update = useUpdateLicense();
 	const pending = $derived(create.isPending || update.isPending);
 
-	// The dialog is mounted per use, so the form is a snapshot of the license.
 	function initial() {
 		return {
 			productId: String(license?.product_id ?? products[0]?.id ?? ''),

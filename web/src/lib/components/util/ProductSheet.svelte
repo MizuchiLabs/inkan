@@ -6,7 +6,6 @@
 		useUpdateProduct,
 		type Product
 	} from '#lib/api/queries.js';
-	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Field from '#lib/components/ui/field/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
@@ -18,18 +17,17 @@
 	import { RotateCwIcon } from '@lucide/svelte';
 	import { tick } from 'svelte';
 	import { toast } from 'svelte-sonner';
+	import ConfirmDialog from './ConfirmDialog.svelte';
 	import CopyBlock from './CopyBlock.svelte';
 	import Seal from './Seal.svelte';
 
 	type Props = {
-		// Editing when given, adding a new product otherwise.
 		product?: Product;
-		// The tab an edit opens on.
 		tab?: string;
 		onclose: () => void;
 		oncreated?: (product: Product) => void;
 	};
-	let { product, tab = $bindable('general'), onclose, oncreated }: Props = $props();
+	let { product, tab = 'general', onclose, oncreated }: Props = $props();
 
 	const create = useCreateProduct();
 	const update = useUpdateProduct();
@@ -38,10 +36,8 @@
 	const pending = $derived(
 		create.isPending || update.isPending || rotate.isPending || dropOld.isPending
 	);
-	// The key action that waits for a yes.
 	let confirming = $state<'rotate' | 'drop'>();
 
-	// The sheet is mounted per use, so the form is a snapshot of the product.
 	function initial() {
 		return {
 			name: product?.name ?? '',
@@ -53,7 +49,6 @@
 	}
 	const form = $state(initial());
 
-	// What the worker said at its last sync. Its settings live in its env alone.
 	const runs = $derived(product?.worker_report);
 	// prod_a=team,prod_b=pro as one line per Stripe product.
 	const stripeProducts = $derived(
@@ -95,8 +90,15 @@
 		confirming = undefined;
 	}
 
-	// A hidden tab cannot show what is wrong with its fields, so the form
-	// checks itself and opens the tab of the first one first.
+	// A hidden tab cannot report its invalid fields, so open the tab of the first one.
+	function fillPrefix() {
+		if (product || form.prefix) return;
+		form.prefix = form.name
+			.toUpperCase()
+			.replace(/[^A-Z0-9]/g, '')
+			.slice(0, 16);
+	}
+
 	async function save(event: SubmitEvent & { currentTarget: HTMLFormElement }) {
 		event.preventDefault();
 		const formEl = event.currentTarget;
@@ -159,7 +161,7 @@
 			<Input
 				id="product-name"
 				bind:value={form.name}
-				onblur={() => (form.prefix = form.name.toUpperCase())}
+				onblur={fillPrefix}
 				required
 				placeholder="My App"
 			/>
@@ -197,7 +199,6 @@
 	<Sheet.Content class="data-[side=right]:sm:max-w-xl data-[side=right]:lg:max-w-2xl">
 		<Sheet.Header>
 			<div class="flex items-center gap-3">
-				<!-- A new product has no key yet, so there is no seal to show. -->
 				{#if product}
 					<Seal publicKey={product.public_key} class="size-12 shrink-0 -rotate-6" />
 				{/if}
@@ -399,34 +400,15 @@
 	</Sheet.Content>
 </Sheet.Root>
 
-<AlertDialog.Root
-	open={confirming !== undefined}
-	onOpenChange={(isOpen) => !isOpen && (confirming = undefined)}
->
-	<AlertDialog.Content interactOutsideBehavior="close">
-		<AlertDialog.Header>
-			{#if confirming === 'drop'}
-				<AlertDialog.Title>Drop the old keys of {product?.name}?</AlertDialog.Title>
-				<AlertDialog.Description>
-					A key signed before the rotation then counts as forged, here and in every build that ships
-					without the old public keys. The worker stops refreshing such keys once its env is
-					exported and deployed. There is no undo.
-				</AlertDialog.Description>
-			{:else}
-				<AlertDialog.Title>Rotate the key of {product?.name}?</AlertDialog.Title>
-				<AlertDialog.Description>
-					This makes a new signing key and destroys the old private key. Manual licenses get new
-					keys right away. Ship a build with the public keys the Products page shows after this,
-					then run inkan worker export and deploy it. A build from before cannot take a key of the
-					new signing key. There is no undo.
-				</AlertDialog.Description>
-			{/if}
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>Keep as it is</AlertDialog.Cancel>
-			<AlertDialog.Action variant="destructive" onclick={changeKeys}>
-				{confirming === 'drop' ? 'Drop old keys' : 'Rotate key'}
-			</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
+<ConfirmDialog
+	bind:open={() => confirming !== undefined, (isOpen) => !isOpen && (confirming = undefined)}
+	title={confirming === 'drop'
+		? `Drop the old keys of ${product?.name}?`
+		: `Rotate the key of ${product?.name}?`}
+	description={confirming === 'drop'
+		? 'A key signed before the rotation then counts as forged, here and in every build that ships without the old public keys. The worker stops refreshing such keys once its env is exported and deployed. There is no undo.'
+		: 'This makes a new signing key and destroys the old private key. Manual licenses get new keys right away. Ship a build with the public keys the Products page shows after this, then run inkan worker export and deploy it. A build from before cannot take a key of the new signing key. There is no undo.'}
+	cancel="Keep as it is"
+	action={confirming === 'drop' ? 'Drop old keys' : 'Rotate key'}
+	onconfirm={changeKeys}
+/>

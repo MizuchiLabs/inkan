@@ -1,12 +1,3 @@
-// The inkan worker, the public side of one product.
-//
-//  POST /refresh   an app sends its key and gets the current one back
-//  POST /webhook   Stripe reports a payment, the key is mailed to the customer
-//  GET  /licenses  the inkan dashboard reads what the worker hands out
-//
-// Nothing is stored. Stripe says what is paid and the private key signs it.
-// WORKER.md in the repository describes the endpoints.
-
 import {
 	clean,
 	LicenseError,
@@ -33,26 +24,23 @@ import {
 export type Env = SendEnv & {
 	INKAN_PREFIX: string;
 	INKAN_PRIVATE_KEY: string;
-	// Hex public keys from before a rotation, comma separated. A refresh takes
-	// their keys too and answers with one of the private key above.
+	// Hex public keys from before a rotation, comma separated.
 	INKAN_OLD_PUBLIC_KEYS?: string;
 	INKAN_STRIPE_KEY: string;
-	// Stripe product ids like prod_a,prod_b. What their keys say is set in the
-	// metadata of each at Stripe. A product without a plan there gets INKAN_PLAN.
+	// Stripe product ids like prod_a,prod_b. Plans come from each product's Stripe metadata.
 	INKAN_STRIPE_PRODUCT: string;
 	// 1 lists subscriptions price by price. Not for products sold with inline prices, see STRIPE.md.
 	INKAN_STRIPE_BY_PRICE?: string;
 	INKAN_PLAN?: string;
 	INKAN_GRACE_DAYS?: string;
 	INKAN_MAX_KEY_DAYS?: string;
-	// Lets the dashboard read the licenses. Without it there is no /licenses.
+	// Without it there is no /licenses.
 	INKAN_WORKER_TOKEN?: string;
 	// Without these two or a mail service there is no /webhook.
 	INKAN_STRIPE_WEBHOOK_SECRET?: string;
 	INKAN_MAIL_FROM?: string;
 	// Where an answer to the key mail goes, for a sender that reads none.
 	INKAN_MAIL_REPLY_TO?: string;
-	// What the key mail says, all optional.
 	INKAN_PRODUCT_NAME?: string;
 	INKAN_MAIL_FOOTER?: string;
 	INKAN_MAIL_COMPANY?: string;
@@ -61,24 +49,19 @@ export type Env = SendEnv & {
 const webhookTolerance = 5 * 60;
 // A renewal only sends a key when its period is longer than a month.
 const shortPeriod = 32 * 86400;
-// How long a key, or the metadata and prices of a product, is answered from memory. A
-// leaked key must not be a way to spend the Stripe rate limit, and a change
-// in Stripe, like new seats, must reach every copy of the worker soon.
+// A leaked key must not drain the Stripe rate limit, and Stripe changes must reach every copy soon.
 const cacheFor = 30_000;
 const rememberEvents = 72 * 3_600_000;
-// From here on a new key first sweeps the ones that are too old to be used.
 const maxRemembered = 1000;
 // The token is guessed without a limit on tries, so it has to be long.
 const minTokenLength = 32;
 
-// Only shortcuts. Every instance has its own, nothing depends on them. An
-// empty key is a license that was not there.
+// Per instance, nothing depends on them. An empty key means no license behind it.
 const keys = new Map<string, { key: string; at: number }>();
 const events = new Map<string, number>();
 const products = new Map<string, { metadata: Record<string, string>; at: number }>();
 const prices = new Map<string, { ids: string[] | null; at: number }>();
 
-/** The settings a worker cannot run without and does not have. */
 export function missing(env: Env): string[] {
 	const needed = [
 		'INKAN_PREFIX',
@@ -110,7 +93,7 @@ export async function handle(request: Request, env: Env): Promise<Response> {
 	return text('this worker serves POST /refresh' + (send ? ' and POST /webhook' : ''), 404);
 }
 
-// What a worker is set up for, so a look at /healthz says what is missing.
+// inkan reads this to tell why /licenses is missing, see WORKER.md.
 function serves(send: Send | undefined, env: Env): string {
 	const parts = ['refresh'];
 	if (send) parts.push('webhook');
@@ -118,9 +101,7 @@ function serves(send: Send | undefined, env: Env): string {
 	return 'ok: ' + parts.join(', ');
 }
 
-// refresh trades a key for the one its license is owed now. A canceled or
-// unpaid subscription gets its last key back, so the expiry never moves
-// further than what was paid.
+// A canceled or unpaid subscription gets its last key back, so the expiry never passes what was paid.
 async function refresh(request: Request, env: Env): Promise<Response> {
 	const body = await request.text();
 	if (body.length > 8 << 10) return text('the key is too long', 413);
@@ -138,8 +119,7 @@ async function refresh(request: Request, env: Env): Promise<Response> {
 		claims = err.claims;
 	}
 
-	// A hand issued license, or one without an id, is not in Stripe. The key
-	// it has is all there is.
+	// A hand issued key or one without an id is not in Stripe, so it comes back as it is.
 	let key = clean(body);
 	const cached = keys.get(claims.id ?? '');
 	if (cached && Date.now() - cached.at < cacheFor) {
@@ -160,9 +140,7 @@ async function refresh(request: Request, env: Env): Promise<Response> {
 	return text(key, 200);
 }
 
-// webhook sends the key once an invoice or a one time purchase of the product
-// is paid. Anything it cannot finish is answered with an error, so Stripe
-// tries again.
+// Anything unfinished answers with an error, so Stripe retries.
 async function webhook(request: Request, env: Env, send: Send): Promise<Response> {
 	const body = await request.text();
 	const header = request.headers.get('Stripe-Signature') ?? '';
@@ -245,9 +223,6 @@ async function webhook(request: Request, env: Env, send: Send): Promise<Response
 	return text('', 200);
 }
 
-// licenses hands the dashboard one page of what Stripe holds for the product,
-// each license with the key a refresh gives it. mails says whether the worker
-// serves the webhook.
 async function licenses(request: Request, env: Env, mails: boolean): Promise<Response> {
 	const token = env.INKAN_WORKER_TOKEN!;
 	if (token.length < minTokenLength) {
@@ -283,9 +258,7 @@ async function licenses(request: Request, env: Env, mails: boolean): Promise<Res
 			name: env.INKAN_PRODUCT_NAME ?? '',
 			grace_days: settings.grace_days,
 			max_key_days: settings.max_key_days,
-			// Each product with the plan it gives, as Stripe has it right now.
 			provider_product: settings.products.map(({ id, plan }) => `${id}=${plan}`).join(','),
-			// The settings live here alone, so the dashboard shows what is reported.
 			mail: mails
 				? {
 						from: env.INKAN_MAIL_FROM ?? '',
@@ -318,9 +291,7 @@ async function licenses(request: Request, env: Env, mails: boolean): Promise<Res
 	});
 }
 
-// sign signs the key a subscription or one time purchase is owed right now.
-// Stripe forgets the email of a deleted customer, lastEmail is the one of the
-// key in hand.
+// Stripe forgets the email of a deleted customer, lastEmail is the one of the key in hand.
 async function sign(
 	env: Env,
 	id: string,
@@ -361,7 +332,6 @@ function oldPublicKeys(env: Env): string[] {
 		.filter(Boolean);
 }
 
-// Product metadata is remembered like a key, all licenses of the product share it.
 async function settingsOf(env: Env): Promise<Settings> {
 	const listed = env.INKAN_STRIPE_PRODUCT.split(',')
 		.map((id) => id.trim())
@@ -395,8 +365,7 @@ async function settingsOf(env: Env): Promise<Settings> {
 	};
 }
 
-// The prices to list the subscriptions by, null to read the whole account:
-// when the setting is off, or a product has too many prices to ask each one.
+// null reads the whole account: the setting is off, or a product has too many prices.
 async function pricesOf(env: Env, settings: Settings): Promise<string[] | null> {
 	if (env.INKAN_STRIPE_BY_PRICE?.trim() !== '1') return null;
 	const found = await Promise.all(
@@ -412,7 +381,7 @@ async function pricesOf(env: Env, settings: Settings): Promise<string[] | null> 
 	return found.includes(null) ? null : found.flatMap((ids) => ids ?? []);
 }
 
-// ends is when the license ends. The key can run out before that, see max key days.
+// ends is when the license ends, the key can run out sooner under max key days.
 function mail(env: Env, key: string, claims: Claims, ends: number) {
 	const brand = {
 		name: env.INKAN_PRODUCT_NAME,
@@ -422,8 +391,7 @@ function mail(env: Env, key: string, claims: Claims, ends: number) {
 	return render(key, claims, brand, template, ends);
 }
 
-// signed checks a Stripe-Signature header, t=<unix>,v1=<hex>. The signature
-// is an HMAC-SHA256 of "<t>.<body>" with the endpoint secret.
+// Stripe-Signature is t=<unix>,v1=<hex>, an HMAC-SHA256 of "<t>.<body>" with the endpoint secret.
 async function signed(body: string, header: string, secret: string): Promise<boolean> {
 	let stamp = '';
 	const signatures: string[] = [];
@@ -453,8 +421,7 @@ async function signed(body: string, header: string, secret: string): Promise<boo
 	return false;
 }
 
-// same compares two secrets by their digests, so the time it takes says
-// nothing about where they differ.
+// Compares digests, so the time it takes says nothing about where the secrets differ.
 async function same(given: string, want: string): Promise<boolean> {
 	const encoder = new TextEncoder();
 	const [a, b] = await Promise.all(
@@ -467,7 +434,6 @@ async function same(given: string, want: string): Promise<boolean> {
 	return differ === 0;
 }
 
-// A setting that is missing or no whole number falls back.
 function whole(value: string | null | undefined, fallback: number): number {
 	return /^\d+$/.test(value ?? '') ? Number(value) : fallback;
 }

@@ -1,16 +1,7 @@
-// Reads subscriptions and one time purchases from Stripe and decides what
-// license each one is owed. This is the one place that decides it.
-//
-// What a key says comes from Stripe metadata: plan, days and meta_ names. The
-// product sets them for everyone who buys it. The same names on one
-// subscription or Checkout session win, for the customer who gets it another way.
-
-/** A Stripe product whose subscriptions and purchases are licenses. */
 type Product = {
 	id: string;
-	/** The plan its keys get, from its metadata or the default of the worker. */
 	plan: string;
-	/** Its metadata at Stripe. meta_ names become claims, days limits a purchase. */
+	/** meta_ names become claims, days limits a purchase. */
 	metadata: Record<string, string>;
 };
 
@@ -22,7 +13,6 @@ export type Settings = {
 
 export type License = {
 	id: string;
-	/** A subscription or a one time purchase. */
 	kind: 'subscription' | 'purchase';
 	email: string;
 	customer: string;
@@ -30,11 +20,10 @@ export type License = {
 	customer_gone: boolean;
 	plan: string;
 	meta: Record<string, string>;
-	/** The machine the key is bound to, from the metadata of the subscription or session. */
 	fingerprint: string;
 	/** When the license ends, 0 is never. */
 	expires_at: number;
-	/** When its key runs out. Earlier than the license under max key days, the app refreshes for the next one. */
+	/** Earlier than expires_at under max key days, the app refreshes for the next one. */
 	key_expires_at: number;
 	/** Seconds one billing period lasts, 0 for a one time purchase. */
 	period: number;
@@ -197,8 +186,7 @@ function bought<T extends { price: Price }>(items: T[], products: Product[]): [T
 	throw new OtherProduct();
 }
 
-// meta_tier=gold becomes the claim tier=gold. A later source wins, so the
-// subscription or session overrides the product. The quantity is always the seats.
+// meta_tier=gold becomes the claim tier=gold, later sources win, the quantity is always the seats.
 function metaOf(
 	quantity: number | undefined,
 	...sources: (Record<string, string> | null | undefined)[]
@@ -213,7 +201,6 @@ function metaOf(
 	return out;
 }
 
-// A key lives at least the max key days from now and less than a day more.
 // The limit sits at the end of a UTC day, so a license gets the same key all day.
 function capped(expires: number, maxKeyDays: number, now: number): number {
 	if (maxKeyDays <= 0) return expires;
@@ -221,7 +208,6 @@ function capped(expires: number, maxKeyDays: number, now: number): number {
 	return expires === 0 ? limit : Math.min(expires, limit);
 }
 
-/** Fetches what is behind a license id and decides what it is owed. */
 export async function owed(
 	stripeKey: string,
 	id: string,
@@ -255,13 +241,7 @@ export async function productMetadata(
 	}
 }
 
-/**
- * The recurring prices of a product, the archived ones too. null when there
- * are more than a page of either, too many to ask about one by one.
- *
- * Stripe leaves inline prices out of this list. A subscription that was made
- * with price_data is only found by reading the whole account.
- */
+// null past one page. Stripe leaves inline prices out, so price_data subscriptions need a full read.
 export async function productPrices(stripeKey: string, id: string): Promise<string[] | null> {
 	const pages = await Promise.all(
 		['true', 'false'].map((active) => {
@@ -273,17 +253,7 @@ export async function productPrices(stripeKey: string, id: string): Promise<stri
 	return pages.flatMap((page) => page.data.map((price) => price.id));
 }
 
-/**
- * Reads one page of the licenses of the products, with one call to Stripe. The
- * subscriptions come first, then the one time purchases. cursor is the next of
- * the page before, empty for the first one.
- *
- * Stripe filters subscriptions by price and not by product. When pricesOf
- * gives prices, each one is asked about on its own, so the rest of the account
- * costs nothing. With null every subscription of the account is read.
- *
- * A page can hold fewer licenses than limit, or none, and still have a next.
- */
+// Stripe filters subscriptions by price, not product. A page can be short or empty and still have a next.
 export async function list(
 	stripeKey: string,
 	settings: Settings,
@@ -364,7 +334,6 @@ function more(page: List<{ id: string }>): boolean {
 	return page.has_more && page.data.length > 0;
 }
 
-// What belongs to another product or was never paid is no license.
 function decided<T>(objects: T[], decide: (object: T) => License): License[] {
 	const out: License[] = [];
 	for (const object of objects) {

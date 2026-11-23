@@ -226,9 +226,7 @@ func VerifyWith(rawKey, app, fingerprint string, pubs ...ed25519.PublicKey) (*Cl
 	return c, nil
 }
 
-// parseClaims reads a payload by the rules of FORMAT.md. encoding/json alone
-// is too forgiving for that: it matches names without case, takes null for an
-// object and patches up broken text.
+// FORMAT.md rules, encoding/json alone matches names without case and accepts null objects and broken text.
 func parseClaims(payload []byte) (*Claims, bool) {
 	if !utf8.Valid(payload) || !bytes.HasPrefix(bytes.TrimLeft(payload, " \t\r\n"), []byte("{")) {
 		return nil, false
@@ -279,8 +277,7 @@ func parseString(raw json.RawMessage, into *string) bool {
 	return raw[0] == '"' && json.Unmarshal(raw, into) == nil
 }
 
-// exp is judged by its value as a float, the only way JavaScript can read
-// it. So 4.1e9 is fine, 1.5 and anything from 2^53 on are not.
+// Read as a float like JavaScript does, so 4.1e9 is fine and 1.5 or anything from 2^53 on is not.
 func parseExp(raw json.RawMessage, into *int64) bool {
 	if isNull(raw) {
 		return true
@@ -296,9 +293,7 @@ func parseExp(raw json.RawMessage, into *int64) bool {
 	return true
 }
 
-// loneSurrogate finds a \u escape that is half of a surrogate pair. Go would
-// turn it into U+FFFD, JavaScript and Python keep it. payload is valid JSON,
-// so a backslash only stands in a string and every \u has its four digits.
+// Go turns half a surrogate pair into U+FFFD, JavaScript and Python keep it.
 func loneSurrogate(payload []byte) bool {
 	escaped := func(at int) (rune, bool) {
 		if at+6 > len(payload) || payload[at] != '\\' || payload[at+1] != 'u' {
@@ -344,8 +339,7 @@ func Clean(rawKey string) string {
 	}, rawKey), `"'`)
 }
 
-// One malformed entry rejects the whole list, a typo must not silently
-// drop a key.
+// One malformed entry rejects the whole list, so a typo cannot silently drop a key.
 func decodePubKeys(pubHex string) ([]ed25519.PublicKey, error) {
 	pubHex = strings.TrimSpace(pubHex)
 	if pubHex == "" {

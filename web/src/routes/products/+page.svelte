@@ -7,13 +7,13 @@
 		type Product
 	} from '#lib/api/queries.js';
 	import * as Alert from '#lib/components/ui/alert/index.js';
-	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Card from '#lib/components/ui/card/index.js';
 	import * as Empty from '#lib/components/ui/empty/index.js';
 	import { Skeleton } from '#lib/components/ui/skeleton/index.js';
 	import { Spinner } from '#lib/components/ui/spinner/index.js';
+	import ConfirmDialog from '#lib/components/util/ConfirmDialog.svelte';
 	import CopyBlock from '#lib/components/util/CopyBlock.svelte';
 	import ProductSheet from '#lib/components/util/ProductSheet.svelte';
 	import Seal from '#lib/components/util/Seal.svelte';
@@ -46,7 +46,6 @@
 	// undefined is closed, null adds a product, a product edits it.
 	let dialog = $state<Product | null>();
 	let dialogTab = $state('general');
-	// The product added a moment ago. Its seal lands on the new card.
 	let createdId = $state<number>();
 	let deleting = $state<Product>();
 
@@ -106,7 +105,6 @@
 				<Card.Root>
 					<Card.Header>
 						<div class="flex items-center gap-4">
-							<!-- The stamp waits for the sheet to close. -->
 							<div
 								class={cn('shrink-0', product.id === createdId ? 'animate-stamp' : '-rotate-6')}
 								style:--stamp-delay="0.2s"
@@ -250,24 +248,11 @@
 	/>
 {/if}
 
-<AlertDialog.Root
-	open={deleting !== undefined}
-	onOpenChange={(isOpen) => !isOpen && (deleting = undefined)}
->
-	<AlertDialog.Content interactOutsideBehavior="close">
-		<AlertDialog.Header>
-			<AlertDialog.Title>Delete {deleting?.name}?</AlertDialog.Title>
-			<AlertDialog.Description>
-				This destroys the signing key and removes every license of the product from the ledger.
-				Without the key no new license can be issued for builds that are already out. There is no
-				undo.
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>Keep product</AlertDialog.Cancel>
-			<AlertDialog.Action variant="destructive" onclick={deleteProduct}>
-				Delete product and key
-			</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
+<ConfirmDialog
+	bind:open={() => deleting !== undefined, (isOpen) => !isOpen && (deleting = undefined)}
+	title={`Delete ${deleting?.name ?? ''}?`}
+	description="This destroys the signing key and removes every license of the product from the ledger. Without the key no new license can be issued for builds that are already out. There is no undo."
+	cancel="Keep product"
+	action="Delete product and key"
+	onconfirm={deleteProduct}
+/>

@@ -1,6 +1,3 @@
-// Package mirror copies the paid licenses of a product from its worker into
-// the database. The worker reads the payment provider and signs the keys,
-// inkan only shows what it hands out. WORKER.md describes the endpoint.
 package mirror
 
 import (
@@ -29,12 +26,10 @@ import (
 )
 
 const (
-	// A sync reads every subscription and purchase of the Stripe account, so
-	// it is not cheap. The dashboard has a button for when it has to be soon.
 	syncEvery = time.Hour
-	// The most a worker hands out, fewer pages are fewer calls to Stripe.
+	// The most a worker hands out.
 	pageSize = 100
-	// A million licenses. A worker that never ends its list must not keep a sync going.
+	// A million licenses, so a worker that never ends its list cannot keep a sync going.
 	maxPages = 10_000
 )
 
@@ -44,7 +39,6 @@ var client = &http.Client{
 	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 }
 
-// page is one answer of GET /licenses.
 type page struct {
 	Product  Report   `json:"product"`
 	Licenses []listed `json:"licenses"`
@@ -52,8 +46,6 @@ type page struct {
 	Next     *string  `json:"next"`
 }
 
-// Report is what a worker says it runs with. Its settings live in its env
-// alone, so this is the only place the dashboard knows them from.
 type Report struct {
 	Provider        string   `json:"provider"         doc:"Who the worker asks what is paid, like stripe"`
 	Prefix          string   `json:"prefix"`
@@ -67,7 +59,6 @@ type Report struct {
 	Mail            *Mail    `json:"mail,omitempty"   doc:"The key mail, missing when the worker sends none"`
 }
 
-// Mail is how the key mail of a worker looks.
 type Mail struct {
 	From    string `json:"from"`
 	ReplyTo string `json:"reply_to"`
@@ -92,23 +83,19 @@ type listed struct {
 	Key          string            `json:"key"`
 }
 
-// Mirror reads the workers in the background, one product at a time. A big
-// Stripe account takes minutes to read, so nobody waits for it in a request.
 type Mirror struct {
 	q    *db.Queries
 	wake chan struct{}
 
 	mu      sync.Mutex
-	asked   map[int64]bool // products to read as soon as the reader is free
-	reading int64          // the product being read, 0 is none
+	asked   map[int64]bool
+	reading int64
 }
 
 func New(q *db.Queries) *Mirror {
 	return &Mirror{q: q, wake: make(chan struct{}, 1), asked: map[int64]bool{}}
 }
 
-// Run reads every product that has a worker on start and then every hour, and
-// in between the ones SyncSoon names, until ctx is done.
 func (m *Mirror) Run(ctx context.Context) {
 	every := time.Tick(syncEvery)
 	m.readAll(ctx)
@@ -124,8 +111,6 @@ func (m *Mirror) Run(ctx context.Context) {
 	}
 }
 
-// SyncSoon has the product read once the reader is free. How it went shows
-// on the product.
 func (m *Mirror) SyncSoon(id int64) {
 	m.mu.Lock()
 	m.asked[id] = true
@@ -136,7 +121,6 @@ func (m *Mirror) SyncSoon(id int64) {
 	}
 }
 
-// Syncing says whether a read of the product is asked for or running.
 func (m *Mirror) Syncing(id int64) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -167,7 +151,7 @@ func (m *Mirror) readAll(ctx context.Context) {
 	}
 }
 
-// read syncs one product as it is now. One asked for again meanwhile is read once more after.
+// Cleared before the read, so a product asked for again meanwhile is read once more.
 func (m *Mirror) read(ctx context.Context, id int64) {
 	m.mu.Lock()
 	delete(m.asked, id)
@@ -202,9 +186,6 @@ func Connected(p *db.Product) bool {
 	return p.WorkerUrl != ""
 }
 
-// syncProduct mirrors the licenses the worker of a product hands out and
-// returns how many there are. The outcome is recorded on the product, so the
-// UI can show it.
 func syncProduct(ctx context.Context, q *db.Queries, p *db.Product) (int, error) {
 	n, runs, err := pull(ctx, q, p)
 	if errors.Is(err, context.DeadlineExceeded) {
@@ -222,13 +203,11 @@ func syncProduct(ctx context.Context, q *db.Queries, p *db.Product) (int, error)
 	}
 	report, err := json.Marshal(runs)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("encoding the worker report: %w", err)
 	}
 	return n, q.SetProductSynced(ctx, &db.SetProductSyncedParams{WorkerReport: string(report), ID: p.ID})
 }
 
-// LastReport is what the worker of a product said at its last sync, nil
-// before the first one.
 func LastReport(p *db.Product) *Report {
 	var r Report
 	if p.WorkerReport == "" || json.Unmarshal([]byte(p.WorkerReport), &r) != nil {
@@ -237,7 +216,6 @@ func LastReport(p *db.Product) *Report {
 	return &r
 }
 
-// pull reads every page of the worker and returns what it runs with.
 func pull(ctx context.Context, q *db.Queries, p *db.Product) (n int, runs *Report, err error) {
 	current, err := p.PublicKey()
 	if err != nil {
@@ -300,9 +278,6 @@ func handIssued(l listed) bool {
 	return strings.HasPrefix(l.ID, "lic_")
 }
 
-// CheckURL says whether the token may travel to a worker url. Plain http is
-// only for a worker on this machine or network: localhost, a name without a
-// dot like a Docker service, or a loopback or private IP address.
 func CheckURL(raw string) error {
 	u, err := url.Parse(raw)
 	if err != nil || u.Hostname() == "" {
@@ -317,7 +292,7 @@ func CheckURL(raw string) error {
 			if ip.IsLoopback() || ip.IsPrivate() {
 				return nil
 			}
-		} else if !strings.Contains(host, ".") {
+		} else if !strings.Contains(host, ".") { // localhost or a Docker service name
 			return nil
 		}
 		return errors.New("the worker url needs https, plain http is only for localhost or a private address")
@@ -374,8 +349,6 @@ func fetch(ctx context.Context, p *db.Product, cursor string) (*page, error) {
 	return &pg, nil
 }
 
-// unreachable says in plain words why no answer came from host. What Go
-// reports names the whole request, which is noise on the Products page.
 func unreachable(host string, err error) error {
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		return fmt.Errorf("worker: %w", err)
@@ -399,8 +372,6 @@ func unreachable(host string, err error) error {
 	return fmt.Errorf("worker: %s could not be reached: %w", host, err)
 }
 
-// health is what the worker answers on /healthz, like "ok: refresh, licenses",
-// or empty when nothing of ours answers there.
 func health(ctx context.Context, p *db.Product) string {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(p.WorkerUrl, "/")+"/healthz", nil)
 	if err != nil {
@@ -418,9 +389,7 @@ func health(ctx context.Context, p *db.Product) string {
 	return string(body)
 }
 
-// Drift says what the worker got from an older export, going by its last
-// report. Only the keys, the plan and the name come from the dashboard, the
-// rest is the worker's own.
+// Drift only compares what an export sets: the keys, the plan and the name.
 func Drift(p *db.Product, runs *Report) string {
 	if runs == nil {
 		return ""
@@ -472,8 +441,7 @@ func store(ctx context.Context, q *db.Queries, p *db.Product, provider string, l
 	return nil
 }
 
-// snapshot counts the licenses of today. The day is rewritten on every round,
-// so it ends on the last count of the day.
+// Rewritten every round, so a day ends on its last count.
 func snapshot(ctx context.Context, q *db.Queries) error {
 	day := time.Now().UTC().Format(time.DateOnly)
 	return q.InTx(ctx, func(q *db.Queries) error {

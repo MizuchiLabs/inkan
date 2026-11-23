@@ -1,6 +1,3 @@
-// The key mail. inkan worker export swaps the built-in one for a mail of your
-// own, the email folder of the repository builds one.
-
 import type { Claims } from './sign.ts';
 
 export type Brand = {
@@ -10,21 +7,14 @@ export type Brand = {
 };
 
 const accent = '#2f3e8f';
-// An https link or an email address.
 const linkable = /https:\/\/[^ \t\n\f\r<>"]+|[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
 const placeholder = /\{\{\s*(\w+)\s*\}\}/g;
 
-/** A template without the key is no mail, the built-in one goes out then. */
 export function usable(template: string): boolean {
 	return /\{\{\s*key\s*\}\}/.test(template);
 }
 
-/**
- * The mail for a key. A template is html with {{key}}, {{name}}, {{plan}},
- * {{email}}, {{expires}}, {{footer}} and {{company}} in it, its title is the
- * subject. ends is when the license ends, 0 is never. Under max key days the
- * key itself runs out before that and the app fetches the next one.
- */
+// A template is html with {{key}}, {{name}}, {{plan}}, {{email}}, {{expires}}, {{footer}}, {{company}}, its title is the subject.
 export function render(
 	key: string,
 	claims: Claims,
@@ -36,7 +26,6 @@ export function render(
 	const footer = brand.footer ?? '';
 	const company = brand.company ?? '';
 	const expires = date(ends);
-	// Only worth a line when the key is cut short of the license.
 	const renews =
 		claims.exp !== ends
 			? `${name} renews this key by itself while it is online. Without a connection the key works until ${date(claims.exp)}.`
@@ -145,7 +134,6 @@ export function render(
 	return { subject: oneLine(`Your ${name} license key`), text, html };
 }
 
-// A day like 16 October 2096, empty for 0.
 function date(unix: number): string {
 	if (unix === 0) return '';
 	return new Date(unix * 1000).toLocaleDateString('en-GB', {
@@ -171,7 +159,6 @@ function oneLine(value: string): string {
 	return value.split(/\s+/).filter(Boolean).join(' ');
 }
 
-// linked escapes a text and turns its https links and email addresses into links.
 function linked(text: string): string {
 	let out = '';
 	let last = 0;

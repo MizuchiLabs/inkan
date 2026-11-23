@@ -24,7 +24,6 @@ const (
 	maxMetaBytes = 512
 )
 
-// License is one issued license with its key.
 type License struct {
 	ID           string            `json:"id"            doc:"Id at the provider, or lic_... for a manual license"`
 	ProductID    int64             `json:"product_id"`
@@ -57,14 +56,12 @@ type LicenseOutput struct {
 	Body License
 }
 
-// LicensePath names one license. A subscription can hold several products,
-// so the id alone is not enough.
+// LicensePath needs the product too, a Stripe subscription can hold several products.
 type LicensePath struct {
 	ProductID int64  `path:"product_id"`
 	ID        string `path:"id"`
 }
 
-// LicenseFields are the parts of a manual license a user sets.
 type LicenseFields struct {
 	Email       string            `json:"email"                 maxLength:"254"`
 	Customer    string            `json:"customer,omitempty"    maxLength:"128"`
@@ -245,6 +242,9 @@ func (h *licenseHandlers) delete(ctx context.Context, in *LicensePath) (*struct{
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, huma.Error404NotFound("license not found")
 	}
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to load license")
+	}
 	return nil, huma.Error409Conflict(
 		"only manual licenses can be deleted, paid ones come back with the next sync",
 	)
@@ -258,9 +258,7 @@ func (h *licenseHandlers) output(p *db.Product, l *db.License) (*LicenseOutput, 
 	return &LicenseOutput{Body: out}, nil
 }
 
-// toLicense adds the key to the row. A manual one is signed here. Signing is
-// deterministic, so it is the same key every time until one of its claims
-// changes. A paid license has the key its worker hands out.
+// Manual keys are signed on every read. Signing is deterministic, so a key only changes with its claims.
 func toLicense(p *db.Product, l *db.License) (License, error) {
 	if p == nil {
 		return License{}, fmt.Errorf("license %s has no product", l.ID)

@@ -6,11 +6,8 @@
 	type Props = {
 		title: string;
 		text: string;
-		// What gets copied, for the toast and screen readers: "key", "public key".
 		what: string;
-		// Spells the copy button out, for the one thing a view is there to hand over.
 		copyLabel?: string;
-		// A public key leaves its seal faintly in the corner, like a certificate.
 		seal?: string;
 		children?: Snippet;
 	};

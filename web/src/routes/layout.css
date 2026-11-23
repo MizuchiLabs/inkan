@@ -3,8 +3,7 @@
 @import '@fontsource-variable/jetbrains-mono';
 @import 'shadcn-svelte/tailwind.css';
 
-/* The face keeps room for kana above and below its Latin glyphs, which sets
-   the text a step below the middle of every line. These center a capital. */
+/* The face sits low in its line to leave room for kana. These metrics center a capital. */
 @font-face {
 	font-family: 'Zen Kaku Gothic New';
 	font-style: normal;
@@ -206,7 +205,6 @@
 	--shadow-xl: var(--shadow-xl);
 	--shadow-2xl: var(--shadow-2xl);
 
-	/* Fonts */
 	--font-sans: 'Zen Kaku Gothic New', sans-serif;
 	--font-serif: Georgia, serif;
 	--font-mono: 'JetBrains Mono Variable', monospace;

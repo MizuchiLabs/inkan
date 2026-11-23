@@ -37,7 +37,7 @@ func keysCommand() *cli.Command {
 			defer closeDB()
 			products, err := q.ListProducts(ctx)
 			if err != nil {
-				return err
+				return fmt.Errorf("listing products: %w", err)
 			}
 			for _, p := range products {
 				fmt.Printf("%s\t%s\n", p.Prefix, p.PrivateKey)

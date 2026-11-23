@@ -5,7 +5,6 @@
 		type License,
 		type Product
 	} from '#lib/api/queries.js';
-	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Field from '#lib/components/ui/field/index.js';
@@ -15,6 +14,7 @@
 	import { cn } from '#lib/utils.js';
 	import { PencilIcon, RefreshCwIcon, TrashIcon } from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
+	import ConfirmDialog from './ConfirmDialog.svelte';
 	import CopyBlock from './CopyBlock.svelte';
 	import Seal from './Seal.svelte';
 	import StatusBadge from './StatusBadge.svelte';
@@ -22,7 +22,6 @@
 	type Props = {
 		license?: License;
 		product?: Product;
-		// Issued a moment ago, so the seal lands as the sheet opens.
 		fresh?: boolean;
 		onclose: () => void;
 		onedit: (license: License) => void;
@@ -34,7 +33,6 @@
 
 	const status = $derived(license ? stateOf(license) : 'active');
 	const meta = $derived(Object.entries(license?.meta ?? {}));
-	// Follows the license, and stays editable in between.
 	let note = $derived(license?.note ?? '');
 
 	let confirmDelete = $state(false);
@@ -78,7 +76,6 @@
 		{#if license}
 			<Sheet.Header>
 				<div class="flex items-center gap-3">
-					<!-- The stamp waits for the sheet to slide in. -->
 					<div
 						class={cn('shrink-0', fresh ? 'animate-stamp' : '-rotate-6')}
 						style:--stamp-delay="0.25s"
@@ -206,20 +203,11 @@
 	</Sheet.Content>
 </Sheet.Root>
 
-<AlertDialog.Root bind:open={confirmDelete}>
-	<AlertDialog.Content interactOutsideBehavior="close">
-		<AlertDialog.Header>
-			<AlertDialog.Title>Delete this license?</AlertDialog.Title>
-			<AlertDialog.Description>
-				It disappears from the ledger. The key is signed and works offline, so a copy the customer
-				already has keeps working until it expires.
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>Keep license</AlertDialog.Cancel>
-			<AlertDialog.Action variant="destructive" onclick={deleteLicense}>
-				Delete license
-			</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
+<ConfirmDialog
+	bind:open={confirmDelete}
+	title="Delete this license?"
+	description="It disappears from the ledger. The key is signed and works offline, so a copy the customer already has keeps working until it expires."
+	cancel="Keep license"
+	action="Delete license"
+	onconfirm={deleteLicense}
+/>

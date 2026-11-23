@@ -1,5 +1,4 @@
-// Sends the key mail over the HTTP API of a mail service. Most serverless
-// platforms cannot speak SMTP. For another service, add a sender here.
+// Most serverless platforms cannot speak SMTP, so mail goes over a service's HTTP API.
 
 export type Mail = {
 	from: string;
@@ -22,11 +21,14 @@ export type SendEnv = {
 	INKAN_SCW_REGION?: string;
 };
 
-/** The sender the settings ask for, none when no mail service is set. */
 export function sender(env: SendEnv): Send | undefined {
 	if (env.RESEND_API_KEY) return resend(env.RESEND_API_KEY);
 	if (env.INKAN_SCW_SECRET_KEY && env.INKAN_SCW_PROJECT_ID) {
-		return scaleway(env.INKAN_SCW_SECRET_KEY, env.INKAN_SCW_PROJECT_ID, env.INKAN_SCW_REGION || 'fr-par');
+		return scaleway(
+			env.INKAN_SCW_SECRET_KEY,
+			env.INKAN_SCW_PROJECT_ID,
+			env.INKAN_SCW_REGION || 'fr-par'
+		);
 	}
 	return undefined;
 }

@@ -1,4 +1,3 @@
-// Package api serves the HTTP API and the embedded web UI.
 package api
 
 import (
@@ -30,8 +29,6 @@ type Server struct {
 	guard *nushi.Guard
 }
 
-// New builds the server. With a sign in the API needs a session, without one
-// it is open and Start only listens on this machine.
 func New(q *db.Queries, m *mirror.Mirror, guard *nushi.Guard) *Server {
 	routes := http.NewServeMux()
 
@@ -54,7 +51,6 @@ func New(q *db.Queries, m *mirror.Mirror, guard *nushi.Guard) *Server {
 	return &Server{api: api, mux: mux, guard: guard}
 }
 
-// Spec builds the OpenAPI description of the API without starting a server.
 func Spec() *huma.OpenAPI {
 	// Only the settings can fail, and there are none.
 	guard, _ := nushi.New("inkan", nushi.Config{})
@@ -65,8 +61,6 @@ func (s *Server) Handler() http.Handler {
 	return s.guard.Protect(s.mux)
 }
 
-// Start serves on addr until ctx is done. Without a sign in it only takes an
-// address on this machine.
 func (s *Server) Start(ctx context.Context, addr string) error {
 	ln, err := s.guard.Listen(ctx, addr)
 	if err != nil {
@@ -75,7 +69,6 @@ func (s *Server) Start(ctx context.Context, addr string) error {
 	return serve(ctx, ln, s.Handler())
 }
 
-// serve runs handler on ln with request logging until ctx is done.
 func serve(ctx context.Context, ln net.Listener, handler http.Handler) error {
 	logger := httplog.RequestLogger(slog.Default(), &httplog.Options{
 		RecoverPanics: true,
@@ -107,7 +100,7 @@ func serve(ctx context.Context, ln net.Listener, handler http.Handler) error {
 
 	select {
 	case <-ctx.Done():
-		slog.Info("Shutting down server...")
+		slog.Info("shutting down server")
 		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
 		return server.Shutdown(shutdownCtx)

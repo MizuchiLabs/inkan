@@ -5,7 +5,6 @@
 	let { class: className, ...restProps }: SVGAttributes<SVGSVGElement> = $props();
 </script>
 
-<!-- The character is cut out of the seal, so the paper behind it shows through. -->
 <svg
 	xmlns="http://www.w3.org/2000/svg"
 	viewBox="0 0 100 100"

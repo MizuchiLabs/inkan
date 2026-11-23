@@ -1,4 +1,4 @@
-// Signs license keys. The format is in FORMAT.md.
+// The format is in FORMAT.md.
 
 export type Claims = {
 	app: string;
@@ -16,7 +16,7 @@ const pkcs8Prefix = [
 	0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20
 ];
 
-/** Reads the private key inkan stores, base64 of 64 bytes. The seed is the first 32. */
+/** base64 of 64 bytes, the seed is the first 32. */
 export function importPrivateKey(privateB64: string): Promise<CryptoKey> {
 	const pkcs8 = new Uint8Array([...pkcs8Prefix, ...decode(privateB64).subarray(0, 32)]);
 	return crypto.subtle.importKey('pkcs8', pkcs8, 'Ed25519', false, ['sign']);

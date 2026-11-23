@@ -1,4 +1,3 @@
-// Package web embeds the SvelteKit build output and serves it as a single page app.
 package web
 
 import (
@@ -21,8 +20,6 @@ import (
 //go:embed all:build
 var StaticFS embed.FS
 
-// Handler serves the embedded SPA. With INKAN_DEV_UI set to the url of a
-// running Vite it hands the UI out from there instead, hot reload included.
 func Handler() http.Handler {
 	if dev := os.Getenv("INKAN_DEV_UI"); dev != "" {
 		return devProxy(dev)

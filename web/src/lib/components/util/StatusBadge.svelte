@@ -5,7 +5,6 @@
 
 	type Props = {
 		state: LicenseState;
-		// Only the dot, for places too narrow for the label.
 		compact?: boolean;
 		class?: string;
 	};

@@ -4,9 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 )
 
-// InTx runs fn in one transaction, all of its writes land or none.
 func (q *Queries) InTx(ctx context.Context, fn func(*Queries) error) error {
 	conn, ok := q.db.(*sql.DB)
 	if !ok {
@@ -14,7 +14,7 @@ func (q *Queries) InTx(ctx context.Context, fn func(*Queries) error) error {
 	}
 	tx, err := conn.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("beginning transaction: %w", err)
 	}
 	if err := fn(q.WithTx(tx)); err != nil {
 		return errors.Join(err, tx.Rollback())

@@ -51,7 +51,7 @@
 	class="flex items-start gap-4 rounded-4xl border bg-card p-4 shadow-sm sm:gap-5 sm:p-5"
 	aria-label="Check a license key"
 >
-	<!-- The well the seal lands in. The stamp is on a wrapper, so a faded seal keeps its own opacity. -->
+	<!-- The stamp is on a wrapper, so a faded seal keeps its own opacity. -->
 	<div class="grid size-14 shrink-0 place-items-center rounded-full bg-muted/70 sm:size-21">
 		{#key check.submittedAt}
 			<div class={cn(result && result.state !== 'invalid' && 'animate-stamp')}>
@@ -117,7 +117,7 @@
 				<p class="text-sm text-muted-foreground">{result.reason}</p>
 			{:else}
 				<div class="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-					<div class="flex min-w-0 flex-[1_1_22rem] flex-col gap-2">
+					<div class="flex min-w-0 grow basis-88 flex-col gap-2">
 						<div>
 							<p class="font-bold">
 								{result.state === 'valid' ? 'Valid key' : 'Expired key'}
