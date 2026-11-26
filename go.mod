@@ -8,7 +8,7 @@ require (
 	github.com/mizuchilabs/inkan/license v0.4.0
 	github.com/mizuchilabs/kata v0.2.1
 	github.com/mizuchilabs/nushi v0.4.0
-	github.com/mizuchilabs/sqlite-schema-diff v0.3.6
+	github.com/mizuchilabs/sqlite-schema-diff v0.3.7
 	github.com/stretchr/testify v1.12.1
 	github.com/urfave/cli/v3 v3.14.0
 	github.com/vearutop/statigz v1.5.0
