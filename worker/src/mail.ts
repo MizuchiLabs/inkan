@@ -184,14 +184,15 @@ function escape(value: string): string {
 		.replaceAll("'", '&#39;');
 }
 
+const named: Record<string, string> = { lt: '<', gt: '>', quot: '"', amp: '&' };
+
 function unescape(value: string): string {
-	return value
-		.replace(/&#(?:x([0-9a-f]+)|([0-9]+));/gi, (all, hex, dec) => {
+	return value.replace(
+		/&(?:#x([0-9a-f]+)|#([0-9]+)|(lt|gt|quot|amp));/gi,
+		(all, hex, dec, name) => {
+			if (name) return named[name] ?? all;
 			const code = hex ? parseInt(hex, 16) : parseInt(dec, 10);
 			return code <= 0x10ffff ? String.fromCodePoint(code) : all;
-		})
-		.replaceAll('&lt;', '<')
-		.replaceAll('&gt;', '>')
-		.replaceAll('&quot;', '"')
-		.replaceAll('&amp;', '&');
+		}
+	);
 }
