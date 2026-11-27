@@ -44,7 +44,7 @@
 		"eslint": "^10.15.0",
 		"layerchart": "^2.10.1",
 		"mode-watcher": "^1.1.0",
-		"oxfmt": "^0.79.0",
+		"oxfmt": "^0.80.0",
 		"oxlint": "^1.94.0",
 		"runed": "^0.38.0",
 		"shadcn-svelte": "^1.8.1",
@@ -60,5 +60,5 @@
 		"typescript": "6.0.3",
 		"vite": "^8.3.8"
 	},
-	"packageManager": "pnpm@12.22.0"
+	"packageManager": "pnpm@12.23.0"
 }
