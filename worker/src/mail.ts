@@ -186,9 +186,10 @@ function escape(value: string): string {
 
 function unescape(value: string): string {
 	return value
-		.replace(/&#(x?)([0-9a-f]+);/gi, (_, hex, code) =>
-			String.fromCodePoint(parseInt(code, hex ? 16 : 10))
-		)
+		.replace(/&#(?:x([0-9a-f]+)|([0-9]+));/gi, (all, hex, dec) => {
+			const code = hex ? parseInt(hex, 16) : parseInt(dec, 10);
+			return code <= 0x10ffff ? String.fromCodePoint(code) : all;
+		})
 		.replaceAll('&lt;', '<')
 		.replaceAll('&gt;', '>')
 		.replaceAll('&quot;', '"')
